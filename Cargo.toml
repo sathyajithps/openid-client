@@ -1,0 +1,12 @@
+[package]
+name = "openid-client"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Working on an Open Id Connect Client for rust.Will update."
+homepage = "https://openid.net/"
+repository= "https://github.com/sathyajithps/openid-client"
+documentation = "https://openid.net/connect/"
+readme= "README.md"
+
+[dependencies]
