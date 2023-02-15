@@ -1,11 +1,12 @@
 use core::fmt::Debug;
+use std::collections::HashMap;
 use std::fmt::Formatter;
 
-use crate::helpers::validate_url;
-use crate::http::{default_request_options, request, Request, RequestOptions};
-use crate::{errors::OidcClientError, issuer_metadata::IssuerMetadata};
-use json::JsonValue;
+use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
+use crate::http::{default_request_options, request};
+use crate::types::{IssuerMetadata, OidcClientError, Request, RequestOptions, WebFingerResponse};
 use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::{Method, StatusCode};
 
 pub struct Issuer {
     pub issuer: String,
@@ -23,43 +24,6 @@ pub struct Issuer {
     pub claim_types_supported: Vec<String>,
     pub token_endpoint_auth_methods_supported: Vec<String>,
     request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
-}
-
-impl Debug for Issuer {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Issuer")
-            .field("issuer", &self.issuer)
-            .field("authorization_endpoint", &self.authorization_endpoint)
-            .field("token_endpoint", &self.token_endpoint)
-            .field("jwks_uri", &self.jwks_uri)
-            .field("userinfo_endpoint", &self.userinfo_endpoint)
-            .field("revocation_endpoint", &self.revocation_endpoint)
-            .field(
-                "claims_parameter_supported",
-                &self.claims_parameter_supported,
-            )
-            .field("grant_types_supported", &self.grant_types_supported)
-            .field(
-                "request_parameter_supported",
-                &self.request_parameter_supported,
-            )
-            .field(
-                "request_uri_parameter_supported",
-                &self.request_uri_parameter_supported,
-            )
-            .field(
-                "require_request_uri_registration",
-                &self.require_request_uri_registration,
-            )
-            .field("response_modes_supported", &self.response_modes_supported)
-            .field("claim_types_supported", &self.claim_types_supported)
-            .field(
-                "token_endpoint_auth_methods_supported",
-                &self.token_endpoint_auth_methods_supported,
-            )
-            .field("request_options", &"fn(&String) -> RequestOptions")
-            .finish()
-    }
 }
 
 impl Issuer {
@@ -140,528 +104,206 @@ impl Issuer {
 
         let res = response.unwrap();
 
-        match &res.to_json() {
-            Some(JsonValue::Object(body)) => {
-                let issuer_metadata_result = IssuerMetadata::from(&body);
-                if let Ok(issuer_metadata) = issuer_metadata_result {
-                    let mut issuer = Issuer::from(issuer_metadata);
-                    issuer.request_options = request_options;
-                    return Ok(issuer);
-                }
-                return Err(OidcClientError {
-                    name: "OPError".to_string(),
-                    error: "invalid issuer metadata".to_string(),
-                    error_description: "invalid issuer metadata".to_string(),
-                    response: Some(res),
-                });
+        // remove this and check on convert to json result
+        if res.body.is_none() {
+            return Err(OidcClientError {
+                name: "OPError".to_string(),
+                error: "invalid issuer metadata".to_string(),
+                error_description: "invalid issuer metadata".to_string(),
+                response: Some(res),
+            });
+        }
+
+        let issuer_metadata: IssuerMetadata = convert_json_to(&res.body.unwrap()).unwrap();
+        let mut issuer = Issuer::from(issuer_metadata);
+        issuer.request_options = request_options;
+        return Ok(issuer);
+    }
+
+    pub fn webfinger(input: &str) -> Result<Issuer, OidcClientError> {
+        Issuer::webfinger_with_interceptor(input, Box::new(default_request_options))
+    }
+
+    pub fn webfinger_with_interceptor(
+        input: &str,
+        mut request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+    ) -> Result<Issuer, OidcClientError> {
+        let resource = webfinger_normalize(input);
+        let mut host: Option<String> = None;
+        if resource.starts_with("acct:") {
+            let split: Vec<&str> = resource.split("@").collect();
+            host = Some(split[1].to_string());
+        } else if resource.starts_with("https://") {
+            let url_result = validate_url(resource.as_str());
+
+            if url_result.is_err() {
+                return Err(url_result.unwrap_err());
             }
-            _ => {
-                return Err(OidcClientError {
-                    name: "TypeError".to_string(),
-                    error: "parse_error".to_string(),
-                    error_description: "unexpected body type".to_string(),
-                    response: Some(res),
-                })
+
+            let url = url_result.unwrap();
+
+            if let Some(host_str) = url.host_str() {
+                if let Some(port) = url.port() {
+                    host = Some(host_str.to_string() + format!(":{}", port).as_str())
+                } else {
+                    host = Some(host_str.to_string());
+                }
             }
         }
+
+        if host.is_none() {
+            return Err(OidcClientError::new(
+                "TypeError",
+                "invalid_resource",
+                "given input was invalid",
+                None,
+            ));
+        }
+
+        let web_finger_url = format!("https://{}/.well-known/webfinger", host.unwrap());
+
+        let mut headers = HeaderMap::new();
+        headers.append("accept", HeaderValue::from_static("application/json"));
+
+        let mut search_params = HashMap::new();
+        search_params.insert("resource".to_string(), vec![resource]);
+        search_params.insert(
+            "rel".to_string(),
+            vec!["http://openid.net/specs/connect/1.0/issuer".to_string()],
+        );
+
+        let req = Request {
+            url: web_finger_url,
+            method: Method::GET,
+            headers,
+            expected: StatusCode::OK,
+            expect_body: true,
+            search_params,
+        };
+
+        let response_result = request(req, &mut request_options);
+
+        if response_result.is_err() {
+            return Err(response_result.unwrap_err());
+        }
+
+        let response = response_result.unwrap();
+
+        let webfinger_response_result: Result<WebFingerResponse, _> =
+            convert_json_to(&response.body.as_ref().unwrap());
+
+        if webfinger_response_result.is_err() {
+            return Err(OidcClientError {
+                name: "OPError".to_string(),
+                error: "invalid  webfinger response".to_string(),
+                error_description: "invalid  webfinger response".to_string(),
+                response: Some(response),
+            });
+        }
+        let webfinger_response = webfinger_response_result.unwrap();
+
+        let location_link_result = webfinger_response
+            .links
+            .iter()
+            .find(|x| x.rel == "http://openid.net/specs/connect/1.0/issuer" && x.href.is_some());
+
+        if location_link_result.is_none() {
+            return Err(OidcClientError::new(
+                "OPError",
+                "empty_location_link",
+                "no issuer found in webfinger response",
+                Some(response),
+            ));
+        }
+
+        let expected_issuer = location_link_result.unwrap().href.as_ref().unwrap();
+
+        if !expected_issuer.starts_with("https://") {
+            return Err(OidcClientError::new(
+                "OPError",
+                "invalid_location",
+                format!("invalid issuer location {}", expected_issuer).as_str(),
+                // Todo: Pass the response here
+                None,
+            ));
+        }
+
+        let issuer_result =
+            Issuer::discover_with_interceptor(expected_issuer.as_str(), request_options);
+
+        if issuer_result.is_err() {
+            let issuer_error = issuer_result.unwrap_err();
+            if let Some(res) = &issuer_error.response {
+                if res.status == StatusCode::NOT_FOUND {
+                    return Err(OidcClientError::new(
+                        &issuer_error.name,
+                        "no_issuer",
+                        format!("invalid issuer location {}", expected_issuer)
+                            .as_str()
+                            .as_ref(),
+                        // Todo: Pass the response here
+                        None,
+                    ));
+                }
+            }
+            return Err(issuer_error);
+        }
+
+        let issuer = issuer_result.unwrap();
+
+        if &issuer.issuer != expected_issuer {
+            return Err(OidcClientError {
+                name: "OPError".to_string(),
+                error: "issuer mismatch".to_string(),
+                error_description: format!(
+                    "discovered issuer mismatch, expected {}, got: {}",
+                    expected_issuer, issuer.issuer
+                ),
+                response: Some(response),
+            });
+        }
+
+        Ok(issuer)
+    }
+}
+
+impl Debug for Issuer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Issuer")
+            .field("issuer", &self.issuer)
+            .field("authorization_endpoint", &self.authorization_endpoint)
+            .field("token_endpoint", &self.token_endpoint)
+            .field("jwks_uri", &self.jwks_uri)
+            .field("userinfo_endpoint", &self.userinfo_endpoint)
+            .field("revocation_endpoint", &self.revocation_endpoint)
+            .field(
+                "claims_parameter_supported",
+                &self.claims_parameter_supported,
+            )
+            .field("grant_types_supported", &self.grant_types_supported)
+            .field(
+                "request_parameter_supported",
+                &self.request_parameter_supported,
+            )
+            .field(
+                "request_uri_parameter_supported",
+                &self.request_uri_parameter_supported,
+            )
+            .field(
+                "require_request_uri_registration",
+                &self.require_request_uri_registration,
+            )
+            .field("response_modes_supported", &self.response_modes_supported)
+            .field("claim_types_supported", &self.claim_types_supported)
+            .field(
+                "token_endpoint_auth_methods_supported",
+                &self.token_endpoint_auth_methods_supported,
+            )
+            .field("request_options", &"fn(&String) -> RequestOptions")
+            .finish()
     }
 }
 
 #[cfg(test)]
-mod issuer_discovery_tests {
-    use crate::issuer::Issuer;
-    pub use httpmock::Method::GET;
-    pub use httpmock::MockServer;
-
-    pub const EXPECTED: &str =  "{\"authorization_endpoint\":\"https://op.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://op.example.com\",\"jwks_uri\":\"https://op.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://op.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://op.example.com/oauth2/v3/userinfo\"}";
-
-    #[cfg(test)]
-    mod custom_well_known {
-        use super::*;
-
-        #[test]
-        fn accepts_and_assigns_the_discovered_metadata() {
-            let server = MockServer::start();
-
-            let _custom_config_server = server.mock(|when, then| {
-                when.method(GET).path("/.well-known/custom-configuration");
-                then.status(200)
-                    .header("content-type", "application/json")
-                    .body(EXPECTED.as_bytes());
-            });
-
-            let url =
-                String::from(server.base_url().as_str()) + "/.well-known/custom-configuration";
-
-            let issuer_result = Issuer::discover(url.as_str());
-
-            assert_eq!(true, issuer_result.is_ok());
-            let issuer = issuer_result.unwrap();
-            assert_eq!(issuer.issuer, "https://op.example.com".to_string());
-            assert_eq!(
-                issuer.jwks_uri,
-                Some("https://op.example.com/oauth2/v3/certs".to_string())
-            );
-            assert_eq!(
-                issuer.token_endpoint,
-                Some("https://op.example.com/oauth2/v4/token".to_string())
-            );
-            assert_eq!(
-                issuer.userinfo_endpoint,
-                Some("https://op.example.com/oauth2/v3/userinfo".to_string())
-            );
-            assert_eq!(
-                issuer.authorization_endpoint,
-                Some("https://op.example.com/o/oauth2/v2/auth".to_string())
-            );
-        }
-    }
-
-    #[cfg(test)]
-    mod well_known {
-        use super::*;
-
-        #[test]
-        fn accepts_and_assigns_the_discovered_metadata() {
-            let server = MockServer::start();
-
-            let _custom_config_server = server.mock(|when, then| {
-                when.method(GET).path("/.well-known/openid-configuration");
-                then.status(200)
-                    .header("content-type", "application/json")
-                    .body(EXPECTED.as_bytes());
-            });
-
-            let url =
-                String::from(server.base_url().as_str()) + "/.well-known/openid-configuration";
-
-            let issuer_result = Issuer::discover(url.as_str());
-
-            assert_eq!(true, issuer_result.is_ok());
-            let issuer = issuer_result.unwrap();
-            assert_eq!(issuer.issuer, "https://op.example.com".to_string());
-            assert_eq!(
-                issuer.jwks_uri,
-                Some("https://op.example.com/oauth2/v3/certs".to_string())
-            );
-            assert_eq!(
-                issuer.token_endpoint,
-                Some("https://op.example.com/oauth2/v4/token".to_string())
-            );
-            assert_eq!(
-                issuer.userinfo_endpoint,
-                Some("https://op.example.com/oauth2/v3/userinfo".to_string())
-            );
-            assert_eq!(
-                issuer.authorization_endpoint,
-                Some("https://op.example.com/o/oauth2/v2/auth".to_string())
-            );
-        }
-
-        #[test]
-        fn can_be_discovered_by_omitting_well_known() {
-            let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com\"}";
-
-            let _custom_config_server = server.mock(|when, then| {
-                when.method(GET).path("/.well-known/openid-configuration");
-                then.status(200)
-                    .header("content-type", "application/json")
-                    .body(expected.as_bytes());
-            });
-
-            let issuer_result = Issuer::discover(server.base_url().as_str());
-
-            assert_eq!(true, issuer_result.is_ok());
-            assert_eq!(
-                issuer_result.unwrap().issuer,
-                "https://op.example.com".to_string()
-            );
-        }
-
-        #[test]
-        fn discovers_issuers_with_path_components_with_trailing_slash() {
-            let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com/oidc\"}";
-
-            let _custom_config_server = server.mock(|when, then| {
-                when.method(GET)
-                    .path("/oidc/.well-known/openid-configuration");
-                then.status(200)
-                    .header("content-type", "application/json")
-                    .body(expected.as_bytes());
-            });
-
-            let url = String::from(server.base_url().as_str()) + "/oidc/";
-
-            let issuer_result = Issuer::discover(url.as_str());
-
-            assert_eq!(true, issuer_result.is_ok());
-            assert_eq!(
-                issuer_result.unwrap().issuer,
-                "https://op.example.com/oidc".to_string()
-            );
-        }
-
-        #[test]
-        fn discovers_issuers_with_path_components_without_trailing_slash() {
-            let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com/oidc\"}";
-
-            let _custom_config_server = server.mock(|when, then| {
-                when.method(GET)
-                    .path("/oidc/.well-known/openid-configuration");
-                then.status(200)
-                    .header("content-type", "application/json")
-                    .body(expected.as_bytes());
-            });
-
-            let url = String::from(server.base_url().as_str()) + "/oidc";
-
-            let issuer_result = Issuer::discover(url.as_str());
-
-            assert_eq!(true, issuer_result.is_ok());
-            assert_eq!(
-                issuer_result.unwrap().issuer,
-                "https://op.example.com/oidc".to_string()
-            );
-        }
-
-        #[test]
-        fn discovering_issuers_with_well_known_uri_including_path_and_query() {
-            let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com/oidc\"}";
-
-            let _custom_config_server = server.mock(|when, then| {
-                when.method(GET)
-                    .path("/oidc/.well-known/openid-configuration");
-                then.status(200)
-                    .header("content-type", "application/json")
-                    .body(expected.as_bytes());
-            });
-
-            let url = String::from(server.base_url().as_str())
-                + "/oidc/.well-known/openid-configuration?foo=bar";
-
-            let issuer_result = Issuer::discover(url.as_str());
-
-            assert_eq!(true, issuer_result.is_ok());
-            assert_eq!(
-                issuer_result.unwrap().issuer,
-                "https://op.example.com/oidc".to_string()
-            );
-        }
-    }
-
-    mod well_known_oauth_authorization_server {
-        use super::*;
-
-        #[test]
-        fn accepts_and_assigns_the_discovered_metadata() {
-            let server = MockServer::start();
-
-            let _custom_config_server = server.mock(|when, then| {
-                when.method(GET)
-                    .path("/.well-known/oauth-authorization-server");
-                then.status(200)
-                    .header("content-type", "application/json")
-                    .body(EXPECTED.as_bytes());
-            });
-
-            let url = String::from(server.base_url().as_str())
-                + "/.well-known/oauth-authorization-server";
-
-            let issuer_result = Issuer::discover(url.as_str());
-
-            assert_eq!(true, issuer_result.is_ok());
-            let issuer = issuer_result.unwrap();
-            assert_eq!(issuer.issuer, "https://op.example.com".to_string());
-            assert_eq!(
-                issuer.jwks_uri,
-                Some("https://op.example.com/oauth2/v3/certs".to_string())
-            );
-            assert_eq!(
-                issuer.token_endpoint,
-                Some("https://op.example.com/oauth2/v4/token".to_string())
-            );
-            assert_eq!(
-                issuer.userinfo_endpoint,
-                Some("https://op.example.com/oauth2/v3/userinfo".to_string())
-            );
-            assert_eq!(
-                issuer.authorization_endpoint,
-                Some("https://op.example.com/o/oauth2/v2/auth".to_string())
-            );
-        }
-
-        #[test]
-        fn discovering_issuers_with_well_known_uri_including_path_and_query() {
-            let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com/oauth2\"}";
-
-            let _custom_config_server = server.mock(|when, then| {
-                when.method(GET)
-                    .path("/.well-known/oauth-authorization-server/oauth2");
-                then.status(200)
-                    .header("content-type", "application/json")
-                    .body(expected.as_bytes());
-            });
-
-            let url = String::from(server.base_url().as_str())
-                + "/.well-known/oauth-authorization-server/oauth2?foo=bar";
-
-            let issuer_result = Issuer::discover(url.as_str());
-
-            assert_eq!(true, issuer_result.is_ok());
-            assert_eq!(
-                issuer_result.unwrap().issuer,
-                "https://op.example.com/oauth2".to_string()
-            );
-        }
-    }
-
-    #[test]
-    fn assigns_discovery_1_0_defaults_1_of_2() {
-        let server = MockServer::start();
-        let _custom_config_server = server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(EXPECTED.as_bytes());
-        });
-
-        let url = String::from(server.base_url().as_str()) + "/.well-known/openid-configuration";
-
-        let issuer_result = Issuer::discover(url.as_str());
-
-        assert_eq!(true, issuer_result.is_ok());
-        let issuer = issuer_result.unwrap();
-        assert_eq!(issuer.claims_parameter_supported, false);
-        assert_eq!(
-            issuer.grant_types_supported,
-            vec!["authorization_code", "implicit"]
-        );
-        assert_eq!(issuer.request_parameter_supported, false);
-        assert_eq!(issuer.request_uri_parameter_supported, true);
-        assert_eq!(issuer.require_request_uri_registration, false);
-        assert_eq!(issuer.response_modes_supported, vec!["query", "fragment"]);
-        assert_eq!(issuer.claim_types_supported, vec!["normal"]);
-        assert_eq!(
-            issuer.token_endpoint_auth_methods_supported,
-            vec!["client_secret_basic"]
-        );
-    }
-
-    #[test]
-    fn assigns_discovery_1_0_defaults_2_of_2() {
-        let server = MockServer::start();
-
-        let _custom_config_server = server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(EXPECTED.as_bytes());
-        });
-
-        let issuer_result = Issuer::discover(server.base_url().as_str());
-
-        assert_eq!(true, issuer_result.is_ok());
-        let issuer = issuer_result.unwrap();
-        assert_eq!(issuer.claims_parameter_supported, false);
-        assert_eq!(
-            issuer.grant_types_supported,
-            vec!["authorization_code", "implicit"]
-        );
-        assert_eq!(issuer.request_parameter_supported, false);
-        assert_eq!(issuer.request_uri_parameter_supported, true);
-        assert_eq!(issuer.require_request_uri_registration, false);
-        assert_eq!(issuer.response_modes_supported, vec!["query", "fragment"]);
-        assert_eq!(issuer.claim_types_supported, vec!["normal"]);
-        assert_eq!(
-            issuer.token_endpoint_auth_methods_supported,
-            vec!["client_secret_basic"]
-        );
-    }
-
-    #[test]
-    fn is_rejected_with_op_error_upon_oidc_error() {
-        let server = MockServer::start();
-
-        let _custom_config_server = server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(500).body(
-                "{\"error\":\"server_error\",\"error_description\":\"bad things are happening\"}"
-                    .as_bytes(),
-            );
-        });
-
-        let issuer_result = Issuer::discover(server.base_url().as_str());
-
-        assert_eq!(true, issuer_result.is_err());
-        let error = issuer_result.unwrap_err();
-        assert_eq!(error.name, "OPError");
-        assert_eq!(error.error, "server_error");
-        assert_eq!(error.error_description, "bad things are happening");
-    }
-
-    #[test]
-    fn is_rejected_with_error_when_no_absolute_url_is_provided() {
-        let issuer_result = Issuer::discover("op.example.com/.well-known/foobar");
-
-        assert_eq!(true, issuer_result.is_err());
-        let error = issuer_result.unwrap_err();
-        assert_eq!(error.name, "TypeError");
-        assert_eq!(error.error, "invalid_url");
-        assert_eq!(
-            error.error_description,
-            "only valid absolute URLs can be requested"
-        );
-    }
-
-    #[test]
-    fn is_rejected_with_rp_error_when_error_is_not_a_string() {
-        let server = MockServer::start();
-
-        let _custom_config_server = server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(400).body(
-                "{\"error\": {},\"error_description\":\"bad things are happening\"}".as_bytes(),
-            );
-        });
-
-        let issuer_result = Issuer::discover(server.base_url().as_str());
-
-        assert_eq!(true, issuer_result.is_err());
-        let error = issuer_result.unwrap_err();
-        assert_eq!(error.name, "OPError");
-        assert_eq!(error.error, "server_error");
-        assert_eq!(
-            error.error_description,
-            "expected 200 OK, got: 400 Bad Request"
-        );
-    }
-
-    #[test]
-    fn is_rejected_with_when_non_200_is_returned() {
-        let server = MockServer::start();
-
-        let _custom_config_server = server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(500);
-        });
-
-        let issuer_result = Issuer::discover(server.base_url().as_str());
-
-        assert_eq!(true, issuer_result.is_err());
-        let error = issuer_result.unwrap_err();
-        assert_eq!(error.name, "OPError");
-        assert_eq!(error.error, "server_error");
-        assert_eq!(
-            error.error_description,
-            "expected 200 OK, got: 500 Internal Server Error"
-        );
-        assert!(error.response.is_some());
-    }
-
-    #[test]
-    fn is_rejected_with_json_parse_error_upon_invalid_response() {
-        let server = MockServer::start();
-
-        let _custom_config_server = server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(200).body("{\"notavalid\"}".as_bytes());
-        });
-
-        let issuer_result = Issuer::discover(server.base_url().as_str());
-
-        assert_eq!(true, issuer_result.is_err());
-        let error = issuer_result.unwrap_err();
-        assert_eq!(error.name, "TypeError");
-        assert_eq!(error.error, "parse_error");
-        assert_eq!(error.error_description, "unexpected body type");
-        assert!(error.response.is_some());
-    }
-
-    #[test]
-    fn is_rejected_when_no_body_is_returned() {
-        let server = MockServer::start();
-
-        let _custom_config_server = server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(200);
-        });
-
-        let issuer_result = Issuer::discover(server.base_url().as_str());
-
-        assert_eq!(true, issuer_result.is_err());
-        let error = issuer_result.unwrap_err();
-        assert_eq!(error.name, "OPError");
-        assert_eq!(error.error, "server_error");
-        assert_eq!(
-            error.error_description,
-            "expected 200 OK with body but no body was returned"
-        );
-    }
-
-    #[test]
-    fn is_rejected_when_unepexted_status_code_is_returned() {
-        let server = MockServer::start();
-
-        let _custom_config_server = server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(301);
-        });
-
-        let issuer_result = Issuer::discover(server.base_url().as_str());
-
-        assert_eq!(true, issuer_result.is_err());
-        let error = issuer_result.unwrap_err();
-        assert_eq!(error.name, "OPError");
-        assert_eq!(error.error, "server_error");
-        assert_eq!(
-            error.error_description,
-            "expected 200 OK, got: 301 Moved Permanently"
-        );
-    }
-
-    #[cfg(test)]
-    mod http_options {
-        use std::time::Duration;
-
-        use reqwest::header::{HeaderMap, HeaderValue};
-
-        use crate::http::RequestOptions;
-
-        use super::*;
-
-        #[test]
-        fn allows_for_http_options_to_be_defined_for_issuer_discover_calls() {
-            let server = MockServer::start();
-
-            let mock_server = server.mock(|when, then| {
-                when.method(GET)
-                    .header_exists("testHeader")
-                    .path("/.well-known/custom-configuration");
-                then.status(200)
-                    .header("content-type", "application/json")
-                    .body(EXPECTED.as_bytes());
-            });
-
-            let request_options = |_request: &crate::http::Request| {
-                let mut headers = HeaderMap::new();
-                headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
-
-                RequestOptions {
-                    headers,
-                    timeout: Duration::from_millis(3500),
-                }
-            };
-
-            let url =
-                String::from(server.base_url().as_str()) + "/.well-known/custom-configuration";
-
-            let _ = Issuer::discover_with_interceptor(url.as_str(), Box::new(request_options));
-            mock_server.assert_hits(1);
-        }
-    }
-}
+#[path = "./tests/issuer_test.rs"]
+mod issuer_test;

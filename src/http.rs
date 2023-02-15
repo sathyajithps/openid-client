@@ -1,72 +1,11 @@
-use crate::errors::OidcClientError;
-use json::JsonValue;
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Method, StatusCode,
+use crate::{
+    helpers::convert_json_to,
+    tests::process_url,
+    types::{OidcClientError, Request, RequestOptions, Response, StandardBodyError},
 };
+use reqwest::header::{HeaderMap, HeaderValue};
+use serde_json::Value;
 use std::time::Duration;
-
-#[derive(Debug)]
-pub struct Request {
-    pub url: String,
-    pub expected: StatusCode,
-    pub method: reqwest::Method,
-    pub expect_body: bool,
-    pub headers: HeaderMap,
-}
-
-impl Request {
-    pub fn default() -> Self {
-        Self {
-            expect_body: true,
-            expected: StatusCode::OK,
-            headers: HeaderMap::default(),
-            method: Method::GET,
-            url: "".to_string(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Response {
-    pub body: Option<String>,
-    pub status: StatusCode,
-    pub headers: HeaderMap,
-}
-
-impl Response {
-    pub fn from(response: reqwest::blocking::Response) -> Self {
-        let status = response.status();
-        let headers = response.headers().clone();
-        let body_result = response.text();
-        let mut body: Option<String> = None;
-        if let Ok(body_string) = body_result {
-            if !body_string.is_empty() {
-                body = Some(body_string);
-            }
-        }
-
-        Self {
-            body,
-            status,
-            headers,
-        }
-    }
-
-    pub fn to_json(&self) -> Option<JsonValue> {
-        if let Some(body_string) = &self.body {
-            if let Ok(body_json) = json::parse(body_string.as_str()) {
-                return Some(body_json);
-            }
-        }
-        None
-    }
-}
-
-pub struct RequestOptions {
-    pub headers: HeaderMap,
-    pub timeout: Duration,
-}
 
 pub fn default_request_options(_request: &Request) -> RequestOptions {
     let mut headers = HeaderMap::new();
@@ -85,7 +24,10 @@ pub fn request(
     request_options: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
 ) -> Result<Response, OidcClientError> {
     let options = request_options(&request);
+
     let client = reqwest::blocking::Client::new();
+
+    let url = process_url(request.url);
 
     let mut headers = HeaderMap::new();
     request
@@ -103,11 +45,22 @@ pub fn request(
             ()
         });
 
-    let res = client
-        .request(request.method, request.url)
+    let mut req = client
+        .request(request.method.clone(), url)
         .headers(headers)
-        .timeout(options.timeout)
-        .send();
+        .timeout(options.timeout);
+
+    let mut query_list: Vec<(String, String)> = vec![];
+
+    for (k, v) in request.search_params {
+        for val in v {
+            query_list.push((k.clone(), val))
+        }
+    }
+
+    req = req.query(&query_list);
+
+    let res = req.send();
 
     if res.is_err() {
         return Err(OidcClientError::new(
@@ -121,12 +74,13 @@ pub fn request(
     let response = Response::from(res.unwrap());
 
     if response.status != request.expected {
-        if let Some(JsonValue::Object(obj)) = &response.to_json() {
-            if obj["error"].is_string() && obj["error"].as_str().unwrap().len() > 0 {
+        if let Some(body) = &response.body {
+            let standard_body_error_result: Result<StandardBodyError, _> = convert_json_to(body);
+            if let Ok(standard_body_error) = standard_body_error_result {
                 return Err(OidcClientError::new(
                     "OPError",
-                    obj["error"].as_str().unwrap(),
-                    obj["error_description"].as_str().unwrap(),
+                    standard_body_error.error.as_str(),
+                    standard_body_error.error_description.as_str(),
                     Some(response),
                 ));
             }
@@ -153,9 +107,14 @@ pub fn request(
         ));
     }
 
-    let json_body_result = response.to_json();
+    let mut invalid_json = false;
 
-    if request.expect_body && json_body_result.is_none() {
+    if let Some(body) = &response.body {
+        let val: Result<Value, _> = convert_json_to(body);
+        invalid_json = val.is_err();
+    }
+
+    if request.expect_body && invalid_json {
         return Err(OidcClientError {
             name: "TypeError".to_string(),
             error: "parse_error".to_string(),
