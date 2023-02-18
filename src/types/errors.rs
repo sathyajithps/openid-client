@@ -1,4 +1,12 @@
-use crate::http::Response;
+use serde::Deserialize;
+
+use super::http::Response;
+
+#[derive(Debug, Deserialize)]
+pub struct StandardBodyError {
+    pub error: String,
+    pub error_description: String,
+}
 
 #[derive(Debug)]
 pub struct OidcClientError {

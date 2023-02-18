@@ -1,10 +1,9 @@
 use core::fmt::Debug;
 use std::fmt::Formatter;
 
-use crate::helpers::validate_url;
-use crate::http::{default_request_options, request, Request, RequestOptions};
-use crate::{errors::OidcClientError, issuer_metadata::IssuerMetadata};
-use json::JsonValue;
+use crate::helpers::{convert_json_to, validate_url};
+use crate::http::{default_request_options, request};
+use crate::types::{IssuerMetadata, OidcClientError, Request, RequestOptions};
 use reqwest::header::{HeaderMap, HeaderValue};
 
 pub struct Issuer {
@@ -140,30 +139,19 @@ impl Issuer {
 
         let res = response.unwrap();
 
-        match &res.to_json() {
-            Some(JsonValue::Object(body)) => {
-                let issuer_metadata_result = IssuerMetadata::from(&body);
-                if let Ok(issuer_metadata) = issuer_metadata_result {
-                    let mut issuer = Issuer::from(issuer_metadata);
-                    issuer.request_options = request_options;
-                    return Ok(issuer);
-                }
-                return Err(OidcClientError {
-                    name: "OPError".to_string(),
-                    error: "invalid issuer metadata".to_string(),
-                    error_description: "invalid issuer metadata".to_string(),
-                    response: Some(res),
-                });
-            }
-            _ => {
-                return Err(OidcClientError {
-                    name: "TypeError".to_string(),
-                    error: "parse_error".to_string(),
-                    error_description: "unexpected body type".to_string(),
-                    response: Some(res),
-                })
-            }
+        if res.body.is_none() {
+            return Err(OidcClientError {
+                name: "OPError".to_string(),
+                error: "invalid issuer metadata".to_string(),
+                error_description: "invalid issuer metadata".to_string(),
+                response: Some(res),
+            });
         }
+
+        let issuer_metadata: IssuerMetadata = convert_json_to(&res.body.unwrap()).unwrap();
+        let mut issuer = Issuer::from(issuer_metadata);
+        issuer.request_options = request_options;
+        return Ok(issuer);
     }
 }
 
@@ -630,7 +618,7 @@ mod issuer_discovery_tests {
 
         use reqwest::header::{HeaderMap, HeaderValue};
 
-        use crate::http::RequestOptions;
+        use crate::types::RequestOptions;
 
         use super::*;
 
@@ -647,7 +635,7 @@ mod issuer_discovery_tests {
                     .body(EXPECTED.as_bytes());
             });
 
-            let request_options = |_request: &crate::http::Request| {
+            let request_options = |_request: &crate::types::Request| {
                 let mut headers = HeaderMap::new();
                 headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
 
