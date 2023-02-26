@@ -1,5 +1,6 @@
 use crate::{
     helpers::convert_json_to,
+    tests::process_url,
     types::{OidcClientError, Request, RequestOptions, Response, StandardBodyError},
 };
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -25,6 +26,8 @@ pub fn request(
     let options = request_options(&request);
     let client = reqwest::blocking::Client::new();
 
+    let url = process_url(request.url);
+
     let mut headers = HeaderMap::new();
     request
         .headers
@@ -42,7 +45,7 @@ pub fn request(
         });
 
     let res = client
-        .request(request.method, request.url)
+        .request(request.method, url)
         .headers(headers)
         .timeout(options.timeout)
         .send();
