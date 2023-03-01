@@ -79,8 +79,8 @@ pub fn request(
             if let Ok(standard_body_error) = standard_body_error_result {
                 return Err(OidcClientError::new(
                     "OPError",
-                    standard_body_error.error.as_str(),
-                    standard_body_error.error_description.as_str(),
+                    &standard_body_error.error,
+                    &standard_body_error.error_description,
                     Some(response),
                 ));
             }
@@ -89,7 +89,7 @@ pub fn request(
         return Err(OidcClientError::new(
             "OPError",
             "server_error",
-            format!("expected {}, got: {}", request.expected, response.status).as_str(),
+            &format!("expected {}, got: {}", request.expected, response.status),
             Some(response),
         ));
     }
@@ -98,11 +98,10 @@ pub fn request(
         return Err(OidcClientError::new(
             "OPError",
             "server_error",
-            format!(
+            &format!(
                 "expected {} with body but no body was returned",
                 request.expected
-            )
-            .as_str(),
+            ),
             None,
         ));
     }
@@ -115,12 +114,12 @@ pub fn request(
     }
 
     if request.expect_body && invalid_json {
-        return Err(OidcClientError {
-            name: "TypeError".to_string(),
-            error: "parse_error".to_string(),
-            error_description: "unexpected body type".to_string(),
-            response: Some(response),
-        });
+        return Err(OidcClientError::new(
+            "TypeError",
+            "parse_error",
+            "unexpected body type",
+            Some(response),
+        ));
     }
 
     Ok(response)

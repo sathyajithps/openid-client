@@ -106,12 +106,12 @@ impl Issuer {
 
         // remove this and check on convert to json result
         if res.body.is_none() {
-            return Err(OidcClientError {
-                name: "OPError".to_string(),
-                error: "invalid issuer metadata".to_string(),
-                error_description: "invalid issuer metadata".to_string(),
-                response: Some(res),
-            });
+            return Err(OidcClientError::new(
+                "OPError",
+                "invalid_issuer_metadata",
+                "invalid issuer metadata",
+                Some(res),
+            ));
         }
 
         let issuer_metadata: IssuerMetadata = convert_json_to(&res.body.unwrap()).unwrap();
@@ -193,13 +193,14 @@ impl Issuer {
             convert_json_to(&response.body.as_ref().unwrap());
 
         if webfinger_response_result.is_err() {
-            return Err(OidcClientError {
-                name: "OPError".to_string(),
-                error: "invalid  webfinger response".to_string(),
-                error_description: "invalid  webfinger response".to_string(),
-                response: Some(response),
-            });
+            return Err(OidcClientError::new(
+                "OPError",
+                "invalid_webfinger_response",
+                "invalid  webfinger response",
+                Some(response),
+            ));
         }
+
         let webfinger_response = webfinger_response_result.unwrap();
 
         let location_link_result = webfinger_response
@@ -238,9 +239,7 @@ impl Issuer {
                     return Err(OidcClientError::new(
                         &issuer_error.name,
                         "no_issuer",
-                        format!("invalid issuer location {}", expected_issuer)
-                            .as_str()
-                            .as_ref(),
+                        &format!("invalid issuer location {}", expected_issuer),
                         // Todo: Pass the response here
                         None,
                     ));
@@ -252,15 +251,15 @@ impl Issuer {
         let issuer = issuer_result.unwrap();
 
         if &issuer.issuer != expected_issuer {
-            return Err(OidcClientError {
-                name: "OPError".to_string(),
-                error: "issuer mismatch".to_string(),
-                error_description: format!(
+            return Err(OidcClientError::new(
+                "OPError",
+                "issuer_mismatch",
+                &format!(
                     "discovered issuer mismatch, expected {}, got: {}",
                     expected_issuer, issuer.issuer
                 ),
-                response: Some(response),
-            });
+                Some(response),
+            ));
         }
 
         Ok(issuer)
