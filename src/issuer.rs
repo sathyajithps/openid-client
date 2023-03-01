@@ -70,11 +70,11 @@ impl Issuer {
         issuer: &str,
         mut request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
     ) -> Result<Issuer, OidcClientError> {
-        let url_result = validate_url(issuer);
-        if url_result.is_err() {
-            return Err(url_result.unwrap_err());
-        }
-        let mut url = url_result.unwrap();
+        let mut url = match validate_url(issuer) {
+            Ok(parsed) => parsed,
+            Err(err) => return Err(err),
+        };
+
         let mut path: String = url.path().to_string();
         if path.ends_with('/') {
             path.pop();
@@ -97,24 +97,24 @@ impl Issuer {
             ..Request::default()
         };
 
-        let response = request(req, &mut request_options);
-        if response.is_err() {
-            return Err(response.unwrap_err());
-        }
+        let response = match request(req, &mut request_options) {
+            Ok(res) => res,
+            Err(err) => return Err(err),
+        };
 
-        let res = response.unwrap();
+        let issuer_metadata =
+            match convert_json_to::<IssuerMetadata>(&response.body.as_ref().unwrap()) {
+                Ok(metadata) => metadata,
+                Err(_) => {
+                    return Err(OidcClientError::new(
+                        "OPError",
+                        "invalid_issuer_metadata",
+                        "invalid issuer metadata",
+                        Some(response),
+                    ))
+                }
+            };
 
-        // remove this and check on convert to json result
-        if res.body.is_none() {
-            return Err(OidcClientError::new(
-                "OPError",
-                "invalid_issuer_metadata",
-                "invalid issuer metadata",
-                Some(res),
-            ));
-        }
-
-        let issuer_metadata: IssuerMetadata = convert_json_to(&res.body.unwrap()).unwrap();
         let mut issuer = Issuer::from(issuer_metadata);
         issuer.request_options = request_options;
         return Ok(issuer);
@@ -129,24 +129,22 @@ impl Issuer {
         mut request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
     ) -> Result<Issuer, OidcClientError> {
         let resource = webfinger_normalize(input);
+
         let mut host: Option<String> = None;
+
         if resource.starts_with("acct:") {
             let split: Vec<&str> = resource.split("@").collect();
             host = Some(split[1].to_string());
         } else if resource.starts_with("https://") {
-            let url_result = validate_url(&resource);
-
-            if url_result.is_err() {
-                return Err(url_result.unwrap_err());
-            }
-
-            let url = url_result.unwrap();
+            let url = match validate_url(&resource) {
+                Ok(parsed) => parsed,
+                Err(err) => return Err(err),
+            };
 
             if let Some(host_str) = url.host_str() {
-                if let Some(port) = url.port() {
-                    host = Some(host_str.to_string() + &format!(":{}", port))
-                } else {
-                    host = Some(host_str.to_string());
+                host = match url.port() {
+                    Some(port) => Some(host_str.to_string() + &format!(":{}", port)),
+                    None => Some(host_str.to_string()),
                 }
             }
         }
@@ -181,51 +179,47 @@ impl Issuer {
             search_params,
         };
 
-        let response_result = request(req, &mut request_options);
+        let response = match request(req, &mut request_options) {
+            Ok(res) => res,
+            Err(err) => return Err(err),
+        };
 
-        if response_result.is_err() {
-            return Err(response_result.unwrap_err());
-        }
-
-        let response = response_result.unwrap();
-
-        let webfinger_response_result: Result<WebFingerResponse, _> =
-            convert_json_to(&response.body.as_ref().unwrap());
-
-        if webfinger_response_result.is_err() {
-            return Err(OidcClientError::new(
-                "OPError",
-                "invalid_webfinger_response",
-                "invalid  webfinger response",
-                Some(response),
-            ));
-        }
-
-        let webfinger_response = webfinger_response_result.unwrap();
+        let webfinger_response =
+            match convert_json_to::<WebFingerResponse>(&response.body.as_ref().unwrap()) {
+                Ok(res) => res,
+                Err(_) => {
+                    return Err(OidcClientError::new(
+                        "OPError",
+                        "invalid_webfinger_response",
+                        "invalid  webfinger response",
+                        Some(response),
+                    ))
+                }
+            };
 
         let location_link_result = webfinger_response
             .links
             .iter()
             .find(|x| x.rel == "http://openid.net/specs/connect/1.0/issuer" && x.href.is_some());
 
-        if location_link_result.is_none() {
-            return Err(OidcClientError::new(
-                "OPError",
-                "empty_location_link",
-                "no issuer found in webfinger response",
-                Some(response),
-            ));
-        }
-
-        let expected_issuer = location_link_result.unwrap().href.as_ref().unwrap();
+        let expected_issuer = match location_link_result {
+            Some(link) => link.href.as_ref().unwrap(),
+            None => {
+                return Err(OidcClientError::new(
+                    "OPError",
+                    "empty_location_link",
+                    "no issuer found in webfinger response",
+                    Some(response),
+                ))
+            }
+        };
 
         if !expected_issuer.starts_with("https://") {
             return Err(OidcClientError::new(
                 "OPError",
                 "invalid_location",
                 &format!("invalid issuer location {}", expected_issuer),
-                // Todo: Pass the response here
-                None,
+                Some(response),
             ));
         }
 
@@ -239,8 +233,7 @@ impl Issuer {
                         &issuer_error.name,
                         "no_issuer",
                         &format!("invalid issuer location {}", expected_issuer),
-                        // Todo: Pass the response here
-                        None,
+                        Some(response),
                     ));
                 }
             }

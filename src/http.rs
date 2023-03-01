@@ -102,7 +102,7 @@ pub fn request(
                 "expected {} with body but no body was returned",
                 request.expected
             ),
-            None,
+            Some(response),
         ));
     }
 
