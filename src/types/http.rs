@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use reqwest::{header::HeaderMap, Method, StatusCode};
 
@@ -9,6 +9,7 @@ pub struct Request {
     pub method: reqwest::Method,
     pub expect_body: bool,
     pub headers: HeaderMap,
+    pub search_params: HashMap<String, Vec<String>>,
 }
 
 impl Request {
@@ -19,6 +20,7 @@ impl Request {
             headers: HeaderMap::default(),
             method: Method::GET,
             url: "".to_string(),
+            search_params: HashMap::new(),
         }
     }
 }
@@ -50,6 +52,7 @@ impl Response {
     }
 }
 
+#[derive(Debug)]
 pub struct RequestOptions {
     pub headers: HeaderMap,
     pub timeout: Duration,

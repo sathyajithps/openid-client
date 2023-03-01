@@ -574,3 +574,360 @@ mod issuer_discovery_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod issuer_webfinger_tests {
+
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
+
+    use crate::issuer::Issuer;
+    use crate::tests::{get_url_with_count, set_mock_domain};
+
+    #[test]
+    fn can_discover_using_the_email_syntax() {
+        let server = MockServer::start();
+
+        let real_domain = get_url_with_count("opemail.example<>.com");
+
+        let body_wf = format!("{{\"subject\":\"https://{0}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", real_domain);
+        let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
+
+        let resource = format!("joe@{}", real_domain);
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let webfinger = server.mock(|when, then| {
+            when.method(GET)
+                .path("/.well-known/webfinger")
+                .query_param("resource", format!("acct:{}", &resource));
+            then.status(200).body(body_wf);
+        });
+
+        let discovery = server.mock(|when, then| {
+            when.method(GET).path("/.well-known/openid-configuration");
+            then.status(200).body(body_oidc);
+        });
+
+        let _ = Issuer::webfinger(resource.as_str());
+
+        webfinger.assert();
+        discovery.assert();
+    }
+
+    #[test]
+    fn verifies_the_webfinger_responds_with_an_issuer() {
+        let server = MockServer::start();
+
+        let real_domain = get_url_with_count("opemail.example<>.com");
+
+        let body_wf = format!(
+            "{{\"subject\":\"https://{0}/joe\",\"links\":[]}}",
+            real_domain
+        );
+
+        let resource = format!("joe@{}", real_domain);
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let _webfinger = server.mock(|when, then| {
+            when.method(GET)
+                .path("/.well-known/webfinger")
+                .header("Accept", "application/json");
+            then.status(200).body(body_wf);
+        });
+
+        let issuer_result = Issuer::webfinger(resource.as_str());
+
+        assert!(issuer_result.is_err());
+
+        let error = issuer_result.unwrap_err();
+
+        assert_eq!(
+            error.error_description,
+            "no issuer found in webfinger response"
+        );
+    }
+
+    #[test]
+    fn verifies_the_webfinger_responds_with_an_issuer_which_is_a_valid_issuer_value_1_of_2() {
+        let server = MockServer::start();
+
+        let real_domain = get_url_with_count("opemail.example<>.com");
+
+        let body_wf = format!("{{\"subject\":\"https://{0}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", real_domain);
+
+        let resource = format!("joe@{}", real_domain);
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let _webfinger = server.mock(|when, then| {
+            when.method(GET).path("/.well-known/webfinger");
+            then.status(200).body(body_wf);
+        });
+
+        let issuer_result = Issuer::webfinger(resource.as_str());
+
+        assert!(issuer_result.is_err());
+
+        let error = issuer_result.unwrap_err();
+
+        assert_eq!(
+            error.error_description,
+            format!("invalid issuer location https://{}", real_domain)
+        );
+    }
+
+    #[test]
+    fn verifies_the_webfinger_responds_with_an_issuer_which_is_a_valid_issuer_value_2_of_2() {
+        let server = MockServer::start();
+
+        let real_domain = get_url_with_count("opemail.example<>.com");
+
+        let body_wf = format!("{{\"subject\":\"https://{}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"1\"}}]}}", real_domain);
+
+        let resource = format!("joe@{}", real_domain);
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let _webfinger = server.mock(|when, then| {
+            when.method(GET).path("/.well-known/webfinger");
+            then.status(200).body(body_wf);
+        });
+
+        let issuer_result = Issuer::webfinger(resource.as_str());
+
+        assert!(issuer_result.is_err());
+
+        let error = issuer_result.unwrap_err();
+
+        assert_eq!(error.error_description, "invalid issuer location 1");
+    }
+
+    // Todo: not implementing cache right now
+    // #[test]
+    // fn uses_cached_issuer_if_it_has_one() {
+    //     let server = MockServer::start();
+
+    //     let real_domain = get_url_with_count("opemail.example<>.com");
+
+    //     let body_wf = format!("{{\"subject\":\"https://{0}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", real_domain);
+    //     let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
+
+    //     let resource = format!("joe@{}", real_domain);
+
+    //     set_mock_domain(&real_domain.to_string(), server.port());
+
+    //     let webfinger = server.mock(|when, then| {
+    //         when.method(GET).path("/.well-known/webfinger");
+    //         then.status(200).body(body_wf);
+    //     });
+
+    //     let discovery = server.mock(|when, then| {
+    //         when.method(GET).path("/.well-known/openid-configuration");
+    //         then.status(200).body(body_oidc);
+    //     });
+
+    //     let _ = Issuer::webfinger(resource.as_str());
+    //     let __ = Issuer::webfinger(resource.as_str());
+
+    //     webfinger.assert_hits(2);
+    //     discovery.assert_hits(1);
+    // }
+
+    #[test]
+    fn validates_the_discovered_issuer_is_the_same_as_from_webfinger() {
+        let server = MockServer::start();
+
+        let real_domain = get_url_with_count("opemail.example<>.com");
+
+        let body_wf = format!("{{\"subject\":\"https://{0}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", real_domain);
+        let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://another.issuer.com\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
+
+        let resource = format!("joe@{}", real_domain);
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let webfinger = server.mock(|when, then| {
+            when.method(GET).path("/.well-known/webfinger");
+            then.status(200).body(body_wf);
+        });
+
+        let discovery = server.mock(|when, then| {
+            when.method(GET).path("/.well-known/openid-configuration");
+            then.status(200).body(body_oidc);
+        });
+
+        let issuer_result = Issuer::webfinger(resource.as_str());
+        assert!(issuer_result.is_err());
+
+        let error = issuer_result.unwrap_err();
+
+        assert_eq!(
+            format!(
+                "discovered issuer mismatch, expected https://{}, got: https://another.issuer.com",
+                real_domain
+            ),
+            error.error_description
+        );
+
+        webfinger.assert();
+        discovery.assert();
+    }
+
+    #[test]
+    fn can_discover_using_the_url_syntax() {
+        let server = MockServer::start();
+
+        let real_domain = get_url_with_count("opurl.example<>.com");
+
+        let body_wf = format!("{{\"subject\":\"https://{0}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", real_domain);
+        let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
+
+        let url = format!("https://{}/joe", real_domain);
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let webfinger = server.mock(|when, then| {
+            when.method(GET)
+                .path("/.well-known/webfinger")
+                .query_param("resource", &url);
+            then.status(200).body(body_wf);
+        });
+
+        let discovery = server.mock(|when, then| {
+            when.method(GET).path("/.well-known/openid-configuration");
+            then.status(200).body(body_oidc);
+        });
+
+        let issuer_result = Issuer::webfinger(url.as_str());
+        assert!(issuer_result.is_ok());
+
+        webfinger.assert();
+        discovery.assert();
+    }
+
+    #[test]
+    fn can_discover_using_the_hostname_and_port_syntax() {
+        let server = MockServer::start();
+
+        let real_domain = get_url_with_count("ophp.example<>.com");
+
+        let real_domain_with_port = format!("{}:8080", real_domain);
+
+        let body_wf = format!("{{\"subject\":\"https://{0}:8080\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", real_domain);
+        let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
+
+        // for webfinger
+        set_mock_domain(&real_domain_with_port, server.port());
+        // for oidc discovery
+        set_mock_domain(&real_domain, server.port());
+
+        let webfinger = server.mock(|when, then| {
+            when.method(GET)
+                .path("/.well-known/webfinger")
+                .query_param("resource", format!("https://{}", real_domain_with_port));
+            then.status(200).body(body_wf);
+        });
+
+        let discovery = server.mock(|when, then| {
+            when.method(GET).path("/.well-known/openid-configuration");
+            then.status(200).body(body_oidc);
+        });
+
+        let issuer_result = Issuer::webfinger(&real_domain_with_port);
+        assert!(issuer_result.is_ok());
+
+        webfinger.assert();
+        discovery.assert();
+    }
+
+    #[test]
+    fn can_discover_using_the_acct_syntax() {
+        let server = MockServer::start();
+
+        let real_domain = get_url_with_count("opacct.example<>.com");
+        let resource = format!("acct:juliet%40capulet.example@{}", real_domain);
+
+        let body_wf = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}",resource, real_domain);
+        let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let webfinger = server.mock(|when, then| {
+            when.method(GET)
+                .path("/.well-known/webfinger")
+                .query_param("resource", &resource);
+            then.status(200).body(body_wf);
+        });
+
+        let discovery = server.mock(|when, then| {
+            when.method(GET).path("/.well-known/openid-configuration");
+            then.status(200).body(body_oidc);
+        });
+
+        let issuer_result = Issuer::webfinger(&resource);
+        assert!(issuer_result.is_ok());
+
+        webfinger.assert();
+        discovery.assert();
+    }
+
+    #[cfg(test)]
+    mod http_options {
+        use std::time::Duration;
+
+        use httpmock::{Method::GET, MockServer};
+        use reqwest::header::{HeaderMap, HeaderValue};
+
+        use crate::{
+            issuer::Issuer,
+            tests::{get_url_with_count, set_mock_domain},
+            types::RequestOptions,
+        };
+
+        #[test]
+        fn allows_for_http_options_to_be_defined_for_issuer_webfinger_calls() {
+            let server = MockServer::start();
+
+            let real_domain = get_url_with_count("op.example<>.com");
+            let resource = format!("acct:juliet@{}", real_domain);
+
+            let body_wf = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}",resource, real_domain);
+            let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
+
+            set_mock_domain(&real_domain.to_string(), server.port());
+
+            let webfinger = server.mock(|when, then| {
+                when.method(GET)
+                    .path("/.well-known/webfinger")
+                    .header("custom", "foo")
+                    .query_param("resource", &resource);
+                then.status(200).body(body_wf);
+            });
+
+            let discovery = server.mock(|when, then| {
+                when.method(GET)
+                    .path("/.well-known/openid-configuration")
+                    .header("custom", "foo");
+                then.status(200).body(body_oidc);
+            });
+
+            let request_options = |_request: &crate::types::Request| {
+                let mut headers = HeaderMap::new();
+                headers.append("custom", HeaderValue::from_static("foo"));
+                RequestOptions {
+                    headers,
+                    timeout: Duration::from_millis(3500),
+                }
+            };
+
+            let issuer_result =
+                Issuer::webfinger_with_interceptor(&resource, Box::new(request_options));
+
+            webfinger.assert();
+            discovery.assert();
+            assert!(issuer_result.is_ok());
+        }
+    }
+}

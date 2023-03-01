@@ -24,6 +24,7 @@ pub fn request(
     request_options: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
 ) -> Result<Response, OidcClientError> {
     let options = request_options(&request);
+
     let client = reqwest::blocking::Client::new();
 
     let url = process_url(request.url);
@@ -44,11 +45,22 @@ pub fn request(
             ()
         });
 
-    let res = client
-        .request(request.method, url)
+    let mut req = client
+        .request(request.method.clone(), url)
         .headers(headers)
-        .timeout(options.timeout)
-        .send();
+        .timeout(options.timeout);
+
+    let mut query_list: Vec<(String, String)> = vec![];
+
+    for (k, v) in request.search_params {
+        for val in v {
+            query_list.push((k.clone(), val))
+        }
+    }
+
+    req = req.query(&query_list);
+
+    let res = req.send();
 
     if res.is_err() {
         return Err(OidcClientError::new(

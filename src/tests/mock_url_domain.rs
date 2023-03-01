@@ -59,10 +59,12 @@ pub fn set_mock_domain(_real_domain: &String, _mock_port: u16) {}
 #[cfg(test)]
 pub fn process_url(url: String) -> String {
     let mut parsed = url::Url::parse(url.as_str()).unwrap();
+    let mut host = parsed.host_str().unwrap().to_string();
+    if let Some(port) = parsed.port() {
+        host = host + &format!(":{}", port);
+    }
     let url_map = TEST_URL_MAP.lock().unwrap();
-    let mocked_port = url_map
-        .get(&parsed.host_str().unwrap().to_string())
-        .unwrap();
+    let mocked_port = url_map.get(&host).unwrap();
 
     parsed.set_host(Some("127.0.0.1:{}")).unwrap();
     parsed.set_port(Some(mocked_port.to_owned())).unwrap();
