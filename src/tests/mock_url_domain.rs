@@ -36,7 +36,7 @@ lazy_static! {
 pub fn get_url_with_count(url: &str) -> String {
     let mut c = COUNTER.lock().unwrap();
     *c += 1;
-    url.replace("<>", &*c.to_string().as_str())
+    url.replace("<>", &*c.to_string())
 }
 
 #[cfg(not(test))]
@@ -58,7 +58,7 @@ pub fn set_mock_domain(_real_domain: &String, _mock_port: u16) {}
 
 #[cfg(test)]
 pub fn process_url(url: String) -> String {
-    let mut parsed = url::Url::parse(url.as_str()).unwrap();
+    let mut parsed = url::Url::parse(&url).unwrap();
     let mut host = parsed.host_str().unwrap().to_string();
     if let Some(port) = parsed.port() {
         host = host + &format!(":{}", port);

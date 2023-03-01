@@ -28,9 +28,10 @@ mod issuer_discovery_tests {
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
-            let issuer_result = Issuer::discover(
-                format!("https://{}/.well-known/custom-configuration", real_domain).as_str(),
-            );
+            let issuer_result = Issuer::discover(&format!(
+                "https://{}/.well-known/custom-configuration",
+                real_domain
+            ));
 
             assert_eq!(true, issuer_result.is_ok());
             let issuer = issuer_result.unwrap();
@@ -75,9 +76,10 @@ mod issuer_discovery_tests {
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
-            let issuer_result = Issuer::discover(
-                format!("https://{}/.well-known/openid-configuration", real_domain).as_str(),
-            );
+            let issuer_result = Issuer::discover(&format!(
+                "https://{}/.well-known/openid-configuration",
+                real_domain
+            ));
 
             assert_eq!(true, issuer_result.is_ok());
             let issuer = issuer_result.unwrap();
@@ -116,7 +118,7 @@ mod issuer_discovery_tests {
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
-            let issuer_result = Issuer::discover(format!("https://{}", real_domain).as_str());
+            let issuer_result = Issuer::discover(&format!("https://{}", real_domain));
 
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
@@ -142,7 +144,7 @@ mod issuer_discovery_tests {
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
-            let issuer_result = Issuer::discover(format!("https://{}/oidc/", real_domain).as_str());
+            let issuer_result = Issuer::discover(&format!("https://{}/oidc/", real_domain));
 
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
@@ -168,7 +170,7 @@ mod issuer_discovery_tests {
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
-            let issuer_result = Issuer::discover(format!("https://{}/oidc", real_domain).as_str());
+            let issuer_result = Issuer::discover(&format!("https://{}/oidc", real_domain));
 
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
@@ -194,13 +196,10 @@ mod issuer_discovery_tests {
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
-            let issuer_result = Issuer::discover(
-                format!(
-                    "https://{}/oidc/.well-known/openid-configuration?foo=bar",
-                    real_domain
-                )
-                .as_str(),
-            );
+            let issuer_result = Issuer::discover(&format!(
+                "https://{}/oidc/.well-known/openid-configuration?foo=bar",
+                real_domain
+            ));
 
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
@@ -231,13 +230,10 @@ mod issuer_discovery_tests {
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
-            let issuer_result = Issuer::discover(
-                format!(
-                    "https://{}/.well-known/oauth-authorization-server",
-                    real_domain
-                )
-                .as_str(),
-            );
+            let issuer_result = Issuer::discover(&format!(
+                "https://{}/.well-known/oauth-authorization-server",
+                real_domain
+            ));
 
             assert_eq!(true, issuer_result.is_ok());
             let issuer = issuer_result.unwrap();
@@ -277,13 +273,10 @@ mod issuer_discovery_tests {
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
-            let issuer_result = Issuer::discover(
-                format!(
-                    "https://{}/.well-known/oauth-authorization-server/oauth2?foo=bar",
-                    real_domain
-                )
-                .as_str(),
-            );
+            let issuer_result = Issuer::discover(&format!(
+                "https://{}/.well-known/oauth-authorization-server/oauth2?foo=bar",
+                real_domain
+            ));
 
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
@@ -307,9 +300,10 @@ mod issuer_discovery_tests {
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
-        let issuer_result = Issuer::discover(
-            format!("https://{}/.well-known/openid-configuration", real_domain).as_str(),
-        );
+        let issuer_result = Issuer::discover(&format!(
+            "https://{}/.well-known/openid-configuration",
+            real_domain
+        ));
 
         assert_eq!(true, issuer_result.is_ok());
         let issuer = issuer_result.unwrap();
@@ -344,7 +338,7 @@ mod issuer_discovery_tests {
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
-        let issuer_result = Issuer::discover(format!("https://{}", real_domain).as_str());
+        let issuer_result = Issuer::discover(&format!("https://{}", real_domain));
 
         assert_eq!(true, issuer_result.is_ok());
         let issuer = issuer_result.unwrap();
@@ -380,7 +374,7 @@ mod issuer_discovery_tests {
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
-        let issuer_result = Issuer::discover(format!("https://{}", real_domain).as_str());
+        let issuer_result = Issuer::discover(&format!("https://{}", real_domain));
 
         assert_eq!(true, issuer_result.is_err());
         let error = issuer_result.unwrap_err();
@@ -418,7 +412,7 @@ mod issuer_discovery_tests {
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
-        let issuer_result = Issuer::discover(format!("https://{}", real_domain).as_str());
+        let issuer_result = Issuer::discover(&format!("https://{}", real_domain));
 
         assert_eq!(true, issuer_result.is_err());
         let error = issuer_result.unwrap_err();
@@ -443,7 +437,7 @@ mod issuer_discovery_tests {
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
-        let issuer_result = Issuer::discover(format!("https://{}", real_domain).as_str());
+        let issuer_result = Issuer::discover(&format!("https://{}", real_domain));
 
         assert_eq!(true, issuer_result.is_err());
         let error = issuer_result.unwrap_err();
@@ -469,7 +463,7 @@ mod issuer_discovery_tests {
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
-        let issuer_result = Issuer::discover(format!("https://{}", real_domain).as_str());
+        let issuer_result = Issuer::discover(&format!("https://{}", real_domain));
 
         assert_eq!(true, issuer_result.is_err());
         let error = issuer_result.unwrap_err();
@@ -492,7 +486,7 @@ mod issuer_discovery_tests {
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
-        let issuer_result = Issuer::discover(format!("https://{}", real_domain).as_str());
+        let issuer_result = Issuer::discover(&format!("https://{}", real_domain));
 
         assert_eq!(true, issuer_result.is_err());
         let error = issuer_result.unwrap_err();
@@ -517,7 +511,7 @@ mod issuer_discovery_tests {
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
-        let issuer_result = Issuer::discover(format!("https://{}", real_domain).as_str());
+        let issuer_result = Issuer::discover(&format!("https://{}", real_domain));
 
         assert_eq!(true, issuer_result.is_err());
         let error = issuer_result.unwrap_err();
@@ -567,7 +561,7 @@ mod issuer_discovery_tests {
             set_mock_domain(&real_domain.to_string(), server.port());
 
             let _ = Issuer::discover_with_interceptor(
-                format!("https://{}/.well-known/custom-configuration", real_domain).as_str(),
+                &format!("https://{}/.well-known/custom-configuration", real_domain),
                 Box::new(request_options),
             );
             mock_server.assert_hits(1);
@@ -609,7 +603,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(body_oidc);
         });
 
-        let _ = Issuer::webfinger(resource.as_str());
+        let _ = Issuer::webfinger(&resource);
 
         webfinger.assert();
         discovery.assert();
@@ -637,7 +631,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(body_wf);
         });
 
-        let issuer_result = Issuer::webfinger(resource.as_str());
+        let issuer_result = Issuer::webfinger(&resource);
 
         assert!(issuer_result.is_err());
 
@@ -666,7 +660,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(body_wf);
         });
 
-        let issuer_result = Issuer::webfinger(resource.as_str());
+        let issuer_result = Issuer::webfinger(&resource);
 
         assert!(issuer_result.is_err());
 
@@ -695,7 +689,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(body_wf);
         });
 
-        let issuer_result = Issuer::webfinger(resource.as_str());
+        let issuer_result = Issuer::webfinger(&resource);
 
         assert!(issuer_result.is_err());
 
@@ -728,8 +722,8 @@ mod issuer_webfinger_tests {
     //         then.status(200).body(body_oidc);
     //     });
 
-    //     let _ = Issuer::webfinger(resource.as_str());
-    //     let __ = Issuer::webfinger(resource.as_str());
+    //     let _ = Issuer::webfinger(&resource);
+    //     let __ = Issuer::webfinger(&resource);
 
     //     webfinger.assert_hits(2);
     //     discovery.assert_hits(1);
@@ -758,7 +752,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(body_oidc);
         });
 
-        let issuer_result = Issuer::webfinger(resource.as_str());
+        let issuer_result = Issuer::webfinger(&resource);
         assert!(issuer_result.is_err());
 
         let error = issuer_result.unwrap_err();
@@ -800,7 +794,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(body_oidc);
         });
 
-        let issuer_result = Issuer::webfinger(url.as_str());
+        let issuer_result = Issuer::webfinger(&url);
         assert!(issuer_result.is_ok());
 
         webfinger.assert();

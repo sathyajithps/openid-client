@@ -86,7 +86,7 @@ impl Issuer {
             path.push_str("/.well-known/openid-configuration");
         }
 
-        url.set_path(path.as_str());
+        url.set_path(&path);
 
         let mut headers = HeaderMap::new();
         headers.append("accept", HeaderValue::from_static("application/json"));
@@ -134,7 +134,7 @@ impl Issuer {
             let split: Vec<&str> = resource.split("@").collect();
             host = Some(split[1].to_string());
         } else if resource.starts_with("https://") {
-            let url_result = validate_url(resource.as_str());
+            let url_result = validate_url(&resource);
 
             if url_result.is_err() {
                 return Err(url_result.unwrap_err());
@@ -144,7 +144,7 @@ impl Issuer {
 
             if let Some(host_str) = url.host_str() {
                 if let Some(port) = url.port() {
-                    host = Some(host_str.to_string() + format!(":{}", port).as_str())
+                    host = Some(host_str.to_string() + &format!(":{}", port))
                 } else {
                     host = Some(host_str.to_string());
                 }
@@ -223,14 +223,13 @@ impl Issuer {
             return Err(OidcClientError::new(
                 "OPError",
                 "invalid_location",
-                format!("invalid issuer location {}", expected_issuer).as_str(),
+                &format!("invalid issuer location {}", expected_issuer),
                 // Todo: Pass the response here
                 None,
             ));
         }
 
-        let issuer_result =
-            Issuer::discover_with_interceptor(expected_issuer.as_str(), request_options);
+        let issuer_result = Issuer::discover_with_interceptor(&expected_issuer, request_options);
 
         if issuer_result.is_err() {
             let issuer_error = issuer_result.unwrap_err();
