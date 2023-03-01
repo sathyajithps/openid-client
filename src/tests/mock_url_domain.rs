@@ -40,6 +40,7 @@ pub fn get_url_with_count(url: &str) -> String {
 }
 
 #[cfg(not(test))]
+#[allow(dead_code)]
 pub fn get_url_with_count(url: &str) -> String {
     url.to_owned()
 }
@@ -54,6 +55,7 @@ pub fn set_mock_domain(real_domain: &String, mock_port: u16) {
 }
 
 #[cfg(not(test))]
+#[allow(dead_code)]
 pub fn set_mock_domain(_real_domain: &String, _mock_port: u16) {}
 
 #[cfg(test)]
