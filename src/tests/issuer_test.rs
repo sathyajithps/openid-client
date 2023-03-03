@@ -5,7 +5,9 @@ mod issuer_discovery_tests {
     pub use httpmock::Method::GET;
     pub use httpmock::MockServer;
 
-    pub const EXPECTED: &str =  "{\"authorization_endpoint\":\"https://op.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://op.example.com\",\"jwks_uri\":\"https://op.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://op.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://op.example.com/oauth2/v3/userinfo\"}";
+    pub fn get_expected(domain: &str) -> String {
+        format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", domain)
+    }
 
     #[cfg(test)]
     mod custom_well_known {
@@ -17,14 +19,14 @@ mod issuer_discovery_tests {
         fn accepts_and_assigns_the_discovered_metadata() {
             let server = MockServer::start();
 
+            let real_domain = get_url_with_count("op.example<>.com");
+
             let _custom_config_server = server.mock(|when, then| {
                 when.method(GET).path("/.well-known/custom-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(EXPECTED.as_bytes());
+                    .body(get_expected(&real_domain));
             });
-
-            let real_domain = get_url_with_count("op.example<>.com");
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -35,22 +37,22 @@ mod issuer_discovery_tests {
 
             assert_eq!(true, issuer_result.is_ok());
             let issuer = issuer_result.unwrap();
-            assert_eq!(issuer.issuer, "https://op.example.com".to_string());
+            assert_eq!(issuer.issuer, format!("https://{0}", &real_domain));
             assert_eq!(
                 issuer.jwks_uri,
-                Some("https://op.example.com/oauth2/v3/certs".to_string())
+                Some(format!("https://{0}/oauth2/v3/certs", &real_domain))
             );
             assert_eq!(
                 issuer.token_endpoint,
-                Some("https://op.example.com/oauth2/v4/token".to_string())
+                Some(format!("https://{0}/oauth2/v4/token", &real_domain))
             );
             assert_eq!(
                 issuer.userinfo_endpoint,
-                Some("https://op.example.com/oauth2/v3/userinfo".to_string())
+                Some(format!("https://{0}/oauth2/v3/userinfo", &real_domain))
             );
             assert_eq!(
                 issuer.authorization_endpoint,
-                Some("https://op.example.com/o/oauth2/v2/auth".to_string())
+                Some(format!("https://{0}/o/oauth2/v2/auth", &real_domain))
             );
         }
     }
@@ -65,14 +67,14 @@ mod issuer_discovery_tests {
         fn accepts_and_assigns_the_discovered_metadata() {
             let server = MockServer::start();
 
+            let real_domain = get_url_with_count("op.example<>.com");
+
             let _custom_config_server = server.mock(|when, then| {
                 when.method(GET).path("/.well-known/openid-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(EXPECTED.as_bytes());
+                    .body(get_expected(&real_domain));
             });
-
-            let real_domain = get_url_with_count("op.example<>.com");
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -83,38 +85,40 @@ mod issuer_discovery_tests {
 
             assert_eq!(true, issuer_result.is_ok());
             let issuer = issuer_result.unwrap();
-            assert_eq!(issuer.issuer, "https://op.example.com".to_string());
+
+            assert_eq!(issuer.issuer, format!("https://{0}", &real_domain));
             assert_eq!(
                 issuer.jwks_uri,
-                Some("https://op.example.com/oauth2/v3/certs".to_string())
+                Some(format!("https://{0}/oauth2/v3/certs", &real_domain))
             );
             assert_eq!(
                 issuer.token_endpoint,
-                Some("https://op.example.com/oauth2/v4/token".to_string())
+                Some(format!("https://{0}/oauth2/v4/token", &real_domain))
             );
             assert_eq!(
                 issuer.userinfo_endpoint,
-                Some("https://op.example.com/oauth2/v3/userinfo".to_string())
+                Some(format!("https://{0}/oauth2/v3/userinfo", &real_domain))
             );
             assert_eq!(
                 issuer.authorization_endpoint,
-                Some("https://op.example.com/o/oauth2/v2/auth".to_string())
+                Some(format!("https://{0}/o/oauth2/v2/auth", &real_domain))
             );
         }
 
         #[test]
         fn can_be_discovered_by_omitting_well_known() {
             let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com\"}";
+
+            let real_domain = get_url_with_count("op.example<>.com");
+
+            let expected = format!("{{\"issuer\":\"https://{}\"}}", &real_domain);
 
             let _custom_config_server = server.mock(|when, then| {
                 when.method(GET).path("/.well-known/openid-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(expected.as_bytes());
+                    .body(&expected);
             });
-
-            let real_domain = get_url_with_count("op.example<>.com");
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -123,24 +127,24 @@ mod issuer_discovery_tests {
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
                 issuer_result.unwrap().issuer,
-                "https://op.example.com".to_string()
+                format!("https://{}", &real_domain)
             );
         }
 
         #[test]
         fn discovers_issuers_with_path_components_with_trailing_slash() {
             let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com/oidc\"}";
+
+            let real_domain = get_url_with_count("op.example<>.com");
+            let expected = format!("{{\"issuer\":\"https://{}/oidc\"}}", &real_domain);
 
             let _custom_config_server = server.mock(|when, then| {
                 when.method(GET)
                     .path("/oidc/.well-known/openid-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(expected.as_bytes());
+                    .body(&expected);
             });
-
-            let real_domain = get_url_with_count("op.example<>.com");
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -149,24 +153,24 @@ mod issuer_discovery_tests {
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
                 issuer_result.unwrap().issuer,
-                "https://op.example.com/oidc".to_string()
+                format!("https://{}/oidc", real_domain)
             );
         }
 
         #[test]
         fn discovers_issuers_with_path_components_without_trailing_slash() {
             let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com/oidc\"}";
+
+            let real_domain = get_url_with_count("op.example<>.com");
+            let expected = format!("{{\"issuer\":\"https://{}/oidc\"}}", &real_domain);
 
             let _custom_config_server = server.mock(|when, then| {
                 when.method(GET)
                     .path("/oidc/.well-known/openid-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(expected.as_bytes());
+                    .body(&expected);
             });
-
-            let real_domain = get_url_with_count("op.example<>.com");
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -175,24 +179,24 @@ mod issuer_discovery_tests {
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
                 issuer_result.unwrap().issuer,
-                "https://op.example.com/oidc".to_string()
+                format!("https://{}/oidc", real_domain)
             );
         }
 
         #[test]
         fn discovering_issuers_with_well_known_uri_including_path_and_query() {
             let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com/oidc\"}";
+
+            let real_domain = get_url_with_count("op.example<>.com");
+            let expected = format!("{{\"issuer\":\"https://{}/oidc\"}}", &real_domain);
 
             let _custom_config_server = server.mock(|when, then| {
                 when.method(GET)
                     .path("/oidc/.well-known/openid-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(expected.as_bytes());
+                    .body(&expected);
             });
-
-            let real_domain = get_url_with_count("op.example<>.com");
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -204,7 +208,7 @@ mod issuer_discovery_tests {
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
                 issuer_result.unwrap().issuer,
-                "https://op.example.com/oidc".to_string()
+                format!("https://{}/oidc", real_domain)
             );
         }
     }
@@ -218,15 +222,15 @@ mod issuer_discovery_tests {
         fn accepts_and_assigns_the_discovered_metadata() {
             let server = MockServer::start();
 
+            let real_domain = get_url_with_count("op.example<>.com");
+
             let _custom_config_server = server.mock(|when, then| {
                 when.method(GET)
                     .path("/.well-known/oauth-authorization-server");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(EXPECTED.as_bytes());
+                    .body(get_expected(&real_domain));
             });
-
-            let real_domain = get_url_with_count("op.example<>.com");
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -237,39 +241,39 @@ mod issuer_discovery_tests {
 
             assert_eq!(true, issuer_result.is_ok());
             let issuer = issuer_result.unwrap();
-            assert_eq!(issuer.issuer, "https://op.example.com".to_string());
+            assert_eq!(issuer.issuer, format!("https://{}", &real_domain));
             assert_eq!(
                 issuer.jwks_uri,
-                Some("https://op.example.com/oauth2/v3/certs".to_string())
+                Some(format!("https://{}/oauth2/v3/certs", &real_domain))
             );
             assert_eq!(
                 issuer.token_endpoint,
-                Some("https://op.example.com/oauth2/v4/token".to_string())
+                Some(format!("https://{}/oauth2/v4/token", &real_domain))
             );
             assert_eq!(
                 issuer.userinfo_endpoint,
-                Some("https://op.example.com/oauth2/v3/userinfo".to_string())
+                Some(format!("https://{}/oauth2/v3/userinfo", &real_domain))
             );
             assert_eq!(
                 issuer.authorization_endpoint,
-                Some("https://op.example.com/o/oauth2/v2/auth".to_string())
+                Some(format!("https://{}/o/oauth2/v2/auth", &real_domain))
             );
         }
 
         #[test]
         fn discovering_issuers_with_well_known_uri_including_path_and_query() {
             let server = MockServer::start();
-            let expected = "{\"issuer\":\"https://op.example.com/oauth2\"}";
+
+            let real_domain = get_url_with_count("op.example<>.com");
+            let expected = format!("{{\"issuer\":\"https://{}/oauth2\"}}", &real_domain);
 
             let _custom_config_server = server.mock(|when, then| {
                 when.method(GET)
                     .path("/.well-known/oauth-authorization-server/oauth2");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(expected.as_bytes());
+                    .body(&expected);
             });
-
-            let real_domain = get_url_with_count("op.example<>.com");
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -281,7 +285,7 @@ mod issuer_discovery_tests {
             assert_eq!(true, issuer_result.is_ok());
             assert_eq!(
                 issuer_result.unwrap().issuer,
-                "https://op.example.com/oauth2".to_string()
+                format!("https://{}/oauth2", &real_domain)
             );
         }
     }
@@ -289,14 +293,15 @@ mod issuer_discovery_tests {
     #[test]
     fn assigns_discovery_1_0_defaults_1_of_2() {
         let server = MockServer::start();
+
+        let real_domain = get_url_with_count("op.example<>.com");
+
         let _custom_config_server = server.mock(|when, then| {
             when.method(GET).path("/.well-known/openid-configuration");
             then.status(200)
                 .header("content-type", "application/json")
-                .body(EXPECTED.as_bytes());
+                .body(get_expected(&real_domain));
         });
-
-        let real_domain = get_url_with_count("op.example<>.com");
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -327,14 +332,14 @@ mod issuer_discovery_tests {
     fn assigns_discovery_1_0_defaults_2_of_2() {
         let server = MockServer::start();
 
+        let real_domain = get_url_with_count("op.example<>.com");
+
         let _custom_config_server = server.mock(|when, then| {
             when.method(GET).path("/.well-known/openid-configuration");
             then.status(200)
                 .header("content-type", "application/json")
-                .body(EXPECTED.as_bytes());
+                .body(get_expected(&real_domain));
         });
-
-        let real_domain = get_url_with_count("op.example<>.com");
 
         set_mock_domain(&real_domain.to_string(), server.port());
 
@@ -537,13 +542,15 @@ mod issuer_discovery_tests {
         fn allows_for_http_options_to_be_defined_for_issuer_discover_calls() {
             let server = MockServer::start();
 
+            let real_domain = get_url_with_count("op.example<>.com");
+
             let mock_server = server.mock(|when, then| {
                 when.method(GET)
                     .header_exists("testHeader")
                     .path("/.well-known/custom-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(EXPECTED.as_bytes());
+                    .body(get_expected(&real_domain));
             });
 
             let request_options = |_request: &crate::types::Request| {
@@ -555,8 +562,6 @@ mod issuer_discovery_tests {
                     timeout: Duration::from_millis(3500),
                 }
             };
-
-            let real_domain = get_url_with_count("op.example<>.com");
 
             set_mock_domain(&real_domain.to_string(), server.port());
 
