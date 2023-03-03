@@ -60,18 +60,17 @@ pub fn request(
 
     req = req.query(&query_list);
 
-    let res = req.send();
-
-    if res.is_err() {
-        return Err(OidcClientError::new(
-            "OPError",
-            "unknown_error",
-            "error while sending the request",
-            None,
-        ));
-    }
-
-    let response = Response::from(res.unwrap());
+    let response = match req.send() {
+        Ok(res) => Response::from(res),
+        _ => {
+            return Err(OidcClientError::new(
+                "OPError",
+                "unknown_error",
+                "error while sending the request",
+                None,
+            ))
+        }
+    };
 
     if response.status != request.expected {
         if let Some(body) = &response.body {
