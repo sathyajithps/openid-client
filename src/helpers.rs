@@ -18,7 +18,7 @@ pub fn validate_url(url: &str) -> Result<Url, OidcClientError> {
 }
 
 pub fn convert_json_to<T: for<'a> Deserialize<'a>>(plain: &String) -> Result<T, String> {
-    let result: Result<T, _> = serde_json::from_str(plain.as_str());
+    let result: Result<T, _> = serde_json::from_str(&plain);
     if result.is_err() {
         return Err("Parse Error".to_string());
     }

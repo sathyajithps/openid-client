@@ -60,18 +60,17 @@ pub fn request(
 
     req = req.query(&query_list);
 
-    let res = req.send();
-
-    if res.is_err() {
-        return Err(OidcClientError::new(
-            "OPError",
-            "unknown_error",
-            "error while sending the request",
-            None,
-        ));
-    }
-
-    let response = Response::from(res.unwrap());
+    let response = match req.send() {
+        Ok(res) => Response::from(res),
+        _ => {
+            return Err(OidcClientError::new(
+                "OPError",
+                "unknown_error",
+                "error while sending the request",
+                None,
+            ))
+        }
+    };
 
     if response.status != request.expected {
         if let Some(body) = &response.body {
@@ -79,8 +78,8 @@ pub fn request(
             if let Ok(standard_body_error) = standard_body_error_result {
                 return Err(OidcClientError::new(
                     "OPError",
-                    standard_body_error.error.as_str(),
-                    standard_body_error.error_description.as_str(),
+                    &standard_body_error.error,
+                    &standard_body_error.error_description,
                     Some(response),
                 ));
             }
@@ -89,7 +88,7 @@ pub fn request(
         return Err(OidcClientError::new(
             "OPError",
             "server_error",
-            format!("expected {}, got: {}", request.expected, response.status).as_str(),
+            &format!("expected {}, got: {}", request.expected, response.status),
             Some(response),
         ));
     }
@@ -98,12 +97,11 @@ pub fn request(
         return Err(OidcClientError::new(
             "OPError",
             "server_error",
-            format!(
+            &format!(
                 "expected {} with body but no body was returned",
                 request.expected
-            )
-            .as_str(),
-            None,
+            ),
+            Some(response),
         ));
     }
 
@@ -115,12 +113,12 @@ pub fn request(
     }
 
     if request.expect_body && invalid_json {
-        return Err(OidcClientError {
-            name: "TypeError".to_string(),
-            error: "parse_error".to_string(),
-            error_description: "unexpected body type".to_string(),
-            response: Some(response),
-        });
+        return Err(OidcClientError::new(
+            "TypeError",
+            "parse_error",
+            "unexpected body type",
+            Some(response),
+        ));
     }
 
     Ok(response)
