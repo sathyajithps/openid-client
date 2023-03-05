@@ -6,7 +6,7 @@ license = "MIT"
 description = "Working on an Open Id Connect Client for rust.Will update."
 homepage = "https://openid.net/"
 repository= "https://github.com/sathyajithps/openid-client"
-documentation = "https://openid.net/connect/"
+documentation = "https://sathyajithps.github.io/openid-client"
 readme= "README.md"
 
 [dependencies]
