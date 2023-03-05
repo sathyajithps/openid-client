@@ -1,7 +1,11 @@
 mod helpers;
 mod http;
-pub mod issuer;
+mod issuer;
 mod tests;
-pub mod types;
+mod types;
 
+pub use issuer::Issuer;
 pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+pub use types::{
+    IssuerMetadata, MtlsEndpoints, OidcClientError, Request, RequestOptions, WebFingerResponse,
+};
