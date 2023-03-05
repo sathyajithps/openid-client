@@ -10,7 +10,7 @@ jobs:
     publish:
         if: ${{ github.event.pull_request.merged }}
         continue-on-error: false
-        name: Testng
+        name: Testing
         runs-on: ubuntu-latest
         steps:
             - name: Checkout sources
