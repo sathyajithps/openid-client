@@ -5,7 +5,7 @@
 You can pass in a url, `https` or `http` to automatically discover OpenId provider.
 
 ```rust
-use openid-client::Issuer;
+use openid_client::Issuer;
 
 fn main () {
     let issuer = Issuer::discover("https://auth.example.com").unwrap();
@@ -15,7 +15,7 @@ fn main () {
 You can also use a full discovery url or a custom path to get the issuer.
 
 ```rust
-use openid-client::Issuer;
+use openid_client::Issuer;
 
 fn main () {
     let issuer_full = Issuer::discover("https://auth.example.com/.well-known/openid-configuration").unwrap();
@@ -25,15 +25,15 @@ fn main () {
 
 Discovering an issuer without an absolute url will result in `Err(OidcClientError)`
 
-If you want to add additional request headers or set the timeout for each request, call the `Issuer::discover_with_interceptor` method. It accepts a `mut Box<dyn FnMut(&openid-client::Request) -> openid-client::RequestOptions>` as a second argument.
+If you want to add additional request headers or set the timeout for each request, call the `Issuer::discover_with_interceptor` method. It accepts a `mut Box<dyn FnMut(&openid_client::Request) -> openid_client::RequestOptions>` as a second argument.
 
 ```rust
-use openid-client::Issuer;
+use openid_client::Issuer;
 
 fn main () {
-    let request_options = |_request: &openid-client::Request| {
-        let mut headers = openid-client::HeaderMap::new(); // openid-client::HeaderMap is a re-export from reqwest crate
-        headers.append("testHeader", openid-client::HeaderValue::from_static("testHeaderValue")); // openid-client::HeaderValue is a re-export from reqwest crate
+    let request_options = |_request: &openid_client::Request| {
+        let mut headers = openid_client::HeaderMap::new(); // openid_client::HeaderMap is a re-export from reqwest crate
+        headers.append("testHeader", openid_client::HeaderValue::from_static("testHeaderValue")); // openid_client::HeaderValue is a re-export from reqwest crate
 
         RequestOptions {
             headers,
@@ -50,7 +50,7 @@ fn main () {
 Issuer can be discovered using a webfinger query. You can use an email, a URI [RFC 3986](https://www.ietf.org/rfc/rfc3986.txt) syntax.
 
 ```rust
-use openid-client::Issuer;
+use openid_client::Issuer;
 
 fn main () {
     let issuer_email = Issuer::webfinger("joe@email.example.com").unwrap();
@@ -60,15 +60,15 @@ fn main () {
 }
 ```
 
-If you want to add additional request headers or set the timeout for each request, call the `Issuer::webfinger_with_interceptor` method. It accepts a `mut Box<dyn FnMut(&openid-client::Request) -> openid-client::RequestOptions>` as a second argument.
+If you want to add additional request headers or set the timeout for each request, call the `Issuer::webfinger_with_interceptor` method. It accepts a `mut Box<dyn FnMut(&openid_client::Request) -> openid_client::RequestOptions>` as a second argument.
 
 ```rust
-use openid-client::Issuer;
+use openid_client::Issuer;
 
 fn main () {
-    let request_options = |_request: &openid-client::Request| {
-        let mut headers = openid-client::HeaderMap::new(); // openid-client::HeaderMap is a re-export from reqwest crate
-        headers.append("testHeader", openid-client::HeaderValue::from_static("testHeaderValue")); // openid-client::HeaderValue is a re-export from reqwest crate
+    let request_options = |_request: &openid_client::Request| {
+        let mut headers = openid_client::HeaderMap::new(); // openid_client::HeaderMap is a re-export from reqwest crate
+        headers.append("testHeader", openid_client::HeaderValue::from_static("testHeaderValue")); // openid_client::HeaderValue is a re-export from reqwest crate
 
         RequestOptions {
             headers,
