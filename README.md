@@ -2,6 +2,10 @@
 
 This is a work in progress OpenId Client built with rust. This is based on the excellent OpenId Client made by [panva](https://github.com/panva) : [openid-client](https://github.com/panva/node-openid-client).
 
+## Documentation
+
+Work In Progress Docs - [Link](https://sathyajithps.github.io/openid-client)
+
 ## Disclaimer
 
 This is by no means a production ready library. I'm still learning rust so expect a lot of mistakes. Feel free to open an issue if you find some mistakes.
