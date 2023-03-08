@@ -1,0 +1,81 @@
+name: Deploy CI
+
+on:
+    release:
+        types: [published]
+
+jobs:
+    creates_publish:
+        if: ${{ github.event.release.target_commitish == "master" }}
+        continue-on-error: false
+        name: Crates Publish
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout sources
+              uses: actions/checkout@v3
+
+            - name: Install stable toolchain
+              uses: actions-rs/toolchain@v1
+              with:
+                  profile: minimal
+                  toolchain: stable
+                  override: true
+                  components: rustfmt, clippy
+            - name: Set up cargo cache
+              uses: actions/cache@v3
+              continue-on-error: false
+              with:
+                  path: |
+                      ~/.cargo/bin/
+                      ~/.cargo/registry/index/
+                      ~/.cargo/registry/cache/
+                      ~/.cargo/git/db/
+                      target/
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: ${{ runner.os }}-cargo-
+
+            - name: Lint
+              run: |
+                  cargo fmt --all -- --check
+                  cargo clippy -- -D warnings
+
+            - name: Running Tests
+              run: cargo test -- --include-ignored
+
+            - name: Publishing to Crates.io
+              run: cargo publish --token ${CRATES_TOKEN}
+              env:
+                  CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
+
+    # This action is from https://github.com/rust-lang/mdBook/wiki/Automated-Deployment%3A-GitHub-Actions
+    docs_publish:
+        if: ${{ github.event.release.target_commitish == "master" }}
+        continue-on-error: false
+        name: Publish Docs
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            pull-requests: write
+        steps:
+            - uses: actions/checkout@v3
+              with:
+                  fetch-depth: 0
+            - name: Install mdbook
+              run: |
+                  mkdir mdbook
+                  curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.27/mdbook-v0.4.27-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=./mdbook
+                  echo `pwd`/mdbook >> $GITHUB_PATH
+            - name: Deploy GitHub Pages
+              run: |
+                  cd docs
+                  mdbook build
+                  git worktree add gh-pages
+                  git config user.name "Deploy from CI"
+                  git config user.email ""
+                  cd gh-pages
+                  git update-ref -d refs/heads/gh-pages
+                  rm -rf *
+                  mv ../book/* .
+                  git add .
+                  git commit -m "Deploy $GITHUB_SHA to gh-pages"
+                  git push --force --set-upstream origin gh-pages
