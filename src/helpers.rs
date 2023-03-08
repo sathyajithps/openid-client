@@ -17,8 +17,8 @@ pub fn validate_url(url: &str) -> Result<Url, OidcClientError> {
     Ok(url_result.unwrap())
 }
 
-pub fn convert_json_to<T: for<'a> Deserialize<'a>>(plain: &String) -> Result<T, String> {
-    let result: Result<T, _> = serde_json::from_str(&plain);
+pub fn convert_json_to<T: for<'a> Deserialize<'a>>(plain: &str) -> Result<T, String> {
+    let result: Result<T, _> = serde_json::from_str(plain);
     if result.is_err() {
         return Err("Parse Error".to_string());
     }
@@ -47,7 +47,7 @@ fn has_scheme(input: &str) -> bool {
         }
     }
 
-    return false;
+    false
 }
 
 fn acct_scheme_assumed(input: &str) -> bool {
@@ -57,7 +57,7 @@ fn acct_scheme_assumed(input: &str) -> bool {
 
     let parts: Vec<&str> = input.split('@').collect();
     let host = parts[parts.len() - 1];
-    return !(host.contains(':') || host.contains('/') || host.contains('?'));
+    !(host.contains(':') || host.contains('/') || host.contains('?'))
 }
 
 pub fn webfinger_normalize(input: &str) -> String {

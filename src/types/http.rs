@@ -12,8 +12,8 @@ pub struct Request {
     pub search_params: HashMap<String, Vec<String>>,
 }
 
-impl Request {
-    pub fn default() -> Self {
+impl Default for Request {
+    fn default() -> Self {
         Self {
             expect_body: true,
             expected: StatusCode::OK,
