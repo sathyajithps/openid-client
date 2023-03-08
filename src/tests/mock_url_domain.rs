@@ -56,7 +56,7 @@ pub fn set_mock_domain(real_domain: &String, mock_port: u16) {
 
 #[cfg(not(test))]
 #[allow(dead_code)]
-pub fn set_mock_domain(_real_domain: &String, _mock_port: u16) {}
+pub fn set_mock_domain(_real_domain: &str, _mock_port: u16) {}
 
 #[cfg(test)]
 pub fn process_url(url: String) -> String {

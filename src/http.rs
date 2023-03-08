@@ -35,14 +35,12 @@ pub fn request(
         .iter()
         .for_each(|(header_name, header_values)| {
             headers.append(header_name, header_values.into());
-            ()
         });
     options
         .headers
         .iter()
         .for_each(|(header_name, header_values)| {
             headers.append(header_name, header_values.into());
-            ()
         });
 
     let mut req = client

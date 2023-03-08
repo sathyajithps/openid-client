@@ -103,7 +103,7 @@ impl Issuer {
         };
 
         let issuer_metadata =
-            match convert_json_to::<IssuerMetadata>(&response.body.as_ref().unwrap()) {
+            match convert_json_to::<IssuerMetadata>(response.body.as_ref().unwrap()) {
                 Ok(metadata) => metadata,
                 Err(_) => {
                     return Err(OidcClientError::new(
@@ -117,7 +117,7 @@ impl Issuer {
 
         let mut issuer = Issuer::from(issuer_metadata);
         issuer.request_options = request_options;
-        return Ok(issuer);
+        Ok(issuer)
     }
 
     pub fn webfinger(input: &str) -> Result<Issuer, OidcClientError> {
@@ -133,7 +133,7 @@ impl Issuer {
         let mut host: Option<String> = None;
 
         if resource.starts_with("acct:") {
-            let split: Vec<&str> = resource.split("@").collect();
+            let split: Vec<&str> = resource.split('@').collect();
             host = Some(split[1].to_string());
         } else if resource.starts_with("https://") {
             let url = match validate_url(&resource) {
@@ -185,7 +185,7 @@ impl Issuer {
         };
 
         let webfinger_response =
-            match convert_json_to::<WebFingerResponse>(&response.body.as_ref().unwrap()) {
+            match convert_json_to::<WebFingerResponse>(response.body.as_ref().unwrap()) {
                 Ok(res) => res,
                 Err(_) => {
                     return Err(OidcClientError::new(
@@ -223,10 +223,9 @@ impl Issuer {
             ));
         }
 
-        let issuer_result = Issuer::discover_with_interceptor(&expected_issuer, request_options);
+        let issuer_result = Issuer::discover_with_interceptor(expected_issuer, request_options);
 
-        if issuer_result.is_err() {
-            let issuer_error = issuer_result.unwrap_err();
+        if let Err(issuer_error) = issuer_result {
             if let Some(res) = &issuer_error.response {
                 if res.status == StatusCode::NOT_FOUND {
                     return Err(OidcClientError::new(
