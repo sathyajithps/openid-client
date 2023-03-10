@@ -7,6 +7,54 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::Value;
 use std::time::Duration;
 
+pub fn request(
+    request: Request,
+    request_options: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
+) -> Result<Response, OidcClientError> {
+    let (options, url) = pre_request(&request, request_options);
+
+    let client = reqwest::blocking::Client::new();
+    let req = client
+        .request(request.method.clone(), url)
+        .headers(combine_and_create_new_header_map(
+            &request.headers,
+            &options.headers,
+        ))
+        .query(&request.get_reqwest_query())
+        .timeout(options.timeout);
+
+    let response = match req.send() {
+        Ok(res) => Response::from(res),
+        _ => return Err(request_send_error()),
+    };
+
+    process_response(response, &request)
+}
+
+pub async fn request_async(
+    request: Request,
+    request_options: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
+) -> Result<Response, OidcClientError> {
+    let (options, url) = pre_request(&request, request_options);
+
+    let client = reqwest::Client::new();
+    let req = client
+        .request(request.method.clone(), url)
+        .headers(combine_and_create_new_header_map(
+            &request.headers,
+            &options.headers,
+        ))
+        .query(&request.get_reqwest_query())
+        .timeout(options.timeout);
+
+    let response = match req.send().await {
+        Ok(res) => Response::from_async(res).await,
+        _ => return Err(request_send_error()),
+    };
+
+    process_response(response, &request)
+}
+
 pub fn default_request_options(_request: &Request) -> RequestOptions {
     let mut headers = HeaderMap::new();
     headers.append(
@@ -19,57 +67,59 @@ pub fn default_request_options(_request: &Request) -> RequestOptions {
     }
 }
 
-pub fn request(
-    request: Request,
+fn pre_request(
+    request: &Request,
     request_options: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
-) -> Result<Response, OidcClientError> {
-    let options = request_options(&request);
+) -> (RequestOptions, String) {
+    let options = request_options(request);
 
-    let client = reqwest::blocking::Client::new();
+    let url = process_url(&request.url);
+    (options, url)
+}
 
-    let url = process_url(request.url);
+fn process_response(response: Response, request: &Request) -> Result<Response, OidcClientError> {
+    let mut res = return_error_if_not_expected_status(response, request)?;
 
-    let mut headers = HeaderMap::new();
-    request
-        .headers
-        .iter()
-        .for_each(|(header_name, header_values)| {
-            headers.append(header_name, header_values.into());
-        });
-    options
-        .headers
-        .iter()
-        .for_each(|(header_name, header_values)| {
-            headers.append(header_name, header_values.into());
-        });
+    res = return_error_if_expected_body_is_absent(res, request)?;
 
-    let mut req = client
-        .request(request.method.clone(), url)
-        .headers(headers)
-        .timeout(options.timeout);
+    let mut invalid_json = false;
 
-    let mut query_list: Vec<(String, String)> = vec![];
-
-    for (k, v) in request.search_params {
-        for val in v {
-            query_list.push((k.clone(), val))
-        }
+    if let Some(body) = &res.body {
+        let val: Result<Value, _> = convert_json_to(body);
+        invalid_json = val.is_err();
     }
 
-    req = req.query(&query_list);
+    res = return_error_if_json_is_invalid(invalid_json, res, request)?;
+    Ok(res)
+}
 
-    let response = match req.send() {
-        Ok(res) => Response::from(res),
-        _ => {
-            return Err(OidcClientError::new(
-                "OPError",
-                "unknown_error",
-                "error while sending the request",
-                None,
-            ))
-        }
-    };
+#[inline]
+fn combine_and_create_new_header_map(one: &HeaderMap, two: &HeaderMap) -> HeaderMap {
+    let mut new_headers = HeaderMap::new();
+    one.iter()
+        .chain(two.iter())
+        .for_each(|(header_name, header_values)| {
+            new_headers.append(header_name, header_values.into());
+        });
 
+    new_headers
+}
+
+#[inline]
+fn request_send_error() -> OidcClientError {
+    OidcClientError::new(
+        "OPError",
+        "unknown_error",
+        "error while sending the request",
+        None,
+    )
+}
+
+#[inline]
+fn return_error_if_not_expected_status(
+    response: Response,
+    request: &Request,
+) -> Result<Response, OidcClientError> {
     if response.status != request.expected {
         if let Some(body) = &response.body {
             let standard_body_error_result: Result<StandardBodyError, _> = convert_json_to(body);
@@ -90,7 +140,14 @@ pub fn request(
             Some(response),
         ));
     }
+    Ok(response)
+}
 
+#[inline]
+fn return_error_if_expected_body_is_absent(
+    response: Response,
+    request: &Request,
+) -> Result<Response, OidcClientError> {
     if request.expect_body && response.body.is_none() {
         return Err(OidcClientError::new(
             "OPError",
@@ -102,14 +159,15 @@ pub fn request(
             Some(response),
         ));
     }
+    Ok(response)
+}
 
-    let mut invalid_json = false;
-
-    if let Some(body) = &response.body {
-        let val: Result<Value, _> = convert_json_to(body);
-        invalid_json = val.is_err();
-    }
-
+#[inline]
+fn return_error_if_json_is_invalid(
+    invalid_json: bool,
+    response: Response,
+    request: &Request,
+) -> Result<Response, OidcClientError> {
     if request.expect_body && invalid_json {
         return Err(OidcClientError::new(
             "TypeError",
@@ -118,6 +176,5 @@ pub fn request(
             Some(response),
         ));
     }
-
     Ok(response)
 }
