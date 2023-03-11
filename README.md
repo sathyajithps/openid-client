@@ -4,7 +4,7 @@ This is a work in progress OpenId Client built with rust. This is based on the e
 
 ## Documentation
 
-Work In Progress Docs - [Link](https://sathyajithps.github.io/openid-client)
+Work In Progress
 
 ## Disclaimer
 
