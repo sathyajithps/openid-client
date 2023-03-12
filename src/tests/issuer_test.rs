@@ -900,7 +900,7 @@ mod issuer_discovery_tests {
                     &format!("https://{}/.well-known/custom-configuration", real_domain),
                     Box::new(interceptor),
                 )
-                    .await
+                .await
             });
 
             mock_server.assert_hits(1);
