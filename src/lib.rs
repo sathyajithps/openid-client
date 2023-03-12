@@ -8,6 +8,9 @@
 //!
 //! ## Issuer API
 //!
+//! - New Instance API:
+//!     - [Issuer::new]
+//!
 //! - Well known Discovery API:
 //!     - [Issuer::discover]
 //!     - [Issuer::discover_with_interceptor]

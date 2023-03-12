@@ -433,43 +433,55 @@ mod issuer_discovery_tests {
         let issuer = issuer_result.unwrap();
         let async_issuer = async_issuer_result.unwrap();
 
-        assert_eq!(issuer.claims_parameter_supported, false);
-        assert_eq!(async_issuer.claims_parameter_supported, false);
+        assert_eq!(issuer.claims_parameter_supported, Some(false));
+        assert_eq!(async_issuer.claims_parameter_supported, Some(false));
 
         assert_eq!(
             issuer.grant_types_supported,
-            vec!["authorization_code", "implicit"]
+            Some(vec![
+                "authorization_code".to_string(),
+                "implicit".to_string(),
+            ])
         );
         assert_eq!(
             async_issuer.grant_types_supported,
-            vec!["authorization_code", "implicit"]
+            Some(vec![
+                "authorization_code".to_string(),
+                "implicit".to_string(),
+            ])
         );
 
-        assert_eq!(issuer.request_parameter_supported, false);
-        assert_eq!(async_issuer.request_parameter_supported, false);
+        assert_eq!(issuer.request_parameter_supported, Some(false));
+        assert_eq!(async_issuer.request_parameter_supported, Some(false));
 
-        assert_eq!(issuer.request_uri_parameter_supported, true);
-        assert_eq!(async_issuer.request_uri_parameter_supported, true);
+        assert_eq!(issuer.request_uri_parameter_supported, Some(true));
+        assert_eq!(async_issuer.request_uri_parameter_supported, Some(true));
 
-        assert_eq!(issuer.require_request_uri_registration, false);
-        assert_eq!(async_issuer.require_request_uri_registration, false);
+        assert_eq!(issuer.require_request_uri_registration, Some(false));
+        assert_eq!(async_issuer.require_request_uri_registration, Some(false));
 
-        assert_eq!(issuer.response_modes_supported, vec!["query", "fragment"]);
+        assert_eq!(
+            issuer.response_modes_supported,
+            Some(vec!["query".to_string(), "fragment".to_string()])
+        );
         assert_eq!(
             async_issuer.response_modes_supported,
-            vec!["query", "fragment"]
+            Some(vec!["query".to_string(), "fragment".to_string()])
         );
 
-        assert_eq!(issuer.claim_types_supported, vec!["normal"]);
-        assert_eq!(async_issuer.claim_types_supported, vec!["normal"]);
+        assert_eq!(issuer.claim_types_supported, vec!["normal".to_string()]);
+        assert_eq!(
+            async_issuer.claim_types_supported,
+            vec!["normal".to_string()]
+        );
 
         assert_eq!(
             issuer.token_endpoint_auth_methods_supported,
-            vec!["client_secret_basic"]
+            Some(vec!["client_secret_basic".to_string()])
         );
         assert_eq!(
             async_issuer.token_endpoint_auth_methods_supported,
-            vec!["client_secret_basic"]
+            Some(vec!["client_secret_basic".to_string()])
         );
     }
 
@@ -498,43 +510,55 @@ mod issuer_discovery_tests {
         let issuer = issuer_result.unwrap();
         let async_issuer = async_issuer_result.unwrap();
 
-        assert_eq!(issuer.claims_parameter_supported, false);
-        assert_eq!(async_issuer.claims_parameter_supported, false);
+        assert_eq!(issuer.claims_parameter_supported, Some(false));
+        assert_eq!(async_issuer.claims_parameter_supported, Some(false));
 
         assert_eq!(
             issuer.grant_types_supported,
-            vec!["authorization_code", "implicit"]
+            Some(vec![
+                "authorization_code".to_string(),
+                "implicit".to_string(),
+            ])
         );
         assert_eq!(
             async_issuer.grant_types_supported,
-            vec!["authorization_code", "implicit"]
+            Some(vec![
+                "authorization_code".to_string(),
+                "implicit".to_string(),
+            ])
         );
 
-        assert_eq!(issuer.request_parameter_supported, false);
-        assert_eq!(async_issuer.request_parameter_supported, false);
+        assert_eq!(issuer.request_parameter_supported, Some(false));
+        assert_eq!(async_issuer.request_parameter_supported, Some(false));
 
-        assert_eq!(issuer.request_uri_parameter_supported, true);
-        assert_eq!(async_issuer.request_uri_parameter_supported, true);
+        assert_eq!(issuer.request_uri_parameter_supported, Some(true));
+        assert_eq!(async_issuer.request_uri_parameter_supported, Some(true));
 
-        assert_eq!(issuer.require_request_uri_registration, false);
-        assert_eq!(async_issuer.require_request_uri_registration, false);
+        assert_eq!(issuer.require_request_uri_registration, Some(false));
+        assert_eq!(async_issuer.require_request_uri_registration, Some(false));
 
-        assert_eq!(issuer.response_modes_supported, vec!["query", "fragment"]);
+        assert_eq!(
+            issuer.response_modes_supported,
+            Some(vec!["query".to_string(), "fragment".to_string()])
+        );
         assert_eq!(
             async_issuer.response_modes_supported,
-            vec!["query", "fragment"]
+            Some(vec!["query".to_string(), "fragment".to_string()])
         );
 
-        assert_eq!(issuer.claim_types_supported, vec!["normal"]);
-        assert_eq!(async_issuer.claim_types_supported, vec!["normal"]);
+        assert_eq!(issuer.claim_types_supported, vec!["normal".to_string()]);
+        assert_eq!(
+            async_issuer.claim_types_supported,
+            vec!["normal".to_string()]
+        );
 
         assert_eq!(
             issuer.token_endpoint_auth_methods_supported,
-            vec!["client_secret_basic"]
+            Some(vec!["client_secret_basic".to_string()])
         );
         assert_eq!(
             async_issuer.token_endpoint_auth_methods_supported,
-            vec!["client_secret_basic"]
+            Some(vec!["client_secret_basic".to_string()])
         );
     }
 
@@ -876,7 +900,7 @@ mod issuer_discovery_tests {
                     &format!("https://{}/.well-known/custom-configuration", real_domain),
                     Box::new(interceptor),
                 )
-                .await
+                    .await
             });
 
             mock_server.assert_hits(1);
@@ -886,7 +910,6 @@ mod issuer_discovery_tests {
 
 #[cfg(test)]
 mod issuer_webfinger_tests {
-
     use httpmock::Method::GET;
     use httpmock::MockServer;
 
@@ -1205,7 +1228,7 @@ mod issuer_webfinger_tests {
         let real_domain = get_url_with_count("opacct.example<>.com");
         let resource = format!("acct:juliet%40capulet.example@{}", real_domain);
 
-        let body_wf = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}",resource, real_domain);
+        let body_wf = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}", resource, real_domain);
         let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
 
         set_mock_domain(&real_domain.to_string(), server.port());
@@ -1252,7 +1275,7 @@ mod issuer_webfinger_tests {
             let real_domain = get_url_with_count("op.example<>.com");
             let resource = format!("acct:juliet@{}", real_domain);
 
-            let body_wf = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}",resource, real_domain);
+            let body_wf = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}", resource, real_domain);
             let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
 
             set_mock_domain(&real_domain.to_string(), server.port());
@@ -1296,7 +1319,7 @@ mod issuer_webfinger_tests {
             let real_domain = get_url_with_count("op.example<>.com");
             let resource = format!("acct:juliet@{}", real_domain);
 
-            let body_wf = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}",resource, real_domain);
+            let body_wf = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}", resource, real_domain);
             let body_oidc = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", real_domain);
 
             set_mock_domain(&real_domain.to_string(), server.port());
@@ -1336,5 +1359,127 @@ mod issuer_webfinger_tests {
             discovery.assert();
             assert!(issuer_result.is_ok());
         }
+    }
+}
+
+#[cfg(test)]
+mod issuer_new {
+    use crate::issuer::Issuer;
+    use crate::IssuerMetadata;
+    use std::collections::HashMap;
+
+    #[test]
+    fn accepts_the_recognized_metadata() {
+        let metadata = IssuerMetadata {
+            issuer: "https://accounts.google.com".to_string(),
+            authorization_endpoint: Some(
+                "https://accounts.google.com/o/oauth2/v2/auth".to_string(),
+            ),
+            token_endpoint: Some("https://www.googleapis.com/oauth2/v4/token".to_string()),
+            userinfo_endpoint: Some("https://www.googleapis.com/oauth2/v3/userinfo".to_string()),
+            jwks_uri: Some("https://www.googleapis.com/oauth2/v3/certs".to_string()),
+            ..IssuerMetadata::default()
+        };
+
+        let issuer = Issuer::new(metadata);
+
+        assert_eq!(
+            Some("https://accounts.google.com/o/oauth2/v2/auth".to_string()),
+            issuer.authorization_endpoint
+        );
+        assert_eq!(
+            Some("https://www.googleapis.com/oauth2/v4/token".to_string()),
+            issuer.token_endpoint
+        );
+        assert_eq!(
+            Some("https://www.googleapis.com/oauth2/v3/userinfo".to_string()),
+            issuer.userinfo_endpoint
+        );
+        assert_eq!(
+            Some("https://www.googleapis.com/oauth2/v3/certs".to_string()),
+            issuer.jwks_uri
+        );
+    }
+
+    #[test]
+    fn does_not_assign_discovery_1_0_defaults_when_instantiating_manually() {
+        let issuer = Issuer::new(IssuerMetadata::default());
+
+        assert!(issuer.claims_parameter_supported.is_none());
+        assert!(issuer.grant_types_supported.is_none());
+        assert!(issuer.request_parameter_supported.is_none());
+        assert!(issuer.request_uri_parameter_supported.is_none());
+        assert!(issuer.require_request_uri_registration.is_none());
+        assert!(issuer.response_modes_supported.is_none());
+        assert!(issuer.token_endpoint_auth_methods_supported.is_none());
+    }
+
+    #[test]
+    fn assigns_introspection_and_revocation_auth_method_meta_from_token_if_both_are_not_defined() {
+        let metadata = IssuerMetadata {
+            token_endpoint: Some("https://op.example.com/token".to_string()),
+            token_endpoint_auth_methods_supported: Some(vec![
+                "client_secret_basic".to_string(),
+                "client_secret_post".to_string(),
+                "client_secret_jwt".to_string(),
+            ]),
+            token_endpoint_auth_signing_alg_values_supported: Some(vec![
+                "RS256".to_string(),
+                "HS256".to_string(),
+            ]),
+            ..IssuerMetadata::default()
+        };
+
+        let issuer = Issuer::new(metadata);
+
+        assert_eq!(
+            issuer.introspection_endpoint_auth_methods_supported,
+            Some(vec![
+                "client_secret_basic".to_string(),
+                "client_secret_post".to_string(),
+                "client_secret_jwt".to_string(),
+            ])
+        );
+        assert_eq!(
+            issuer.revocation_endpoint_auth_methods_supported,
+            Some(vec![
+                "client_secret_basic".to_string(),
+                "client_secret_post".to_string(),
+                "client_secret_jwt".to_string(),
+            ])
+        );
+
+        assert_eq!(
+            issuer.revocation_endpoint_auth_signing_alg_values_supported,
+            Some(vec!["RS256".to_string(), "HS256".to_string()])
+        );
+        assert_eq!(
+            issuer.introspection_endpoint_auth_signing_alg_values_supported,
+            Some(vec!["RS256".to_string(), "HS256".to_string()])
+        );
+    }
+
+    #[test]
+    fn is_able_to_discover_custom_or_non_recognized_properties() {
+        let mut other_fields: HashMap<String, serde_json::Value> = HashMap::new();
+        other_fields.insert(
+            "foo".to_string(),
+            serde_json::Value::String("bar".to_string()),
+        );
+
+        let metadata = IssuerMetadata {
+            issuer: "https://op.example.com".to_string(),
+            other_fields,
+            ..IssuerMetadata::default()
+        };
+
+        let issuer = Issuer::new(metadata);
+
+        assert_eq!(issuer.issuer, "https://op.example.com".to_string());
+        assert!(issuer.other_fields.contains_key("foo"));
+        assert_eq!(
+            issuer.other_fields.get("foo"),
+            Some(&serde_json::Value::String("bar".to_string()))
+        );
     }
 }

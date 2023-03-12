@@ -69,3 +69,30 @@ pub struct IssuerMetadata {
     #[serde(flatten)]
     pub other_fields: HashMap<String, serde_json::Value>,
 }
+
+impl Default for IssuerMetadata {
+    /// This default value serves only one purpose, just so that you dont have to assign every value
+    /// as none if you just to get started with a couple of values.
+    fn default() -> Self {
+        Self {
+            issuer: "".to_string(),
+            authorization_endpoint: None,
+            token_endpoint: None,
+            jwks_uri: None,
+            userinfo_endpoint: None,
+            revocation_endpoint: None,
+            end_session_endpoint: None,
+            registration_endpoint: None,
+            introspection_endpoint: None,
+            token_endpoint_auth_methods_supported: None,
+            token_endpoint_auth_signing_alg_values_supported: None,
+            introspection_endpoint_auth_methods_supported: None,
+            introspection_endpoint_auth_signing_alg_values_supported: None,
+            revocation_endpoint_auth_methods_supported: None,
+            revocation_endpoint_auth_signing_alg_values_supported: None,
+            request_object_signing_alg_values_supported: None,
+            mtls_endpoint_aliases: None,
+            other_fields: Default::default(),
+        }
+    }
+}
