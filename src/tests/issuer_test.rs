@@ -1329,8 +1329,7 @@ mod issuer_webfinger_tests {
 
             let issuer_result: Result<Issuer, crate::OidcClientError> =
                 async_runtime.block_on(async {
-                    Issuer::webfinger_with_interceptor_async(&resource, Box::new(interceptor))
-                        .await
+                    Issuer::webfinger_with_interceptor_async(&resource, Box::new(interceptor)).await
                 });
 
             webfinger.assert();
