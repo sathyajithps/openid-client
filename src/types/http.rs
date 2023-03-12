@@ -35,7 +35,7 @@ impl Default for Request {
 
 impl Request {
     /// Converts `search_params` to a [reqwest] compatible query params format
-    pub fn get_reqwest_query(&self) -> Vec<(String, String)> {
+    pub(crate) fn get_reqwest_query(&self) -> Vec<(String, String)> {
         let mut query_list: Vec<(String, String)> = vec![];
 
         for (k, v) in &self.search_params {

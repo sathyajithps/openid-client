@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 
 use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
-use crate::http::{default_request_options, request, request_async};
+use crate::http::{default_request_interceptor, request, request_async};
 use crate::types::{
     IssuerMetadata, OidcClientError, Request, RequestOptions, Response, WebFingerResponse,
 };
@@ -42,7 +42,7 @@ pub struct Issuer {
     pub claim_types_supported: Vec<String>,
     /// Client Authentication methods supported by Token Endpoint. [Client Authentication](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication)
     pub token_endpoint_auth_methods_supported: Vec<String>,
-    request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+    request_interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
 }
 
 impl Issuer {
@@ -65,7 +65,7 @@ impl Issuer {
             jwks_uri: None,
             userinfo_endpoint: None,
             revocation_endpoint: None,
-            request_options: Box::new(default_request_options),
+            request_interceptor: Box::new(default_request_interceptor),
         }
     }
 
@@ -91,7 +91,7 @@ impl Issuer {
     /// Discover an OIDC Issuer using the issuer url method.
     ///
     /// ```
-    /// use openid_client::Issuer;
+    /// # use openid_client::Issuer;
     ///
     /// fn main(){
     ///     let issuer = Issuer::discover("https://auth.example.com").unwrap();
@@ -102,14 +102,14 @@ impl Issuer {
     /// Urls with `.well-known/openid-configuration` can also be used to discover issuer.
     ///
     /// ```
-    /// use openid_client::Issuer;
+    /// # use openid_client::Issuer;
     ///
     /// fn main(){
     ///     let issuer = Issuer::discover("https://auth.example.com/.well-known/openid-configurtaion").unwrap();
     /// }
     /// ```
     pub fn discover(issuer: &str) -> Result<Issuer, OidcClientError> {
-        Issuer::discover_with_interceptor(issuer, Box::new(default_request_options))
+        Issuer::discover_with_interceptor(issuer, Box::new(default_request_interceptor))
     }
 
     /// # Discover OIDC Issuer with a request interceptor
@@ -121,8 +121,8 @@ impl Issuer {
     /// The expected return type is of type [RequestOptions] with custom headers and the timeout.
     ///
     /// ```
-    /// use openid_client::{Issuer, HeaderMap, HeaderValue, RequestOptions, Request};
-    /// use std::time::Duration;
+    /// # use openid_client::{Issuer, HeaderMap, HeaderValue, RequestOptions, Request};
+    /// # use std::time::Duration;
     ///
     /// fn main(){
     ///     let interceptor = |_request: &Request| {
@@ -143,13 +143,13 @@ impl Issuer {
     ///     `header: value1, value2, value3 ....`
     pub fn discover_with_interceptor(
         issuer: &str,
-        mut request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+        mut interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_discover_request(issuer)?;
 
-        let res = request(req, &mut request_options)?;
+        let res = request(req, &mut interceptor)?;
 
-        Self::process_discover_response(res, request_options)
+        Self::process_discover_response(res, interceptor)
     }
 
     /// # Discover OIDC Issuer
@@ -159,7 +159,7 @@ impl Issuer {
     /// Discover an OIDC Issuer using the issuer url method.
     ///
     /// ```
-    /// use openid_client::Issuer;
+    /// # use openid_client::Issuer;
     ///
     /// #[tokio::main]
     ///async fn main(){
@@ -171,7 +171,7 @@ impl Issuer {
     /// Urls with `.well-known/openid-configuration` can also be used to discover issuer.
     ///
     /// ```
-    /// use openid_client::Issuer;
+    /// # use openid_client::Issuer;
     ///
     ///#[tokio::main]
     ///async fn main(){
@@ -179,7 +179,7 @@ impl Issuer {
     /// }
     /// ```
     pub async fn discover_async(issuer: &str) -> Result<Issuer, OidcClientError> {
-        Self::discover_with_interceptor_async(issuer, Box::new(default_request_options)).await
+        Self::discover_with_interceptor_async(issuer, Box::new(default_request_interceptor)).await
     }
 
     /// # Discover OIDC Issuer with a request interceptor
@@ -191,8 +191,8 @@ impl Issuer {
     /// The expected return type is of type [RequestOptions] with custom headers and the timeout.
     ///
     /// ```
-    /// use openid_client::{Issuer, HeaderMap, HeaderValue, RequestOptions, Request};
-    /// use std::time::Duration;
+    /// # use openid_client::{Issuer, HeaderMap, HeaderValue, RequestOptions, Request};
+    /// # use std::time::Duration;
     ///
     /// #[tokio::main]
     /// fn main(){
@@ -214,13 +214,13 @@ impl Issuer {
     ///     `header: value1, value2, value3 ....`
     pub async fn discover_with_interceptor_async(
         issuer: &str,
-        mut request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+        mut request_interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_discover_request(issuer)?;
 
-        let res = request_async(req, &mut request_options).await?;
+        let res = request_async(req, &mut request_interceptor).await?;
 
-        Self::process_discover_response(res, request_options)
+        Self::process_discover_response(res, request_interceptor)
     }
 
     /// This is a private function that is used to build the discover request.
@@ -272,7 +272,7 @@ impl Issuer {
             };
 
         let mut issuer = Issuer::from(issuer_metadata);
-        issuer.request_options = request_options;
+        issuer.request_interceptor = request_options;
         Ok(issuer)
     }
 }
@@ -286,7 +286,7 @@ impl Issuer {
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
     /// ```
-    /// use openid_client::Issuer;
+    /// # use openid_client::Issuer;
     ///
     /// fn main(){
     ///     let issuer_email = Issuer::webfinger("joe@auth.example.com").unwrap();
@@ -297,7 +297,7 @@ impl Issuer {
     /// }
     /// ```
     pub fn webfinger(input: &str) -> Result<Issuer, OidcClientError> {
-        Issuer::webfinger_with_interceptor(input, Box::new(default_request_options))
+        Issuer::webfinger_with_interceptor(input, Box::new(default_request_interceptor))
     }
 
     /// # Webfinger OIDC Issuer Discovery with request interceptor
@@ -311,8 +311,8 @@ impl Issuer {
     /// The expected return type is of type [RequestOptions] with custom headers and the timeout.
     ///
     /// ```
-    /// use openid_client::{Issuer, Request, HeaderMap, HeaderValue, RequestOptions};
-    /// use std::time::Duration;
+    /// # use openid_client::{Issuer, Request, HeaderMap, HeaderValue, RequestOptions};
+    /// # use std::time::Duration;
     ///
     /// fn main(){
     ///     let interceptor = |_request: &Request| {
@@ -360,7 +360,7 @@ impl Issuer {
     /// }
     /// ```
     pub async fn webfinger_async(input: &str) -> Result<Issuer, OidcClientError> {
-        Issuer::webfinger_with_interceptor_async(input, Box::new(default_request_options)).await
+        Issuer::webfinger_with_interceptor_async(input, Box::new(default_request_interceptor)).await
     }
 
     /// # Webfinger OIDC Issuer Discovery with request interceptor

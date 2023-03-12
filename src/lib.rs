@@ -1,6 +1,6 @@
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://i.ibb.co/d49gz0F/oidc.png")]
-#![doc(html_favicon_url  = "https://i.ibb.co/1TNK5bY/oidc-1.png")]
+#![doc(html_favicon_url = "https://i.ibb.co/1TNK5bY/oidc-1.png")]
 //! # OpenID Client
 //!
 //! This crate is an OpenID Connect RP library based on an openid client by [panva](https://github.com/panva)
@@ -31,5 +31,6 @@ mod types;
 pub use issuer::Issuer;
 pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 pub use types::{
-    IssuerMetadata, MtlsEndpoints, OidcClientError, Request, RequestOptions, WebFingerResponse,
+    IssuerMetadata, MtlsEndpoints, OidcClientError, Request, RequestOptions, Response,
+    WebFingerResponse,
 };
