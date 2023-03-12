@@ -2,13 +2,21 @@ use std::{collections::HashMap, time::Duration};
 
 use reqwest::{header::HeaderMap, Method, StatusCode};
 
+/// # Request
+/// Request is an internal struct that is used by each OIDC protocol methods.
 #[derive(Debug)]
 pub struct Request {
+    /// Url of the request without query params
     pub url: String,
+    /// Expected status code from the server
     pub expected: StatusCode,
-    pub method: reqwest::Method,
+    /// Http method of the request
+    pub method: Method,
+    /// Whether or not to expect body with the response
     pub expect_body: bool,
+    /// Headers that are sent in the request
     pub headers: HeaderMap,
+    /// Query Params that are send with the request
     pub search_params: HashMap<String, Vec<String>>,
 }
 
@@ -26,6 +34,7 @@ impl Default for Request {
 }
 
 impl Request {
+    /// Converts `search_params` to a [reqwest] compatible query params format
     pub fn get_reqwest_query(&self) -> Vec<(String, String)> {
         let mut query_list: Vec<(String, String)> = vec![];
 
@@ -39,14 +48,20 @@ impl Request {
     }
 }
 
+/// # Response
+/// Response is the abstracted version of the [reqwest] Response (async and blocking).
 #[derive(Debug)]
 pub struct Response {
+    /// Body from the response
     pub body: Option<String>,
+    /// Status code of the response
     pub status: StatusCode,
+    /// Response headers from the server
     pub headers: HeaderMap,
 }
 
 impl Response {
+    /// Creates a new instance of Response from [reqwest::blocking::Response]
     pub fn from(response: reqwest::blocking::Response) -> Self {
         let status = response.status();
         let headers = response.headers().clone();
@@ -65,6 +80,7 @@ impl Response {
         }
     }
 
+    /// Creates a new instance of Response from [reqwest::Response]
     pub async fn from_async(response: reqwest::Response) -> Self {
         let status = response.status();
         let headers = response.headers().clone();
@@ -84,8 +100,17 @@ impl Response {
     }
 }
 
+/// # RequestOptions
+/// This struct is the return type of the request interceptor that can be passed to various methods
+/// such as:
+/// 1. [crate::Issuer::webfinger_with_interceptor_async]
+/// 2. [crate::Issuer::webfinger_with_interceptor]
+/// 3. [crate::Issuer::discover_with_interceptor_async]
+/// 4. [crate::Issuer::discover_with_interceptor]
 #[derive(Debug)]
 pub struct RequestOptions {
+    /// Headers that are tobe appended with the request that is going to be made
     pub headers: HeaderMap,
+    /// Request timeout
     pub timeout: Duration,
 }
