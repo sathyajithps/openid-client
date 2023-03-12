@@ -9,9 +9,9 @@ use std::time::Duration;
 
 pub fn request(
     request: Request,
-    request_options: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
+    interceptor: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
 ) -> Result<Response, OidcClientError> {
-    let (options, url) = pre_request(&request, request_options);
+    let (options, url) = pre_request(&request, interceptor);
 
     let client = reqwest::blocking::Client::new();
     let req = client
@@ -33,9 +33,9 @@ pub fn request(
 
 pub async fn request_async(
     request: Request,
-    request_options: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
+    interceptor: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
 ) -> Result<Response, OidcClientError> {
-    let (options, url) = pre_request(&request, request_options);
+    let (options, url) = pre_request(&request, interceptor);
 
     let client = reqwest::Client::new();
     let req = client
@@ -55,7 +55,7 @@ pub async fn request_async(
     process_response(response, &request)
 }
 
-pub fn default_request_options(_request: &Request) -> RequestOptions {
+pub fn default_request_interceptor(_request: &Request) -> RequestOptions {
     let mut headers = HeaderMap::new();
     headers.append(
         "User-Agent",

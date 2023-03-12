@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 
 use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
-use crate::http::{default_request_options, request, request_async};
+use crate::http::{default_request_interceptor, request, request_async};
 use crate::types::{
     IssuerMetadata, OidcClientError, Request, RequestOptions, Response, WebFingerResponse,
 };
@@ -25,7 +25,7 @@ pub struct Issuer {
     pub response_modes_supported: Vec<String>,
     pub claim_types_supported: Vec<String>,
     pub token_endpoint_auth_methods_supported: Vec<String>,
-    request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+    request_interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
 }
 
 impl Issuer {
@@ -48,7 +48,7 @@ impl Issuer {
             jwks_uri: None,
             userinfo_endpoint: None,
             revocation_endpoint: None,
-            request_options: Box::new(default_request_options),
+            request_interceptor: Box::new(default_request_interceptor),
         }
     }
 
@@ -67,33 +67,33 @@ impl Issuer {
 
 impl Issuer {
     pub fn discover(issuer: &str) -> Result<Issuer, OidcClientError> {
-        Issuer::discover_with_interceptor(issuer, Box::new(default_request_options))
+        Issuer::discover_with_interceptor(issuer, Box::new(default_request_interceptor))
     }
 
     pub fn discover_with_interceptor(
         issuer: &str,
-        mut request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+        mut interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_discover_request(issuer)?;
 
-        let res = request(req, &mut request_options)?;
+        let res = request(req, &mut interceptor)?;
 
-        Self::process_discover_response(res, request_options)
+        Self::process_discover_response(res, interceptor)
     }
 
     pub async fn discover_async(issuer: &str) -> Result<Issuer, OidcClientError> {
-        Self::discover_with_interceptor_async(issuer, Box::new(default_request_options)).await
+        Self::discover_with_interceptor_async(issuer, Box::new(default_request_interceptor)).await
     }
 
     pub async fn discover_with_interceptor_async(
         issuer: &str,
-        mut request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+        mut request_interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_discover_request(issuer)?;
 
-        let res = request_async(req, &mut request_options).await?;
+        let res = request_async(req, &mut request_interceptor).await?;
 
-        Self::process_discover_response(res, request_options)
+        Self::process_discover_response(res, request_interceptor)
     }
 
     pub fn build_discover_request(issuer: &str) -> Result<Request, OidcClientError> {
@@ -143,14 +143,14 @@ impl Issuer {
             };
 
         let mut issuer = Issuer::from(issuer_metadata);
-        issuer.request_options = request_options;
+        issuer.request_interceptor = request_options;
         Ok(issuer)
     }
 }
 
 impl Issuer {
     pub fn webfinger(input: &str) -> Result<Issuer, OidcClientError> {
-        Issuer::webfinger_with_interceptor(input, Box::new(default_request_options))
+        Issuer::webfinger_with_interceptor(input, Box::new(default_request_interceptor))
     }
 
     pub fn webfinger_with_interceptor(
@@ -169,7 +169,7 @@ impl Issuer {
     }
 
     pub async fn webfinger_async(input: &str) -> Result<Issuer, OidcClientError> {
-        Issuer::webfinger_with_interceptor_async(input, Box::new(default_request_options)).await
+        Issuer::webfinger_with_interceptor_async(input, Box::new(default_request_interceptor)).await
     }
 
     pub async fn webfinger_with_interceptor_async(

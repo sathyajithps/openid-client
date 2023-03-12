@@ -823,7 +823,7 @@ mod issuer_discovery_tests {
                     .body(get_expected(&real_domain));
             });
 
-            let request_options = |_request: &crate::types::Request| {
+            let interceptor = |_request: &crate::types::Request| {
                 let mut headers = HeaderMap::new();
                 headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
 
@@ -837,7 +837,7 @@ mod issuer_discovery_tests {
 
             let _ = Issuer::discover_with_interceptor(
                 &format!("https://{}/.well-known/custom-configuration", real_domain),
-                Box::new(request_options),
+                Box::new(interceptor),
             );
             mock_server.assert_hits(1);
         }
@@ -857,7 +857,7 @@ mod issuer_discovery_tests {
                     .body(get_expected(&real_domain));
             });
 
-            let request_options = |_request: &crate::types::Request| {
+            let interceptor = |_request: &crate::types::Request| {
                 let mut headers = HeaderMap::new();
                 headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
 
@@ -874,7 +874,7 @@ mod issuer_discovery_tests {
             let _ = async_runtime.block_on(async {
                 Issuer::discover_with_interceptor_async(
                     &format!("https://{}/.well-known/custom-configuration", real_domain),
-                    Box::new(request_options),
+                    Box::new(interceptor),
                 )
                 .await
             });
@@ -1272,7 +1272,7 @@ mod issuer_webfinger_tests {
                 then.status(200).body(body_oidc);
             });
 
-            let request_options = |_request: &crate::types::Request| {
+            let interceptor = |_request: &crate::types::Request| {
                 let mut headers = HeaderMap::new();
                 headers.append("custom", HeaderValue::from_static("foo"));
                 RequestOptions {
@@ -1282,7 +1282,7 @@ mod issuer_webfinger_tests {
             };
 
             let issuer_result =
-                Issuer::webfinger_with_interceptor(&resource, Box::new(request_options));
+                Issuer::webfinger_with_interceptor(&resource, Box::new(interceptor));
 
             webfinger.assert();
             discovery.assert();
@@ -1316,7 +1316,7 @@ mod issuer_webfinger_tests {
                 then.status(200).body(body_oidc);
             });
 
-            let request_options = |_request: &crate::types::Request| {
+            let interceptor = |_request: &crate::types::Request| {
                 let mut headers = HeaderMap::new();
                 headers.append("custom", HeaderValue::from_static("foo"));
                 RequestOptions {
@@ -1329,7 +1329,7 @@ mod issuer_webfinger_tests {
 
             let issuer_result: Result<Issuer, crate::OidcClientError> =
                 async_runtime.block_on(async {
-                    Issuer::webfinger_with_interceptor_async(&resource, Box::new(request_options))
+                    Issuer::webfinger_with_interceptor_async(&resource, Box::new(interceptor))
                         .await
                 });
 
