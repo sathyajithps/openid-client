@@ -27,38 +27,51 @@ pub struct Issuer {
     /// Endpoint for revoking refresh tokes and access tokens. [Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
     pub revocation_endpoint: Option<String>,
     /// Claims supported by the Authorization Server
-    pub claims_parameter_supported: bool,
+    pub claims_parameter_supported: Option<bool>,
     /// OAuth 2.0 Grant Types supported by the Authorization Server. [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591).
-    pub grant_types_supported: Vec<String>,
+    pub grant_types_supported: Option<Vec<String>>,
     /// Indicates whether request object is supported by Authorization Server. [OIDC Request Object](https://openid.net/specs/openid-connect-core-1_0.html#RequestObject).
-    pub request_parameter_supported: bool,
+    pub request_parameter_supported: Option<bool>,
     /// Indicates whether request object by reference is supported by Authorization Server. [OIDC Request Object by Reference](https://openid.net/specs/openid-connect-core-1_0.html#RequestUriParameter).
-    pub request_uri_parameter_supported: bool,
+    pub request_uri_parameter_supported: Option<bool>,
     /// Whether a request uri has to be pre registered with Authorization Server.
-    pub require_request_uri_registration: bool,
+    pub require_request_uri_registration: Option<bool>,
     /// OAuth 2.0 Response Mode values that Authorization Server supports. [Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
-    pub response_modes_supported: Vec<String>,
+    pub response_modes_supported: Option<Vec<String>>,
     /// Claim Types supported. [OIDC Claim types](https://openid.net/specs/openid-connect-core-1_0.html#ClaimTypes).
     pub claim_types_supported: Vec<String>,
     /// Client Authentication methods supported by Token Endpoint. [Client Authentication](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication)
-    pub token_endpoint_auth_methods_supported: Vec<String>,
+    pub token_endpoint_auth_methods_supported: Option<Vec<String>>,
+    /// List of client [authentication methods](https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#token-endpoint-auth-method) supported by the Authorization Server.
+    pub introspection_endpoint_auth_methods_supported: Option<Vec<String>>,
+    /// List of JWS signing algorithms supported by the introspection endpoint for the signature of
+    /// the JWT that the client uses to authenticate.
+    pub introspection_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
+    /// List of client [authentication methods](https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#token-endpoint-auth-method) supported by the Authorization Server.
+    pub revocation_endpoint_auth_methods_supported: Option<Vec<String>>,
+    /// List of JWS signing algorithms supported by the revocation endpoint for the signature of the
+    /// JWT that the client uses to authenticate.
+    pub revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
+    /// Extra key values
+    pub other_fields: HashMap<String, serde_json::Value>,
     request_interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
 }
 
-impl Issuer {
+impl Default for Issuer {
     fn default() -> Self {
         Self {
-            claims_parameter_supported: false,
-            grant_types_supported: vec![
+            claims_parameter_supported: Some(false),
+            grant_types_supported: Some(vec![
                 String::from("authorization_code"),
                 String::from("implicit"),
-            ],
-            request_parameter_supported: false,
-            request_uri_parameter_supported: true,
-            require_request_uri_registration: false,
-            response_modes_supported: vec![String::from("query"), String::from("fragment")],
+            ]),
+            request_parameter_supported: Some(false),
+            request_uri_parameter_supported: Some(true),
+            require_request_uri_registration: Some(false),
+            response_modes_supported: Some(vec![String::from("query"), String::from("fragment")]),
             claim_types_supported: vec![String::from("normal")],
-            token_endpoint_auth_methods_supported: vec![String::from("client_secret_basic")],
+            token_endpoint_auth_methods_supported: Some(vec!["client_secret_basic".to_string()]),
+            introspection_endpoint_auth_methods_supported: None,
             issuer: "".to_string(),
             authorization_endpoint: None,
             token_endpoint: None,
@@ -66,10 +79,50 @@ impl Issuer {
             userinfo_endpoint: None,
             revocation_endpoint: None,
             request_interceptor: Box::new(default_request_interceptor),
+            revocation_endpoint_auth_methods_supported: None,
+            introspection_endpoint_auth_signing_alg_values_supported: None,
+            revocation_endpoint_auth_signing_alg_values_supported: None,
+            other_fields: Default::default(),
         }
     }
+}
 
+impl Issuer {
     fn from(metadata: IssuerMetadata) -> Self {
+        let token_endpoint_auth_methods_supported =
+            match metadata.token_endpoint_auth_methods_supported {
+                None => Some(vec!["client_secret_basic".to_string()]),
+                Some(v) => Some(v),
+            };
+
+        let introspection_endpoint_auth_methods_supported =
+            match metadata.introspection_endpoint_auth_methods_supported {
+                None => token_endpoint_auth_methods_supported.clone(),
+                Some(v) => Some(v),
+            };
+
+        let introspection_endpoint_auth_signing_alg_values_supported =
+            match metadata.introspection_endpoint_auth_signing_alg_values_supported {
+                None => metadata
+                    .token_endpoint_auth_signing_alg_values_supported
+                    .clone(),
+                Some(v) => Some(v),
+            };
+
+        let revocation_endpoint_auth_methods_supported =
+            match metadata.revocation_endpoint_auth_methods_supported {
+                None => token_endpoint_auth_methods_supported.clone(),
+                Some(v) => Some(v),
+            };
+
+        let revocation_endpoint_auth_signing_alg_values_supported =
+            match metadata.revocation_endpoint_auth_signing_alg_values_supported {
+                None => metadata
+                    .token_endpoint_auth_signing_alg_values_supported
+                    .clone(),
+                Some(v) => Some(v),
+            };
+
         Self {
             issuer: metadata.issuer,
             authorization_endpoint: metadata.authorization_endpoint,
@@ -77,7 +130,90 @@ impl Issuer {
             jwks_uri: metadata.jwks_uri,
             userinfo_endpoint: metadata.userinfo_endpoint,
             revocation_endpoint: metadata.revocation_endpoint,
+            token_endpoint_auth_methods_supported,
+            introspection_endpoint_auth_methods_supported,
+            introspection_endpoint_auth_signing_alg_values_supported,
+            revocation_endpoint_auth_methods_supported,
+            revocation_endpoint_auth_signing_alg_values_supported,
+            other_fields: metadata.other_fields,
             ..Issuer::default()
+        }
+    }
+
+    /// # Instantiate new Issuer using [IssuerMetadata]
+    ///
+    /// ```
+    /// # use openid_client::{Issuer, IssuerMetadata};
+    ///
+    /// fn main() {
+    ///     let metadata = IssuerMetadata {
+    ///         issuer: "https://auth.example.com".to_string(),
+    ///         authorization_endpoint: Some("https://auth.example.com/authorize".to_string()),
+    ///         token_endpoint: Some("https://auth.example.com/token".to_string()),
+    ///         userinfo_endpoint: Some("https://auth.example.com/userinfo".to_string()),
+    ///         jwks_uri: Some("https://auth.example.com/certs".to_string()),
+    ///         ..IssuerMetadata::default()
+    ///     };
+    ///
+    ///     let issuer = Issuer::new(metadata);
+    /// }
+    /// ```
+    ///
+    /// No OIDC Discovery defaults are set if Issuer is made through this method.
+    ///
+    /// If no introspection/revocation endpoint auth methods or algorithms are specified,
+    /// value of token endpoint auth methods and algorithms are used as the the value for the said
+    /// properties.
+    pub fn new(metadata: IssuerMetadata) -> Self {
+        let introspection_endpoint_auth_methods_supported =
+            match metadata.introspection_endpoint_auth_methods_supported {
+                None => metadata.token_endpoint_auth_methods_supported.clone(),
+                Some(v) => Some(v),
+            };
+
+        let introspection_endpoint_auth_signing_alg_values_supported =
+            match metadata.introspection_endpoint_auth_signing_alg_values_supported {
+                None => metadata
+                    .token_endpoint_auth_signing_alg_values_supported
+                    .clone(),
+                Some(v) => Some(v),
+            };
+
+        let revocation_endpoint_auth_methods_supported =
+            match metadata.revocation_endpoint_auth_methods_supported {
+                None => metadata.token_endpoint_auth_methods_supported.clone(),
+                Some(v) => Some(v),
+            };
+
+        let revocation_endpoint_auth_signing_alg_values_supported =
+            match metadata.revocation_endpoint_auth_signing_alg_values_supported {
+                None => metadata
+                    .token_endpoint_auth_signing_alg_values_supported
+                    .clone(),
+                Some(v) => Some(v),
+            };
+
+        Self {
+            issuer: metadata.issuer,
+            authorization_endpoint: metadata.authorization_endpoint,
+            token_endpoint: metadata.token_endpoint,
+            jwks_uri: metadata.jwks_uri,
+            userinfo_endpoint: metadata.userinfo_endpoint,
+            revocation_endpoint: metadata.revocation_endpoint,
+            claims_parameter_supported: None,
+            grant_types_supported: None,
+            request_parameter_supported: None,
+            request_uri_parameter_supported: None,
+            require_request_uri_registration: None,
+            response_modes_supported: None,
+            claim_types_supported: vec![],
+            token_endpoint_auth_methods_supported: metadata.token_endpoint_auth_methods_supported,
+            introspection_endpoint_auth_methods_supported,
+            introspection_endpoint_auth_signing_alg_values_supported,
+            revocation_endpoint_auth_methods_supported,
+            revocation_endpoint_auth_signing_alg_values_supported,
+            other_fields: metadata.other_fields,
+            request_interceptor: Box::new(default_request_interceptor),
         }
     }
 }
@@ -267,7 +403,7 @@ impl Issuer {
                         "invalid_issuer_metadata",
                         "invalid issuer metadata",
                         Some(response),
-                    ))
+                    ));
                 }
             };
 
@@ -472,7 +608,7 @@ impl Issuer {
                         "invalid_webfinger_response",
                         "invalid  webfinger response",
                         Some(response),
-                    ))
+                    ));
                 }
             };
 
@@ -489,7 +625,7 @@ impl Issuer {
                     "empty_location_link",
                     "no issuer found in webfinger response",
                     Some(response),
-                ))
+                ));
             }
         };
 
@@ -519,7 +655,7 @@ impl Issuer {
                         "no_issuer",
                         &format!("invalid issuer location {}", expected_issuer),
                         Some(err_response),
-                    ))
+                    ));
                 }
                 _ => return Err(err),
             },
