@@ -31,7 +31,7 @@ mod issuer;
 mod tests;
 mod types;
 
-pub use issuer::Issuer;
+pub use issuer::{Issuer, RequestInterceptor};
 pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 pub use types::{
     IssuerMetadata, MtlsEndpoints, OidcClientError, Request, RequestOptions, Response,

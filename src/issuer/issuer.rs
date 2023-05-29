@@ -7,10 +7,14 @@ use std::fmt::Formatter;
 use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
 use crate::http::{default_request_interceptor, request, request_async};
 use crate::types::{
-    IssuerMetadata, OidcClientError, Request, RequestOptions, Response, WebFingerResponse,
+    IssuerMetadata, Jwks, OidcClientError, Request, RequestOptions, Response, WebFingerResponse,
 };
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
+
+/// `type RequestInterceptor` is the alias for the closure that can be passed through
+/// one of several methods that will be executed every time a request is being made.
+pub type RequestInterceptor = Box<dyn FnMut(&Request) -> RequestOptions>;
 
 /// Holds all the discovered values from the OIDC Issuer
 pub struct Issuer {
@@ -54,7 +58,10 @@ pub struct Issuer {
     pub revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
     /// Extra key values
     pub other_fields: HashMap<String, serde_json::Value>,
-    request_interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
+    /// Jwk Key Set
+    pub(crate) keystore: Option<Jwks>,
+    /// Request interceptor used for every request
+    pub(super) request_interceptor: RequestInterceptor,
 }
 
 impl Default for Issuer {
@@ -83,6 +90,7 @@ impl Default for Issuer {
             introspection_endpoint_auth_signing_alg_values_supported: None,
             revocation_endpoint_auth_signing_alg_values_supported: None,
             other_fields: Default::default(),
+            keystore: None,
         }
     }
 }
@@ -164,7 +172,7 @@ impl Issuer {
     /// If no introspection/revocation endpoint auth methods or algorithms are specified,
     /// value of token endpoint auth methods and algorithms are used as the the value for the said
     /// properties.
-    pub fn new(metadata: IssuerMetadata) -> Self {
+    pub fn new(metadata: IssuerMetadata, request_interceptor: Option<RequestInterceptor>) -> Self {
         let introspection_endpoint_auth_methods_supported =
             match metadata.introspection_endpoint_auth_methods_supported {
                 None => metadata.token_endpoint_auth_methods_supported.clone(),
@@ -193,6 +201,11 @@ impl Issuer {
                 Some(v) => Some(v),
             };
 
+        let interceptor = match request_interceptor {
+            Some(i) => i,
+            None => Box::new(default_request_interceptor),
+        };
+
         Self {
             issuer: metadata.issuer,
             authorization_endpoint: metadata.authorization_endpoint,
@@ -213,7 +226,8 @@ impl Issuer {
             revocation_endpoint_auth_methods_supported,
             revocation_endpoint_auth_signing_alg_values_supported,
             other_fields: metadata.other_fields,
-            request_interceptor: Box::new(default_request_interceptor),
+            request_interceptor: interceptor,
+            keystore: None,
         }
     }
 }
@@ -279,7 +293,7 @@ impl Issuer {
     ///     `header: value1, value2, value3 ....`
     pub fn discover_with_interceptor(
         issuer: &str,
-        mut interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
+        mut interceptor: RequestInterceptor,
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_discover_request(issuer)?;
 
@@ -350,7 +364,7 @@ impl Issuer {
     ///     `header: value1, value2, value3 ....`
     pub async fn discover_with_interceptor_async(
         issuer: &str,
-        mut request_interceptor: Box<dyn FnMut(&Request) -> RequestOptions>,
+        mut request_interceptor: RequestInterceptor,
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_discover_request(issuer)?;
 
@@ -392,7 +406,7 @@ impl Issuer {
     /// This is a private function that is used to process the discover response.
     fn process_discover_response(
         response: Response,
-        request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+        request_interceptor: RequestInterceptor,
     ) -> Result<Issuer, OidcClientError> {
         let issuer_metadata =
             match convert_json_to::<IssuerMetadata>(response.body.as_ref().unwrap()) {
@@ -408,7 +422,8 @@ impl Issuer {
             };
 
         let mut issuer = Issuer::from(issuer_metadata);
-        issuer.request_interceptor = request_options;
+        issuer.request_interceptor = request_interceptor;
+
         Ok(issuer)
     }
 }
@@ -465,7 +480,7 @@ impl Issuer {
     /// ```
     pub fn webfinger_with_interceptor(
         input: &str,
-        mut request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+        mut request_options: RequestInterceptor,
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_webfinger_request(input)?;
 
@@ -529,7 +544,7 @@ impl Issuer {
     /// ```
     pub async fn webfinger_with_interceptor_async(
         input: &str,
-        mut request_options: Box<dyn FnMut(&Request) -> RequestOptions>,
+        mut request_options: RequestInterceptor,
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_webfinger_request(input)?;
 
@@ -715,5 +730,5 @@ impl Debug for Issuer {
 }
 
 #[cfg(test)]
-#[path = "./tests/issuer_test.rs"]
+#[path = "../tests/issuer_test.rs"]
 mod issuer_test;

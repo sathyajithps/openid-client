@@ -2,6 +2,7 @@ use crate::{
     helpers::convert_json_to,
     tests::process_url,
     types::{OidcClientError, Request, RequestOptions, Response, StandardBodyError},
+    RequestInterceptor,
 };
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::Value;
@@ -9,7 +10,7 @@ use std::time::Duration;
 
 pub fn request(
     request: Request,
-    interceptor: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
+    interceptor: &mut RequestInterceptor,
 ) -> Result<Response, OidcClientError> {
     let (options, url) = pre_request(&request, interceptor);
 

@@ -900,7 +900,7 @@ mod issuer_discovery_tests {
                     &format!("https://{}/.well-known/custom-configuration", real_domain),
                     Box::new(interceptor),
                 )
-                    .await
+                .await
             });
 
             mock_server.assert_hits(1);
@@ -1381,7 +1381,7 @@ mod issuer_new {
             ..IssuerMetadata::default()
         };
 
-        let issuer = Issuer::new(metadata);
+        let issuer = Issuer::new(metadata, None);
 
         assert_eq!(
             Some("https://accounts.google.com/o/oauth2/v2/auth".to_string()),
@@ -1403,7 +1403,7 @@ mod issuer_new {
 
     #[test]
     fn does_not_assign_discovery_1_0_defaults_when_instantiating_manually() {
-        let issuer = Issuer::new(IssuerMetadata::default());
+        let issuer = Issuer::new(IssuerMetadata::default(), None);
 
         assert!(issuer.claims_parameter_supported.is_none());
         assert!(issuer.grant_types_supported.is_none());
@@ -1430,7 +1430,7 @@ mod issuer_new {
             ..IssuerMetadata::default()
         };
 
-        let issuer = Issuer::new(metadata);
+        let issuer = Issuer::new(metadata, None);
 
         assert_eq!(
             issuer.introspection_endpoint_auth_methods_supported,
@@ -1473,7 +1473,7 @@ mod issuer_new {
             ..IssuerMetadata::default()
         };
 
-        let issuer = Issuer::new(metadata);
+        let issuer = Issuer::new(metadata, None);
 
         assert_eq!(issuer.issuer, "https://op.example.com".to_string());
         assert!(issuer.other_fields.contains_key("foo"));
@@ -1481,5 +1481,480 @@ mod issuer_new {
             issuer.other_fields.get("foo"),
             Some(&serde_json::Value::String("bar".to_string()))
         );
+    }
+}
+
+#[cfg(test)]
+mod issuer_instance {
+    use crate::tests::{get_url_with_count, set_mock_domain};
+    use crate::types::Jwks;
+    use crate::{Issuer, IssuerMetadata};
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
+
+    fn get_default_jwks() -> String {
+        let mut jwks = Jwks::default();
+        jwks.generate("RSA", None, None);
+        serde_json::to_string(&jwks).unwrap()
+    }
+
+    #[test]
+    fn requires_jwks_uri_to_be_configured() {
+        let mut issuer = Issuer::new(IssuerMetadata::default(), None);
+
+        assert!(issuer.get_keystore(false).is_err());
+        assert_eq!(
+            issuer.get_keystore(false).unwrap_err().error_description,
+            "jwks_uri must be configured on the issuer".to_string()
+        );
+
+        let async_runtime = tokio::runtime::Runtime::new().unwrap();
+        async_runtime.block_on(async {
+            assert!(issuer.get_keystore_async(false).await.is_err());
+            assert_eq!(
+                issuer
+                    .get_keystore_async(false)
+                    .await
+                    .unwrap_err()
+                    .error_description,
+                "jwks_uri must be configured on the issuer".to_string()
+            );
+        });
+    }
+
+    #[test]
+    fn does_not_refetch_immediately() {
+        let real_domain = get_url_with_count("op.example<>.com");
+
+        let server = MockServer::start();
+
+        let mock_server = server.mock(|when, then| {
+            when.method(GET)
+                // TODO: should validate headers
+                .path("/jwks");
+            then.status(200)
+                .header("content-type", "application/jwk-set+json")
+                .body(get_default_jwks());
+        });
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let issuer = format!("https://{}", real_domain);
+        let jwks_uri = format!("https://{}/jwks", real_domain);
+
+        let metadata = IssuerMetadata {
+            issuer,
+            jwks_uri: Some(jwks_uri),
+            ..IssuerMetadata::default()
+        };
+
+        let mut issuer = Issuer::new(metadata, None);
+
+        assert!(issuer.get_keystore(true).is_ok());
+
+        let _ = issuer.get_keystore(false).unwrap();
+
+        mock_server.assert_hits(1);
+    }
+
+    #[test]
+    fn does_not_refetch_immediately_async() {
+        let real_domain = get_url_with_count("op.example<>.com");
+
+        let server = MockServer::start();
+
+        let mock_server = server.mock(|when, then| {
+            when.method(GET)
+                // TODO: should validate headers
+                .path("/jwks");
+            then.status(200)
+                .header("content-type", "application/jwk-set+json")
+                .body(get_default_jwks());
+        });
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let issuer = format!("https://{}", real_domain);
+        let jwks_uri = format!("https://{}/jwks", real_domain);
+
+        let metadata = IssuerMetadata {
+            issuer,
+            jwks_uri: Some(jwks_uri),
+            ..IssuerMetadata::default()
+        };
+
+        let mut issuer = Issuer::new(metadata, None);
+
+        let async_runtime = tokio::runtime::Runtime::new().unwrap();
+        async_runtime.block_on(async {
+            assert!(issuer.get_keystore_async(true).await.is_ok());
+
+            let _ = issuer.get_keystore_async(false).await.unwrap();
+        });
+
+        mock_server.assert_hits(1);
+    }
+
+    #[test]
+    fn refetches_if_asked_to() {
+        let real_domain = get_url_with_count("op.example<>.com");
+
+        let server = MockServer::start();
+
+        let mock_server = server.mock(|when, then| {
+            when.method(GET)
+                // TODO: should validate headers
+                .path("/jwks");
+            then.status(200)
+                .header("content-type", "application/jwk-set+json")
+                .body(get_default_jwks());
+        });
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let issuer = format!("https://{}", real_domain);
+        let jwks_uri = format!("https://{}/jwks", real_domain);
+
+        let metadata = IssuerMetadata {
+            issuer,
+            jwks_uri: Some(jwks_uri),
+            ..IssuerMetadata::default()
+        };
+
+        let mut issuer = Issuer::new(metadata, None);
+
+        assert!(issuer.get_keystore(true).is_ok());
+        assert!(issuer.get_keystore(true).is_ok());
+
+        mock_server.assert_hits(2);
+    }
+
+    #[test]
+    fn refetches_if_asked_to_async() {
+        let real_domain = get_url_with_count("op.example<>.com");
+
+        let server = MockServer::start();
+
+        let mock_server = server.mock(|when, then| {
+            when.method(GET)
+                // TODO: should validate headers
+                .path("/jwks");
+            then.status(200)
+                .header("content-type", "application/jwk-set+json")
+                .body(get_default_jwks());
+        });
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let issuer = format!("https://{}", real_domain);
+        let jwks_uri = format!("https://{}/jwks", real_domain);
+
+        let metadata = IssuerMetadata {
+            issuer,
+            jwks_uri: Some(jwks_uri),
+            ..IssuerMetadata::default()
+        };
+
+        let mut issuer = Issuer::new(metadata, None);
+
+        let async_runtime = tokio::runtime::Runtime::new().unwrap();
+        async_runtime.block_on(async {
+            assert!(issuer.get_keystore_async(true).await.is_ok());
+            assert!(issuer.get_keystore_async(true).await.is_ok());
+        });
+
+        mock_server.assert_hits(2);
+    }
+
+    #[test]
+    fn rejects_when_no_matching_key_is_found() {
+        let real_domain = get_url_with_count("op.example<>.com");
+
+        let server = MockServer::start();
+
+        let _mock_server = server.mock(|when, then| {
+            when.method(GET)
+                // TODO: should validate headers
+                .path("/jwks");
+            then.status(200)
+                .header("content-type", "application/jwk-set+json")
+                .body(get_default_jwks());
+        });
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let issuer = format!("https://{}", real_domain);
+        let jwks_uri = format!("https://{}/jwks", real_domain);
+
+        let metadata = IssuerMetadata {
+            issuer,
+            jwks_uri: Some(jwks_uri),
+            ..IssuerMetadata::default()
+        };
+
+        let mut issuer = Issuer::new(metadata, None);
+
+        let jwk_result = issuer.get_jwk(
+            Some("RS256".to_string()),
+            Some("sig".to_string()),
+            Some("noway".to_string()),
+        );
+
+        let expected_error = "no valid key found in issuer\'s jwks_uri for key parameters kid: noway, alg: RS256, key_use: sig";
+
+        assert!(jwk_result.is_err());
+
+        let error = jwk_result.unwrap_err();
+
+        assert_eq!(expected_error, error.error_description);
+
+        let async_runtime = tokio::runtime::Runtime::new().unwrap();
+        async_runtime.block_on(async {
+            let jwk_result_async = issuer
+                .get_jwk_async(
+                    Some("RS256".to_string()),
+                    Some("sig".to_string()),
+                    Some("noway".to_string()),
+                )
+                .await;
+
+            assert!(jwk_result_async.is_err());
+
+            let error_async = jwk_result_async.unwrap_err();
+
+            assert_eq!(expected_error, error_async.error_description);
+        });
+    }
+
+    #[test]
+    fn requires_a_kid_when_multiple_matches_are_found() {
+        let real_domain = get_url_with_count("op.example<>.com");
+
+        let server = MockServer::start();
+
+        let mut jwks = Jwks::default();
+        jwks.generate("RSA", None, None);
+        jwks.generate("RSA", None, None);
+        let jwks = serde_json::to_string(&jwks).unwrap();
+
+        let _mock_server = server.mock(|when, then| {
+            when.method(GET)
+                // TODO: should validate headers
+                .path("/jwks");
+
+            then.status(200)
+                .header("content-type", "application/jwk-set+json")
+                .body(jwks);
+        });
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let issuer = format!("https://{}", real_domain);
+        let jwks_uri = format!("https://{}/jwks", real_domain);
+
+        let metadata = IssuerMetadata {
+            issuer,
+            jwks_uri: Some(jwks_uri),
+            ..IssuerMetadata::default()
+        };
+
+        let mut issuer = Issuer::new(metadata, None);
+
+        let jwk_result = issuer.get_jwk(Some("RS256".to_string()), Some("sig".to_string()), None);
+
+        let expected_error = "multiple matching keys found in issuer\'s jwks_uri for key parameters kid: , key_use: sig, alg: RS256, kid must be provided in this case";
+
+        assert!(jwk_result.is_err());
+
+        let error = jwk_result.unwrap_err();
+
+        assert_eq!(expected_error, error.error_description);
+
+        let async_runtime = tokio::runtime::Runtime::new().unwrap();
+        async_runtime.block_on(async {
+            let jwk_result_async = issuer
+                .get_jwk_async(Some("RS256".to_string()), Some("sig".to_string()), None)
+                .await;
+
+            assert!(jwk_result_async.is_err());
+
+            let error_async = jwk_result_async.unwrap_err();
+
+            assert_eq!(expected_error, error_async.error_description);
+        });
+    }
+
+    #[test]
+    fn multiple_keys_can_match_jwt_header() {
+        let real_domain = get_url_with_count("op.example<>.com");
+
+        let server = MockServer::start();
+
+        let mut jwks = Jwks::default();
+
+        let kid = uuid::Uuid::new_v4().to_string();
+
+        jwks.generate("RSA", None, Some(kid.clone()));
+        jwks.generate("RSA", None, Some(kid.clone()));
+
+        let jwks = serde_json::to_string(&jwks).unwrap();
+
+        let _mock_server = server.mock(|when, then| {
+            when.method(GET)
+                // TODO: should validate headers
+                .path("/jwks");
+
+            then.status(200)
+                .header("content-type", "application/jwk-set+json")
+                .body(jwks);
+        });
+
+        set_mock_domain(&real_domain.to_string(), server.port());
+
+        let issuer = format!("https://{}", real_domain);
+        let jwks_uri = format!("https://{}/jwks", real_domain);
+
+        let metadata = IssuerMetadata {
+            issuer,
+            jwks_uri: Some(jwks_uri),
+            ..IssuerMetadata::default()
+        };
+
+        let mut issuer = Issuer::new(metadata, None);
+
+        let jwk_result = issuer.get_jwk(
+            Some("RS256".to_string()),
+            Some("sig".to_string()),
+            Some(kid.clone()),
+        );
+
+        assert!(jwk_result.is_ok());
+
+        let matched_jwks = jwk_result.unwrap();
+
+        assert!(matched_jwks.len() > 1);
+
+        let async_runtime = tokio::runtime::Runtime::new().unwrap();
+        async_runtime.block_on(async {
+            let jwk_result_async = issuer
+                .get_jwk_async(
+                    Some("RS256".to_string()),
+                    Some("sig".to_string()),
+                    Some(kid),
+                )
+                .await;
+
+            assert!(jwk_result_async.is_ok());
+
+            let matched_jwks_async = jwk_result_async.unwrap();
+
+            assert!(matched_jwks_async.len() > 1);
+        });
+    }
+
+    #[cfg(test)]
+    mod http_options {
+        use std::time::Duration;
+
+        use reqwest::header::{HeaderMap, HeaderValue};
+
+        use crate::{tests::get_url_with_count, types::RequestOptions};
+
+        use super::*;
+
+        #[test]
+        fn allows_for_http_options_to_be_defined_for_issuer_keystore_calls() {
+            let server = MockServer::start();
+
+            let real_domain = get_url_with_count("op.example<>.com");
+            let issuer = format!("https://{}", real_domain);
+            let jwks_uri = format!("https://{}/jwks", real_domain);
+
+            let mock_server = server.mock(|when, then| {
+                when.method(GET).header_exists("testHeader").path("/jwks");
+
+                then.status(200)
+                    .header("content-type", "application/jwk-set+json")
+                    .body(get_default_jwks());
+            });
+
+            let interceptor = |_request: &crate::types::Request| {
+                let mut headers = HeaderMap::new();
+                headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
+
+                RequestOptions {
+                    headers,
+                    timeout: Duration::from_millis(3500),
+                }
+            };
+
+            set_mock_domain(&real_domain.to_string(), server.port());
+
+            let _ = Issuer::discover_with_interceptor(
+                &format!("https://{}/.well-known/custom-configuration", real_domain),
+                Box::new(interceptor),
+            );
+
+            let metadata = IssuerMetadata {
+                issuer,
+                jwks_uri: Some(jwks_uri),
+                ..IssuerMetadata::default()
+            };
+
+            let mut issuer = Issuer::new(metadata, Some(Box::new(interceptor)));
+
+            let _ = issuer.get_keystore(false);
+
+            mock_server.assert_hits(1);
+        }
+
+        #[test]
+        fn allows_for_http_options_to_be_defined_for_issuer_keystore_calls_async() {
+            let server = MockServer::start();
+
+            let real_domain = get_url_with_count("op.example<>.com");
+            let issuer = format!("https://{}", real_domain);
+            let jwks_uri = format!("https://{}/jwks", real_domain);
+
+            let mock_server = server.mock(|when, then| {
+                when.method(GET).header_exists("testHeader").path("/jwks");
+
+                then.status(200)
+                    .header("content-type", "application/jwk-set+json")
+                    .body(get_default_jwks());
+            });
+
+            let interceptor = |_request: &crate::types::Request| {
+                let mut headers = HeaderMap::new();
+                headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
+
+                RequestOptions {
+                    headers,
+                    timeout: Duration::from_millis(3500),
+                }
+            };
+
+            set_mock_domain(&real_domain.to_string(), server.port());
+
+            let _ = Issuer::discover_with_interceptor(
+                &format!("https://{}/.well-known/custom-configuration", real_domain),
+                Box::new(interceptor),
+            );
+
+            let metadata = IssuerMetadata {
+                issuer,
+                jwks_uri: Some(jwks_uri),
+                ..IssuerMetadata::default()
+            };
+
+            let mut issuer = Issuer::new(metadata, Some(Box::new(interceptor)));
+
+            let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+            async_runtime.block_on(async {
+                let _ = issuer.get_keystore_async(false).await;
+                mock_server.assert_hits(1);
+            });
+        }
     }
 }
