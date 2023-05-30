@@ -1,8 +1,7 @@
 name: Deploy CI
 
 on:
-    release:
-        types: [published]
+    workflow_dispatch:
 
 jobs:
     creates_publish:
@@ -21,18 +20,6 @@ jobs:
                   toolchain: stable
                   override: true
                   components: rustfmt, clippy
-            - name: Set up cargo cache
-              uses: actions/cache@v3
-              continue-on-error: false
-              with:
-                  path: |
-                      ~/.cargo/bin/
-                      ~/.cargo/registry/index/
-                      ~/.cargo/registry/cache/
-                      ~/.cargo/git/db/
-                      target/
-                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-                  restore-keys: ${{ runner.os }}-cargo-
 
             - name: Lint
               run: |
