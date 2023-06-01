@@ -137,10 +137,9 @@ async fn fetch_jwks_async(
 
 fn make_get_jwks_uri_request(url: &str) -> Request {
     let mut headers = HeaderMap::new();
-    headers.insert("Accept", HeaderValue::from_static("application/json"));
     headers.insert(
         "Accept",
-        HeaderValue::from_static("application/jwk-set+json"),
+        HeaderValue::from_static("application/json,application/jwk-set+json"),
     );
 
     Request {
