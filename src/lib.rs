@@ -3,6 +3,8 @@
 #![doc(html_favicon_url = "https://i.ibb.co/1TNK5bY/oidc-1.png")]
 //! # OpenID Client
 //!
+//! # WORK IN PROGRESS. DO NOT USE
+//!  
 //! This crate is an OpenID Connect RP library based on an openid client by [panva](https://github.com/panva)
 //! called [openid-client](https://github.com/panva/node-openid-cient)
 //!
@@ -22,18 +24,21 @@
 //!     - [Issuer::webfinger_with_interceptor]
 //!     - [Issuer::webfinger_async]
 //!     - [Issuer::webfinger_with_interceptor_async]
-//!
+//! - Client from Issuer API
+//!     - [Issuer::client]
 //!
 
+mod client;
 mod helpers;
 mod http;
 mod issuer;
 mod tests;
 mod types;
 
+pub use client::Client;
 pub use issuer::{Issuer, RequestInterceptor};
 pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 pub use types::{
-    IssuerMetadata, MtlsEndpoints, OidcClientError, Request, RequestOptions, Response,
-    WebFingerResponse,
+    ClientMetadata, IssuerMetadata, MtlsEndpoints, OidcClientError, Request, RequestOptions,
+    Response, WebFingerResponse,
 };
