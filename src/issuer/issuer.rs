@@ -1,13 +1,13 @@
-//! Issuer struct contains the discovered OpenID Connect Issuer Metadata.
-
 use core::fmt::Debug;
 use std::collections::HashMap;
 use std::fmt::Formatter;
 
+use crate::client::Client;
 use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
 use crate::http::{default_request_interceptor, request, request_async};
 use crate::types::{
-    IssuerMetadata, Jwks, OidcClientError, Request, RequestOptions, Response, WebFingerResponse,
+    ClientMetadata, IssuerMetadata, Jwks, OidcClientError, Request, RequestOptions, Response,
+    WebFingerResponse,
 };
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
@@ -689,6 +689,40 @@ impl Issuer {
         }
 
         Ok(issuer)
+    }
+}
+
+/// New [Client] implementation for Issuer
+impl Issuer {
+    /// # Get client from the issuer
+    /// This method creates a new [Client] from the issuer.
+    /// A client metadata with a required `client_id` field is also required
+    ///
+    /// ```
+    /// # use openid_client::{Issuer, IssuerMetadata, ClientMetadata};
+    ///
+    /// fn main(){
+    ///   let issuer_metadata = IssuerMetadata {
+    ///       issuer: "https://auth.example.com".to_string(),
+    ///       token_endpoint_auth_methods_supported: Some(vec![
+    ///           "client_secret_post".to_string(),
+    ///           "private_key_jwt".to_string(),
+    ///        ]),
+    ///        ..IssuerMetadata::default()
+    ///    };
+    ///    
+    ///   let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///   let client_metadata = ClientMetadata {
+    ///       client_id: "client_id".to_string(),
+    ///       ..ClientMetadata::default()
+    ///   };
+    ///
+    ///   let client = issuer.client(client_metadata).unwrap();
+    /// }
+    /// ```
+    pub fn client(self, metadata: ClientMetadata) -> Result<Client, OidcClientError> {
+        Client::from(metadata, self)
     }
 }
 
