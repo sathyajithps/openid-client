@@ -5,7 +5,7 @@ on:
 
 jobs:
     creates_publish:
-        if: ${{ github.event.release.target_commitish == 'master' }}
+        if: ${{ github.ref == 'refs/heads/master' }}
         continue-on-error: false
         name: Crates Publish
         runs-on: ubuntu-latest
