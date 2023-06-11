@@ -17,6 +17,10 @@ pub struct Client {
     client_id: String,
     client_secret: Option<String>,
     grant_types: Vec<String>,
+    registration_access_token: Option<String>,
+    registration_client_uri: Option<String>,
+    client_id_issued_at: Option<i64>,
+    client_secret_expires_at: Option<i64>,
     id_token_signed_response_alg: String,
     response_types: Vec<String>,
     token_endpoint_auth_method: String,
@@ -29,6 +33,29 @@ pub struct Client {
     redirect_uris: Option<Vec<String>>,
     response_type: Option<String>,
     request_interceptor: RequestInterceptor,
+    application_type: Option<String>,
+    contacts: Option<String>,
+    client_name: Option<String>,
+    logo_uri: Option<String>,
+    client_uri: Option<String>,
+    policy_uri: Option<String>,
+    tos_uri: Option<String>,
+    jwks_uri: Option<String>,
+    sector_identifier_uri: Option<String>,
+    subject_type: Option<String>,
+    id_token_encrypted_response_alg: Option<String>,
+    id_token_encrypted_response_enc: Option<String>,
+    userinfo_signed_response_alg: Option<String>,
+    userinfo_encrypted_response_alg: Option<String>,
+    userinfo_encrypted_response_enc: Option<String>,
+    request_object_signing_alg: Option<String>,
+    request_object_encryption_alg: Option<String>,
+    request_object_encryption_enc: Option<String>,
+    default_max_age: Option<i64>,
+    require_auth_time: Option<bool>,
+    default_acr_values: Option<Vec<String>>,
+    initiate_login_uri: Option<String>,
+    request_uris: Option<String>,
     jwks: Option<Jwks>,
     other_fields: HashMap<String, serde_json::Value>,
     issuer: Option<Issuer>,
@@ -40,6 +67,10 @@ impl Client {
             client_id: String::new(),
             client_secret: None,
             grant_types: vec!["authorization_code".to_string()],
+            registration_access_token: None,
+            registration_client_uri: None,
+            client_id_issued_at: None,
+            client_secret_expires_at: None,
             id_token_signed_response_alg: "RS256".to_string(),
             response_types: vec!["code".to_string()],
             token_endpoint_auth_method: "client_secret_basic".to_string(),
@@ -52,6 +83,29 @@ impl Client {
             redirect_uris: None,
             response_type: None,
             request_interceptor: Box::new(default_request_interceptor),
+            application_type: None,
+            contacts: None,
+            client_name: None,
+            logo_uri: None,
+            client_uri: None,
+            policy_uri: None,
+            tos_uri: None,
+            jwks_uri: None,
+            sector_identifier_uri: None,
+            subject_type: None,
+            id_token_encrypted_response_alg: None,
+            id_token_encrypted_response_enc: None,
+            userinfo_signed_response_alg: None,
+            userinfo_encrypted_response_alg: None,
+            userinfo_encrypted_response_enc: None,
+            request_object_signing_alg: None,
+            request_object_encryption_alg: None,
+            request_object_encryption_enc: None,
+            default_max_age: None,
+            require_auth_time: None,
+            default_acr_values: None,
+            initiate_login_uri: None,
+            request_uris: None,
             jwks: None,
             other_fields: HashMap::new(),
             issuer: None,
@@ -473,6 +527,26 @@ impl Client {
         self.grant_types.to_vec()
     }
 
+    /// Get registration access token
+    pub fn get_registration_access_token(&self) -> Option<String> {
+        self.registration_access_token.clone()
+    }
+
+    /// Get registration client uri
+    pub fn get_registration_client_uri(&self) -> Option<String> {
+        self.registration_client_uri.clone()
+    }
+
+    /// Get client id issued at. Epoch(seconds)
+    pub fn get_client_id_issued_at(&self) -> Option<i64> {
+        self.client_id_issued_at.clone()
+    }
+
+    /// Get client secret exprires at. Epoch(seconds)
+    pub fn get_client_secret_expires_at(&self) -> Option<i64> {
+        self.client_secret_expires_at.clone()
+    }
+
     /// Get id token signed response algorithm
     pub fn get_id_token_signed_response_alg(&self) -> String {
         self.id_token_signed_response_alg.clone()
@@ -531,6 +605,126 @@ impl Client {
     /// Get response type
     pub fn get_response_type(&self) -> Option<String> {
         self.response_type.clone()
+    }
+
+    /// Get application type
+    pub fn get_application_type(&self) -> Option<String> {
+        self.application_type.clone()
+    }
+
+    /// Get contacts
+    pub fn get_contacts(&self) -> Option<String> {
+        self.contacts.clone()
+    }
+
+    /// Get client name
+    pub fn get_client_name(&self) -> Option<String> {
+        self.client_name.clone()
+    }
+
+    /// Get logo uri
+    pub fn get_logo_uri(&self) -> Option<String> {
+        self.logo_uri.clone()
+    }
+
+    /// Get client uri
+    pub fn get_client_uri(&self) -> Option<String> {
+        self.client_uri.clone()
+    }
+
+    /// Get policy uri
+    pub fn get_policy_uri(&self) -> Option<String> {
+        self.policy_uri.clone()
+    }
+
+    /// Get tos uri
+    pub fn get_tos_uri(&self) -> Option<String> {
+        self.tos_uri.clone()
+    }
+
+    /// Get jwks uri
+    pub fn get_jwks_uri(&self) -> Option<String> {
+        self.jwks_uri.clone()
+    }
+
+    /// Get sector identifier uri
+    pub fn get_sector_identifier_uri(&self) -> Option<String> {
+        self.sector_identifier_uri.clone()
+    }
+
+    /// Get subject type
+    pub fn get_subject_type(&self) -> Option<String> {
+        self.subject_type.clone()
+    }
+
+    /// Get id token encrypted response algorithm
+    pub fn get_id_token_encrypted_response_alg(&self) -> Option<String> {
+        self.id_token_encrypted_response_alg.clone()
+    }
+
+    /// Get id token encrypted response algorithm
+    pub fn get_id_token_encrypted_response_enc(&self) -> Option<String> {
+        self.id_token_encrypted_response_enc.clone()
+    }
+
+    /// Get userinfo signed response algorithm
+    pub fn get_userinfo_signed_response_alg(&self) -> Option<String> {
+        self.userinfo_signed_response_alg.clone()
+    }
+
+    /// Get userinfo encrypted response algorithm
+    pub fn get_userinfo_encrypted_response_alg(&self) -> Option<String> {
+        self.userinfo_encrypted_response_alg.clone()
+    }
+
+    /// Get userinfo encrypted response algorithm
+    pub fn get_userinfo_encrypted_response_enc(&self) -> Option<String> {
+        self.userinfo_encrypted_response_enc.clone()
+    }
+
+    /// Get request object signing algorithm
+    pub fn get_request_object_signing_alg(&self) -> Option<String> {
+        self.request_object_signing_alg.clone()
+    }
+
+    /// Get request object encryption algorithm
+    pub fn get_request_object_encryption_alg(&self) -> Option<String> {
+        self.request_object_encryption_alg.clone()
+    }
+
+    /// Get request object encryption algorithm
+    pub fn get_request_object_encryption_enc(&self) -> Option<String> {
+        self.request_object_encryption_enc.clone()
+    }
+
+    /// Get default max age
+    pub fn get_default_max_age(&self) -> Option<i64> {
+        self.default_max_age.clone()
+    }
+
+    /// Get require auth time
+    pub fn get_require_auth_time(&self) -> Option<bool> {
+        self.require_auth_time.clone()
+    }
+
+    /// Get default acr values
+    pub fn get_default_acr_values(&self) -> Option<Vec<String>> {
+        Some(self.default_acr_values.clone()?.to_vec())
+    }
+
+    /// Get initiate login uri
+    pub fn get_initiate_login_uri(&self) -> Option<String> {
+        self.initiate_login_uri.clone()
+    }
+
+    /// Get request uris
+    pub fn get_request_uris(&self) -> Option<String> {
+        self.request_uris.clone()
+    }
+
+    /// Get jwks
+    pub fn get_jwks(&self) -> Option<Jwks> {
+        self.jwks.clone()
     }
 
     /// Gets the issuer that the client was created with.
