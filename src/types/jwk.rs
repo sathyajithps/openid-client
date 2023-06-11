@@ -5,6 +5,8 @@ use rsa::{traits::PublicKeyParts, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::OidcClientError;
+
 /// JWK structure
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Jwk {
@@ -142,9 +144,14 @@ impl Jwks {
         alg: Option<String>,
         key_use: Option<String>,
         kid: Option<String>,
-    ) -> Vec<&Jwk> {
+    ) -> Result<Vec<&Jwk>, OidcClientError> {
         if key_use.is_none() || alg.is_none() {
-            todo!()
+            return Err(OidcClientError::new(
+                "JwksError",
+                "invalid query",
+                "key_use or alg should be present",
+                None,
+            ));
         }
 
         let kty = Self::get_kty_from_alg(alg.as_ref());
@@ -189,7 +196,7 @@ impl Jwks {
             }
         });
 
-        keys
+        Ok(keys)
     }
 
     fn get_kty_from_alg(alg: Option<&String>) -> Option<String> {
