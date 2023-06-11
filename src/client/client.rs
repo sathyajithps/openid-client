@@ -203,7 +203,7 @@ impl Client {
 
 impl Client {
     /// # Creates a client from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
-    /// `This is a blocking method.` Checkout [`Client::from_uri_async()`] for async version.
+    /// > `This is a blocking method.` Checkout [`Client::from_uri_async()`] for async version.
     ///
     /// Creates a [Client] from the Client read endpoint.
     ///
@@ -237,7 +237,7 @@ impl Client {
     }
 
     /// # Creates a client with request interceptor from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
-    /// `This is a blocking method.` Checkout [`Client::from_uri_with_interceptor_async()`] for async version.
+    /// > `This is a blocking method.` Checkout [`Client::from_uri_with_interceptor_async()`] for async version.
     ///
     /// ```
     /// # use openid_client::Client;
@@ -268,7 +268,7 @@ impl Client {
     }
 
     /// # Creates a client from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
-    /// `This is an async method.` Checkout [`Client::from_uri()`] for the blocking version.
+    /// > `This is an async method.` Checkout [`Client::from_uri()`] for the blocking version.
     ///
     /// Creates a [Client] from the Client read endpoint.
     ///
@@ -303,7 +303,7 @@ impl Client {
     }
 
     /// # Creates a client with request interceptor from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
-    /// `This is an async method.` Checkout [`Client::from_uri_with_interceptor()`] for the blocking version.
+    /// > `This is an async method.` Checkout [`Client::from_uri_with_interceptor()`] for the blocking version.
     ///
     /// ```
     /// # use openid_client::Client;
@@ -605,7 +605,9 @@ impl std::fmt::Debug for Client {
                 "request_interceptor",
                 &"fn(&RequestOptions) -> RequestOptions",
             )
+            .field("jwks", &self.jwks)
             .field("other_fields", &self.other_fields)
+            .field("issuer", &self.issuer)
             .finish()
     }
 }

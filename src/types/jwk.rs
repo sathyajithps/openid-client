@@ -104,7 +104,7 @@ pub struct Jwks {
 }
 
 impl Jwks {
-    /// Generates [Jwk} with specified algorithm
+    /// Generates [Jwk] with specified algorithm
     /// TODO: Should be a pub method once its complete
     #[allow(dead_code)]
     pub(crate) fn generate(&mut self, alg: &str, bits: Option<usize>, kid: Option<String>) -> bool {

@@ -110,10 +110,10 @@ impl Response {
 /// # RequestOptions
 /// This struct is the return type of the request interceptor that can be passed to various methods
 /// such as:
-/// 1. [crate::Issuer::webfinger_with_interceptor_async]
-/// 2. [crate::Issuer::webfinger_with_interceptor]
-/// 3. [crate::Issuer::discover_with_interceptor_async]
-/// 4. [crate::Issuer::discover_with_interceptor]
+/// 1. [`Issuer::webfinger_with_interceptor_async()`]
+/// 2. [`Issuer::webfinger_with_interceptor()`]
+/// 3. [`Issuer::discover_with_interceptor_async()`]
+/// 4. [`Issuer::discover_with_interceptor()`]
 #[derive(Debug)]
 pub struct RequestOptions {
     /// Headers that are tobe appended with the request that is going to be made
