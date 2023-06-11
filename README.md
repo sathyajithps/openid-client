@@ -14,5 +14,5 @@ an issue if you find some mistakes.
 
 ### Alternatives
 
-    - [openidconnect](https://crates.io/crates/openidconnect)
-    - [openid](https://crates.io/crates/openid)
+-   [openidconnect](https://crates.io/crates/openidconnect)
+-   [openid](https://crates.io/crates/openid)
