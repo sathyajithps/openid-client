@@ -15,45 +15,45 @@ use reqwest::{Method, StatusCode};
 /// Holds all the discovered values from the OIDC Issuer
 pub struct Issuer {
     /// Discovered issuer uri.
-    pub issuer: String,
+    pub(crate) issuer: String,
     /// OpenID Connect [Authorization Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint).
-    pub authorization_endpoint: Option<String>,
+    pub(crate) authorization_endpoint: Option<String>,
     /// OpenID Connect [Token Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#TokenEndpoint).
-    pub token_endpoint: Option<String>,
+    pub(crate) token_endpoint: Option<String>,
     /// URL of the authorization server's JWK Set. [See](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
-    pub jwks_uri: Option<String>,
+    pub(crate) jwks_uri: Option<String>,
     /// OpenID Connect [Userinfo Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo).
-    pub userinfo_endpoint: Option<String>,
+    pub(crate) userinfo_endpoint: Option<String>,
     /// Endpoint for revoking refresh tokes and access tokens. [Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
-    pub revocation_endpoint: Option<String>,
+    pub(crate) revocation_endpoint: Option<String>,
     /// Claims supported by the Authorization Server
-    pub claims_parameter_supported: Option<bool>,
+    pub(crate) claims_parameter_supported: Option<bool>,
     /// OAuth 2.0 Grant Types supported by the Authorization Server. [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591).
-    pub grant_types_supported: Option<Vec<String>>,
+    pub(crate) grant_types_supported: Option<Vec<String>>,
     /// Indicates whether request object is supported by Authorization Server. [OIDC Request Object](https://openid.net/specs/openid-connect-core-1_0.html#RequestObject).
-    pub request_parameter_supported: Option<bool>,
+    pub(crate) request_parameter_supported: Option<bool>,
     /// Indicates whether request object by reference is supported by Authorization Server. [OIDC Request Object by Reference](https://openid.net/specs/openid-connect-core-1_0.html#RequestUriParameter).
-    pub request_uri_parameter_supported: Option<bool>,
+    pub(crate) request_uri_parameter_supported: Option<bool>,
     /// Whether a request uri has to be pre registered with Authorization Server.
-    pub require_request_uri_registration: Option<bool>,
+    pub(crate) require_request_uri_registration: Option<bool>,
     /// OAuth 2.0 Response Mode values that Authorization Server supports. [Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
-    pub response_modes_supported: Option<Vec<String>>,
+    pub(crate) response_modes_supported: Option<Vec<String>>,
     /// Claim Types supported. [OIDC Claim types](https://openid.net/specs/openid-connect-core-1_0.html#ClaimTypes).
-    pub claim_types_supported: Vec<String>,
+    pub(crate) claim_types_supported: Vec<String>,
     /// Client Authentication methods supported by Token Endpoint. [Client Authentication](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication)
-    pub token_endpoint_auth_methods_supported: Option<Vec<String>>,
+    pub(crate) token_endpoint_auth_methods_supported: Option<Vec<String>>,
     /// List of client [authentication methods](https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#token-endpoint-auth-method) supported by the Authorization Server.
-    pub introspection_endpoint_auth_methods_supported: Option<Vec<String>>,
+    pub(crate) introspection_endpoint_auth_methods_supported: Option<Vec<String>>,
     /// List of JWS signing algorithms supported by the introspection endpoint for the signature of
     /// the JWT that the client uses to authenticate.
-    pub introspection_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
+    pub(crate) introspection_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
     /// List of client [authentication methods](https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#token-endpoint-auth-method) supported by the Authorization Server.
-    pub revocation_endpoint_auth_methods_supported: Option<Vec<String>>,
+    pub(crate) revocation_endpoint_auth_methods_supported: Option<Vec<String>>,
     /// List of JWS signing algorithms supported by the revocation endpoint for the signature of the
     /// JWT that the client uses to authenticate.
-    pub revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
+    pub(crate) revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
     /// Extra key values
-    pub other_fields: HashMap<String, serde_json::Value>,
+    pub(crate) other_fields: HashMap<String, serde_json::Value>,
     /// Jwk Key Set
     pub(crate) keystore: Option<Jwks>,
     /// Request interceptor used for every request
@@ -837,6 +837,124 @@ impl Issuer {
     }
 }
 
+impl Issuer {
+    /// Get issuer
+    pub fn issuer(&self) -> String {
+        self.issuer.clone()
+    }
+
+    /// Get authorization endpoint
+    pub fn authorization_endpoint(&self) -> Option<String> {
+        self.authorization_endpoint.clone()
+    }
+
+    /// Get token endpoint
+    pub fn token_endpoint(&self) -> Option<String> {
+        self.token_endpoint.clone()
+    }
+
+    /// Get jwks uri
+    pub fn jwks_uri(&self) -> Option<String> {
+        self.jwks_uri.clone()
+    }
+
+    /// Get userinfo endpoint
+    pub fn userinfo_endpoint(&self) -> Option<String> {
+        self.userinfo_endpoint.clone()
+    }
+
+    /// Get revocation endpoint
+    pub fn revocation_endpoint(&self) -> Option<String> {
+        self.revocation_endpoint.clone()
+    }
+
+    /// Get claims paramter supported
+    pub fn claims_parameter_supported(&self) -> Option<bool> {
+        self.claims_parameter_supported
+    }
+
+    /// Get grant types supported
+    pub fn grant_types_supported(&self) -> Option<Vec<String>> {
+        Some(self.grant_types_supported.clone()?.to_vec())
+    }
+
+    /// Get request parameter supported
+    pub fn request_parameter_supported(&self) -> Option<bool> {
+        self.request_parameter_supported
+    }
+
+    /// Get request uri parameter supported
+    pub fn request_uri_parameter_supported(&self) -> Option<bool> {
+        self.request_uri_parameter_supported
+    }
+
+    /// Get require request uri registration
+    pub fn require_request_uri_registration(&self) -> Option<bool> {
+        self.require_request_uri_registration
+    }
+
+    /// Get response modes supported
+    pub fn response_modes_supported(&self) -> Option<Vec<String>> {
+        Some(self.response_modes_supported.clone()?.to_vec())
+    }
+
+    /// Get claim types supported
+    pub fn claim_types_supported(&self) -> Vec<String> {
+        self.claim_types_supported.clone().to_vec()
+    }
+
+    /// Get token endpoint auth methods supported
+    pub fn token_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
+        Some(self.token_endpoint_auth_methods_supported.clone()?.to_vec())
+    }
+
+    /// Get introspection endpoint auth methods supported
+    pub fn introspection_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
+        Some(
+            self.introspection_endpoint_auth_methods_supported
+                .clone()?
+                .to_vec(),
+        )
+    }
+
+    /// Get introspection endpoint auth signing algorithm values supported
+    pub fn introspection_endpoint_auth_signing_alg_values_supported(&self) -> Option<Vec<String>> {
+        Some(
+            self.introspection_endpoint_auth_signing_alg_values_supported
+                .clone()?
+                .to_vec(),
+        )
+    }
+
+    /// Get revocation endpoint auth methods supported
+    pub fn revocation_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
+        Some(
+            self.revocation_endpoint_auth_methods_supported
+                .clone()?
+                .to_vec(),
+        )
+    }
+
+    /// Get revocation endpoint auth signing algorithm values supported
+    pub fn revocation_endpoint_auth_signing_alg_values_supported(&self) -> Option<Vec<String>> {
+        Some(
+            self.revocation_endpoint_auth_signing_alg_values_supported
+                .clone()?
+                .to_vec(),
+        )
+    }
+
+    /// Get other fields
+    pub fn other_fields(&self) -> HashMap<String, serde_json::Value> {
+        self.other_fields.clone()
+    }
+
+    /// Get Jwks
+    pub fn keystore(&self) -> Option<Jwks> {
+        self.keystore.clone()
+    }
+}
+
 impl Debug for Issuer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Issuer")
@@ -869,6 +987,24 @@ impl Debug for Issuer {
                 "token_endpoint_auth_methods_supported",
                 &self.token_endpoint_auth_methods_supported,
             )
+            .field(
+                "introspection_endpoint_auth_methods_supported",
+                &self.introspection_endpoint_auth_methods_supported,
+            )
+            .field(
+                "introspection_endpoint_auth_signing_alg_values_supported",
+                &self.introspection_endpoint_auth_signing_alg_values_supported,
+            )
+            .field(
+                "revocation_endpoint_auth_methods_supported",
+                &self.revocation_endpoint_auth_methods_supported,
+            )
+            .field(
+                "revocation_endpoint_auth_signing_alg_values_supported",
+                &self.revocation_endpoint_auth_signing_alg_values_supported,
+            )
+            .field("other_fields", &self.other_fields)
+            .field("keystore", &self.keystore)
             .field("request_options", &"fn(&RequestOptions) -> RequestOptions")
             .finish()
     }
