@@ -232,7 +232,7 @@ impl Issuer {
 impl Issuer {
     /// # Discover OIDC Issuer
     ///
-    /// `This is a blocking method.` Checkout [Issuer::discover_async] for async version.
+    /// `This is a blocking method.` Checkout [`Issuer::discover_async()`] for async version.
     ///
     /// Discover an OIDC Issuer using the issuer url method.
     ///
@@ -260,7 +260,7 @@ impl Issuer {
 
     /// # Discover OIDC Issuer with a request interceptor
     ///
-    /// > `This is a blocking method.` Checkout [Issuer::discover_with_interceptor_async] for async version.
+    /// > `This is a blocking method.` Checkout [`Issuer::discover_with_interceptor_async()`] for async version.
     ///
     /// Allows you to pass in a closure that will be called for every request.
     /// First parameter is the actual request that is being processed. See [Request].
@@ -300,7 +300,7 @@ impl Issuer {
 
     /// # Discover OIDC Issuer
     ///
-    /// `This is an async method.` Checkout [Issuer::discover] for blocking version.
+    /// `This is an async method.` Checkout [`Issuer::discover()`] for blocking version.
     ///
     /// Discover an OIDC Issuer using the issuer url method.
     ///
@@ -330,7 +330,7 @@ impl Issuer {
 
     /// # Discover OIDC Issuer with a request interceptor
     ///
-    /// > `This is an async method.` Checkout [Issuer::discover_with_interceptor] for blocking version.
+    /// > `This is an async method.` Checkout [`Issuer::discover_with_interceptor()`] for blocking version.
     ///
     /// Allows you to pass in a closure that will be called for every request.
     /// First parameter is the actual request that is being processed. See [Request].
@@ -428,7 +428,7 @@ impl Issuer {
 impl Issuer {
     /// # Webfinger OIDC Issuer Discovery
     ///
-    /// `This is a blocking method.` Checkout [Issuer::webfinger_async] for async version.
+    /// > `This is a blocking method.` Checkout [`Issuer::webfinger_async()`] for async version.
     ///
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
@@ -449,7 +449,7 @@ impl Issuer {
 
     /// # Webfinger OIDC Issuer Discovery with request interceptor
     ///
-    /// `This is a blocking method.` Checkout [Issuer::webfinger_with_interceptor_async] for async version.
+    /// > `This is a blocking method.` Checkout [`Issuer::webfinger_with_interceptor_async()`] for async version.
     ///
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
@@ -491,7 +491,7 @@ impl Issuer {
 
     /// # Webfinger OIDC Issuer Discovery
     ///
-    /// `This is an async method.` Checkout [Issuer::webfinger] for blocking version.
+    /// > `This is an async method.` Checkout [`Issuer::webfinger()`] for blocking version.
     ///
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
@@ -512,7 +512,7 @@ impl Issuer {
 
     /// # Webfinger OIDC Issuer Discovery with request interceptor
     ///
-    /// `This is an async method.` Checkout [Issuer::webfinger_with_interceptor] for blocking version.
+    /// > `This is an async method.` Checkout [`Issuer::webfinger_with_interceptor()`] for blocking version.
     ///
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
