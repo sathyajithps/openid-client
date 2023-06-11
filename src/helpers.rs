@@ -81,12 +81,12 @@ pub fn parse_www_authenticate_error(
     if let Ok(header_value_str) = header_value.to_str() {
         let regex = Regex::new(r#"(\w+)=("[^"]*")"#).unwrap();
 
-        let mut oidc_error = OidcClientError {
-            name: "OPError".to_string(),
-            error: "authentication_error".to_string(),
-            error_description: "authentication_error".to_string(),
-            response: Some(response.clone()),
-        };
+        let mut oidc_error = OidcClientError::new(
+            "OPError",
+            "authentication_error",
+            "authentication_error",
+            Some(response.clone()),
+        );
 
         for capture in regex.captures_iter(header_value_str) {
             if let Some(key_match) = capture.get(1) {

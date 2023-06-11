@@ -83,12 +83,12 @@ impl Client {
         }
 
         if !valid_client_id {
-            return Err(OidcClientError {
-                name: "MetadataError".to_string(),
-                error: "client_id is required".to_string(),
-                error_description: "client_id is required".to_string(),
-                response: None,
-            });
+            return Err(OidcClientError::new(
+                "MetadataError",
+                "client_id is required",
+                "client_id is required",
+                None,
+            ));
         }
 
         let mut client = Self {
@@ -99,13 +99,12 @@ impl Client {
         };
 
         if metadata.response_type.is_some() && metadata.response_types.is_some() {
-            return Err(OidcClientError {
-                name: "TypeError".to_string(),
-                error: "invalid configuration".to_string(),
-                error_description: "provide a response_type or response_types, not both"
-                    .to_string(),
-                response: None,
-            });
+            return Err(OidcClientError::new(
+                "TypeError",
+                "invalid configuration",
+                "provide a response_type or response_types, not both",
+                None,
+            ));
         }
 
         if let Some(response_type) = &metadata.response_type {
@@ -118,12 +117,12 @@ impl Client {
         }
 
         if metadata.redirect_uri.is_some() && metadata.redirect_uris.is_some() {
-            return Err(OidcClientError {
-                name: "TypeError".to_string(),
-                error: "invalid configuration".to_string(),
-                error_description: "provide a redirect_uri or redirect_uris, not both".to_string(),
-                response: None,
-            });
+            return Err(OidcClientError::new(
+                "TypeError",
+                "invalid configuration",
+                "provide a redirect_uri or redirect_uris, not both",
+                None,
+            ));
         }
 
         if let Some(redirect_uri) = &metadata.redirect_uri {
@@ -403,12 +402,12 @@ impl Client {
             let header_value = match HeaderValue::from_str(&format!("Bearer {}", rat)) {
                 Ok(v) => v,
                 Err(_) => {
-                    return Err(OidcClientError {
-                        name: "TypeError".to_string(),
-                        error: "invalid access_token".to_string(),
-                        error_description: format!("registration_access_token {} is invalid", rat),
-                        response: None,
-                    })
+                    return Err(OidcClientError::new(
+                        "TypeError",
+                        "invalid access_token",
+                        &format!("registration_access_token {} is invalid", rat),
+                        None,
+                    ))
                 }
             };
             headers.insert("Authorization", header_value);
@@ -553,12 +552,12 @@ fn assert_signing_alg_values_support(
     if let Some(am) = auth_method {
         if am.ends_with("_jwt") && supported_alg.is_none() && issuer_supported_alg_values.is_none()
         {
-            return Err(OidcClientError {
-                name: "TypeError".to_string(),
-                error: "invalid configuration".to_string(),
-                error_description: format!("{0}_endpoint_auth_signing_alg_values_supported must be configured on the issuer if {0}_endpoint_auth_signing_alg is not defined on a client", endpoint),
-                response: None,
-            });
+            return Err(OidcClientError::new(
+                "TypeError",
+                "invalid configuration",
+                &format!("{0}_endpoint_auth_signing_alg_values_supported must be configured on the issuer if {0}_endpoint_auth_signing_alg is not defined on a client", endpoint),
+                None
+            ));
         }
     }
     Ok(())
