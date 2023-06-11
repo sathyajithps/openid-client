@@ -1,5 +1,5 @@
 use crate::{
-    helpers::convert_json_to,
+    helpers::{convert_json_to, parse_www_authenticate_error},
     tests::process_url,
     types::{OidcClientError, Request, RequestOptions, Response, StandardBodyError},
     RequestInterceptor,
@@ -60,7 +60,7 @@ pub fn default_request_interceptor(_request: &Request) -> RequestOptions {
     let mut headers = HeaderMap::new();
     headers.append(
         "User-Agent",
-        HeaderValue::from_static("openid-client/0.1.0"),
+        HeaderValue::from_static("openid-client/0.0.0"),
     );
     RequestOptions {
         headers,
@@ -131,6 +131,10 @@ fn return_error_if_not_expected_status(
                     &standard_body_error.error_description,
                     Some(response),
                 ));
+            } else if let Some(header_value) = response.headers.get("www-authenticate") {
+                if request.bearer {
+                    parse_www_authenticate_error(header_value, &response)?;
+                }
             }
         }
 

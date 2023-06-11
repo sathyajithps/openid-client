@@ -2,6 +2,10 @@ use std::{collections::HashMap, time::Duration};
 
 use reqwest::{header::HeaderMap, Method, StatusCode};
 
+/// `type RequestInterceptor` is the alias for the closure that can be passed through
+/// one of several methods that will be executed every time a request is being made.
+pub type RequestInterceptor = Box<dyn FnMut(&Request) -> RequestOptions>;
+
 /// # Request
 /// Request is an internal struct that is used by each OIDC protocol methods.
 #[derive(Debug)]
@@ -14,6 +18,8 @@ pub struct Request {
     pub method: Method,
     /// Whether or not to expect body with the response
     pub expect_body: bool,
+    /// Specifies if the request is using bearer auth, and checks for bearer token related errors
+    pub bearer: bool,
     /// Headers that are sent in the request
     pub headers: HeaderMap,
     /// Query Params that are send with the request
@@ -24,6 +30,7 @@ impl Default for Request {
     fn default() -> Self {
         Self {
             expect_body: true,
+            bearer: false,
             expected: StatusCode::OK,
             headers: HeaderMap::default(),
             method: Method::GET,
@@ -50,7 +57,7 @@ impl Request {
 
 /// # Response
 /// Response is the abstracted version of the [reqwest] Response (async and blocking).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Response {
     /// Body from the response
     pub body: Option<String>,

@@ -1,8 +1,8 @@
 use httpmock::Regex;
-use reqwest::Url;
+use reqwest::{header::HeaderValue, Url};
 use serde::Deserialize;
 
-use crate::types::OidcClientError;
+use crate::{types::OidcClientError, Response};
 
 pub fn validate_url(url: &str) -> Result<Url, OidcClientError> {
     let url_result = Url::parse(url);
@@ -72,4 +72,42 @@ pub fn webfinger_normalize(input: &str) -> String {
     }
 
     output.split('#').next().unwrap().to_string()
+}
+
+pub fn parse_www_authenticate_error(
+    header_value: &HeaderValue,
+    response: &Response,
+) -> Result<(), OidcClientError> {
+    if let Ok(header_value_str) = header_value.to_str() {
+        let regex = Regex::new(r#"(\w+)=("[^"]*")"#).unwrap();
+
+        let mut oidc_error = OidcClientError {
+            name: "OPError".to_string(),
+            error: "authentication_error".to_string(),
+            error_description: "authentication_error".to_string(),
+            response: Some(response.clone()),
+        };
+
+        for capture in regex.captures_iter(header_value_str) {
+            if let Some(key_match) = capture.get(1) {
+                let key_str = key_match.as_str();
+                if let Some(value_match) = capture.get(2) {
+                    let value_str = value_match.as_str();
+                    let split_value: Vec<&str> = value_str.split('"').collect();
+                    let value = split_value[1];
+                    if key_str == "error" {
+                        oidc_error.error = value.to_string();
+                    }
+
+                    if key_str == "error_description" {
+                        oidc_error.error_description = value.to_string();
+                    }
+                }
+            }
+        }
+
+        return Err(oidc_error);
+    }
+
+    Ok(())
 }

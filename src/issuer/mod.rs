@@ -4,4 +4,4 @@
 mod issuer;
 mod jwks;
 
-pub use issuer::{Issuer, RequestInterceptor};
+pub use issuer::Issuer;

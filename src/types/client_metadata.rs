@@ -1,10 +1,14 @@
 use std::collections::HashMap;
 
+use serde::Deserialize;
+
+// TODO: Add rest of the fields from https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata
+
 /// # Client Metadata
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct ClientMetadata {
     /// Client Id
-    pub client_id: String,
+    pub client_id: Option<String>,
     /// Client secret
     pub client_secret: Option<String>,
     /// [Authentication method](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
@@ -38,6 +42,7 @@ pub struct ClientMetadata {
     /// List of [Response type](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep) supported by the client
     pub response_types: Option<Vec<String>>,
     /// Extra key values
+    #[serde(flatten)]
     pub other_fields: HashMap<String, serde_json::Value>,
 }
 
@@ -46,7 +51,7 @@ impl Default for ClientMetadata {
     /// Default implementation of client metadata (empty)
     fn default() -> Self {
         Self {
-            client_id: String::new(),
+            client_id: None,
             client_secret: None,
             token_endpoint_auth_method: None,
             token_endpoint_auth_signing_alg: None,
