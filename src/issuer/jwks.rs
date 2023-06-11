@@ -148,6 +148,7 @@ fn make_get_jwks_uri_request(url: &str) -> Request {
         method: Method::GET,
         url: url.to_string(),
         headers,
+        bearer: false,
         search_params: HashMap::new(),
     }
 }

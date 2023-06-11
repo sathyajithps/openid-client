@@ -6,15 +6,11 @@ use crate::client::Client;
 use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
 use crate::http::{default_request_interceptor, request, request_async};
 use crate::types::{
-    ClientMetadata, IssuerMetadata, Jwks, OidcClientError, Request, RequestOptions, Response,
-    WebFingerResponse,
+    ClientMetadata, ClientOptions, IssuerMetadata, Jwks, OidcClientError, Request,
+    RequestInterceptor, Response, WebFingerResponse,
 };
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
-
-/// `type RequestInterceptor` is the alias for the closure that can be passed through
-/// one of several methods that will be executed every time a request is being made.
-pub type RequestInterceptor = Box<dyn FnMut(&Request) -> RequestOptions>;
 
 /// Holds all the discovered values from the OIDC Issuer
 pub struct Issuer {
@@ -61,7 +57,7 @@ pub struct Issuer {
     /// Jwk Key Set
     pub(crate) keystore: Option<Jwks>,
     /// Request interceptor used for every request
-    pub(super) request_interceptor: RequestInterceptor,
+    pub(crate) request_interceptor: RequestInterceptor,
 }
 
 impl Default for Issuer {
@@ -606,6 +602,7 @@ impl Issuer {
             url: web_finger_url,
             method: Method::GET,
             headers,
+            bearer: false,
             expected: StatusCode::OK,
             expect_body: true,
             search_params,
@@ -698,6 +695,13 @@ impl Issuer {
     /// This method creates a new [Client] from the issuer.
     /// A client metadata with a required `client_id` field is also required
     ///
+    /// - Note: The request interceptor from the issuer is not carried over to the client.
+    ///         If no `interceptor` is provided with the method, a client with default request interceptor
+    ///         is created. The reason for not taking the interceptor from the `issuer` is to
+    ///         avoid the confusion of which request interceptor a [Client] is being created with
+    ///         when you are trying to create a [Client] from the `issuer` that you get back from
+    ///         the [`Client::get_issuer()`].
+    ///
     /// ```
     /// # use openid_client::{Issuer, IssuerMetadata, ClientMetadata};
     ///
@@ -714,15 +718,122 @@ impl Issuer {
     ///   let issuer = Issuer::new(issuer_metadata, None);
     ///
     ///   let client_metadata = ClientMetadata {
-    ///       client_id: "client_id".to_string(),
+    ///       client_id: Some("client_id".to_string()),
     ///       ..ClientMetadata::default()
     ///   };
     ///
-    ///   let client = issuer.client(client_metadata).unwrap();
+    ///   let client = issuer.client(client_metadata, None, None, None).unwrap();
     /// }
     /// ```
-    pub fn client(self, metadata: ClientMetadata) -> Result<Client, OidcClientError> {
-        Client::from(metadata, self)
+    ///
+    /// ### You can also create a client fromt the issuer with custom request interceptor, jwks and client options
+    ///  TODO: Document the client options and jwks and how it will be used by the client, and refactor the code snippet
+    ///
+    /// ```
+    /// # use std::time::Duration;
+    ///
+    /// # use openid_client::{
+    /// #     types::{ClientOptions, Jwks},
+    /// #     ClientMetadata, Issuer, IssuerMetadata, RequestOptions, HeaderMap, HeaderValue
+    /// # };
+    ///
+    /// fn main() {
+    ///     let issuer_metadata = IssuerMetadata {
+    ///         issuer: "https://auth.example.com".to_string(),
+    ///         token_endpoint_auth_methods_supported: Some(vec![
+    ///             "client_secret_post".to_string(),
+    ///             "private_key_jwt".to_string(),
+    ///         ]),
+    ///         ..IssuerMetadata::default()
+    ///     };
+    ///
+    ///     let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///     let client_metadata = ClientMetadata {
+    ///         client_id: Some("client_id".to_string()),
+    ///         ..ClientMetadata::default()
+    ///     };
+    ///
+    ///     let interceptor = |_request: &crate::types::Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///         headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(3500),
+    ///         }
+    ///     };
+    ///
+    ///     let client = issuer
+    ///         .client(
+    ///             client_metadata,
+    ///             Some(Box::new(interceptor)),
+    ///             Some(Jwks::default()),
+    ///             Some(ClientOptions {
+    ///                 additional_authorized_parties: Some(vec!["azp".to_string()]),
+    ///             }),
+    ///         )
+    ///         .unwrap();
+    /// }
+    /// ```
+    pub fn client(
+        &self,
+        metadata: ClientMetadata,
+        interceptor: Option<RequestInterceptor>,
+        jwks: Option<Jwks>,
+        client_options: Option<ClientOptions>,
+    ) -> Result<Client, OidcClientError> {
+        let interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
+
+        Client::from_internal(
+            metadata,
+            Some(self),
+            interceptor,
+            None,
+            None,
+            jwks,
+            client_options,
+        )
+    }
+}
+
+impl Issuer {
+    /// # Internal Documentation
+    /// Creates a new [Issuer] with [`default_request_interceptor()`]
+    pub(crate) fn clone_with_default_interceptor(&self) -> Self {
+        Self {
+            issuer: self.issuer.clone(),
+            authorization_endpoint: self.authorization_endpoint.clone(),
+            token_endpoint: self.token_endpoint.clone(),
+            jwks_uri: self.jwks_uri.clone(),
+            userinfo_endpoint: self.userinfo_endpoint.clone(),
+            revocation_endpoint: self.revocation_endpoint.clone(),
+            claims_parameter_supported: self.claims_parameter_supported,
+            grant_types_supported: self.grant_types_supported.clone(),
+            request_parameter_supported: self.request_parameter_supported,
+            request_uri_parameter_supported: self.request_uri_parameter_supported,
+            require_request_uri_registration: self.require_request_uri_registration,
+            response_modes_supported: self.response_modes_supported.clone(),
+            claim_types_supported: self.claim_types_supported.clone(),
+            token_endpoint_auth_methods_supported: self
+                .token_endpoint_auth_methods_supported
+                .clone(),
+            introspection_endpoint_auth_methods_supported: self
+                .introspection_endpoint_auth_methods_supported
+                .clone(),
+            introspection_endpoint_auth_signing_alg_values_supported: self
+                .introspection_endpoint_auth_signing_alg_values_supported
+                .clone(),
+            revocation_endpoint_auth_methods_supported: self
+                .revocation_endpoint_auth_methods_supported
+                .clone(),
+            revocation_endpoint_auth_signing_alg_values_supported: self
+                .revocation_endpoint_auth_signing_alg_values_supported
+                .clone(),
+            other_fields: self.other_fields.clone(),
+            keystore: self.keystore.clone(),
+            request_interceptor: Box::new(default_request_interceptor),
+        }
     }
 }
 
@@ -758,7 +869,7 @@ impl Debug for Issuer {
                 "token_endpoint_auth_methods_supported",
                 &self.token_endpoint_auth_methods_supported,
             )
-            .field("request_options", &"fn(&String) -> RequestOptions")
+            .field("request_options", &"fn(&RequestOptions) -> RequestOptions")
             .finish()
     }
 }

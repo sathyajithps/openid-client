@@ -27,6 +27,10 @@
 //! - Client from Issuer API
 //!     - [Issuer::client]
 //!
+//! ## Client API
+//! - From Uri
+//!     - [Client::from_uri]
+//!     - [Client::from_uri_with_interceptor]
 
 mod client;
 mod helpers;
@@ -36,9 +40,9 @@ mod tests;
 mod types;
 
 pub use client::Client;
-pub use issuer::{Issuer, RequestInterceptor};
+pub use issuer::Issuer;
 pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 pub use types::{
-    ClientMetadata, IssuerMetadata, MtlsEndpoints, OidcClientError, Request, RequestOptions,
-    Response, WebFingerResponse,
+    ClientMetadata, ClientOptions, IssuerMetadata, Jwk, Jwks, MtlsEndpoints, OidcClientError,
+    Request, RequestInterceptor, RequestOptions, Response, WebFingerResponse,
 };

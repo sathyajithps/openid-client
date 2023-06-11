@@ -1,9 +1,18 @@
 use std::collections::HashMap;
 
-use crate::{types::ClientMetadata, Issuer, OidcClientError};
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    StatusCode,
+};
+
+use crate::{
+    helpers::{convert_json_to, validate_url},
+    http::{default_request_interceptor, request, request_async},
+    types::{ClientMetadata, ClientOptions, Jwks},
+    Issuer, OidcClientError, Request, RequestInterceptor, Response,
+};
 
 /// # Client instance
-#[derive(Debug)]
 pub struct Client {
     client_id: String,
     client_secret: Option<String>,
@@ -19,7 +28,10 @@ pub struct Client {
     redirect_uri: Option<String>,
     redirect_uris: Option<Vec<String>>,
     response_type: Option<String>,
+    request_interceptor: RequestInterceptor,
+    jwks: Option<Jwks>,
     other_fields: HashMap<String, serde_json::Value>,
+    issuer: Option<Issuer>,
 }
 
 impl Client {
@@ -39,13 +51,38 @@ impl Client {
             redirect_uri: None,
             redirect_uris: None,
             response_type: None,
+            request_interceptor: Box::new(default_request_interceptor),
+            jwks: None,
             other_fields: HashMap::new(),
+            issuer: None,
         }
     }
 
-    /// Method used by Issuer::client to create a new client
-    pub(crate) fn from(metadata: ClientMetadata, issuer: Issuer) -> Result<Self, OidcClientError> {
-        if metadata.client_id.is_empty() {
+    /// # Internal documentation
+    /// This method is used by [`Isseur::client()`] and [`Client::new_with_interceptor()`]
+    /// to create an instance of [Client].
+    ///
+    /// The `issuer` will be cloned using [`Issuer::clone_with_default_interceptor()`] method
+    pub(crate) fn from_internal(
+        metadata: ClientMetadata,
+        issuer: Option<&Issuer>,
+        interceptor: RequestInterceptor,
+        _registration_client_uri: Option<String>,
+        _registration_access_token: Option<String>,
+        jwks: Option<Jwks>,
+        _options: Option<ClientOptions>,
+    ) -> Result<Self, OidcClientError> {
+        let mut valid_client_id = true;
+
+        if let Some(client_id) = &metadata.client_id {
+            if client_id.is_empty() {
+                valid_client_id = false;
+            }
+        } else {
+            valid_client_id = false;
+        }
+
+        if !valid_client_id {
             return Err(OidcClientError {
                 name: "MetadataError".to_string(),
                 error: "client_id is required".to_string(),
@@ -55,7 +92,7 @@ impl Client {
         }
 
         let mut client = Self {
-            client_id: metadata.client_id,
+            client_id: metadata.client_id.unwrap(),
             client_secret: metadata.client_secret,
             other_fields: metadata.other_fields,
             ..Client::default()
@@ -100,11 +137,13 @@ impl Client {
 
         if let Some(team) = metadata.token_endpoint_auth_method {
             client.token_endpoint_auth_method = team;
-        } else if let Some(teams) = &issuer.token_endpoint_auth_methods_supported {
-            if !teams.contains(&client.get_token_endpoint_auth_method())
-                && teams.contains(&"client_secret_post".to_string())
-            {
-                client.token_endpoint_auth_method = "client_secret_post".to_string();
+        } else if let Some(iss) = issuer {
+            if let Some(teams) = &iss.token_endpoint_auth_methods_supported {
+                if !teams.contains(&client.get_token_endpoint_auth_method())
+                    && teams.contains(&"client_secret_post".to_string())
+                {
+                    client.token_endpoint_auth_method = "client_secret_post".to_string();
+                }
             }
         }
 
@@ -128,32 +167,297 @@ impl Client {
             .revocation_endpoint_auth_signing_alg
             .or(client.get_token_endpoint_auth_signing_alg());
 
-        assert_signing_alg_values_support(
-            &Some(client.token_endpoint_auth_method.clone()),
-            &client.token_endpoint_auth_signing_alg,
-            &issuer.token_endpoint_auth_methods_supported,
-            "token",
-        )?;
+        if let Some(iss) = issuer {
+            assert_signing_alg_values_support(
+                &Some(client.token_endpoint_auth_method.clone()),
+                &client.token_endpoint_auth_signing_alg,
+                &iss.token_endpoint_auth_methods_supported,
+                "token",
+            )?;
 
-        assert_signing_alg_values_support(
-            &client.introspection_endpoint_auth_method,
-            &client.introspection_endpoint_auth_signing_alg,
-            &issuer.introspection_endpoint_auth_methods_supported,
-            "introspection",
-        )?;
+            assert_signing_alg_values_support(
+                &client.introspection_endpoint_auth_method,
+                &client.introspection_endpoint_auth_signing_alg,
+                &iss.introspection_endpoint_auth_methods_supported,
+                "introspection",
+            )?;
 
-        assert_signing_alg_values_support(
-            &client.revocation_endpoint_auth_method,
-            &client.revocation_endpoint_auth_signing_alg,
-            &issuer.revocation_endpoint_auth_methods_supported,
-            "revocation",
-        )?;
+            assert_signing_alg_values_support(
+                &client.revocation_endpoint_auth_method,
+                &client.revocation_endpoint_auth_signing_alg,
+                &iss.revocation_endpoint_auth_methods_supported,
+                "revocation",
+            )?;
+
+            client.issuer = Some(iss.clone_with_default_interceptor());
+        }
+
+        client.set_request_interceptor(interceptor);
+
+        if let Some(jwks) = jwks {
+            client.jwks = Some(jwks);
+        }
 
         Ok(client)
     }
 }
 
-/// Getter method implementations for Client
+impl Client {
+    /// # Creates a client from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
+    /// `This is a blocking method.` Checkout [`Client::from_uri_async()`] for async version.
+    ///
+    /// Creates a [Client] from the Client read endpoint.
+    ///
+    /// The Jwks is completely ignored if the jwks_uri is present from the response.
+    ///
+    /// ```
+    /// # use openid_client::Client;
+    ///
+    /// fn main() {
+    ///     let client =
+    ///         Client::from_uri("https://auth.example.com/client/id", None, None, None, None);
+    /// }
+    /// ```
+    ///
+    /// TODO: Document snippets using rest of the arguments
+    pub fn from_uri(
+        registration_client_uri: &str,
+        registration_access_token: Option<String>,
+        jwks: Option<Jwks>,
+        client_options: Option<ClientOptions>,
+        issuer: Option<&Issuer>,
+    ) -> Result<Self, OidcClientError> {
+        Self::from_uri_with_interceptor(
+            registration_client_uri,
+            Box::new(default_request_interceptor),
+            registration_access_token,
+            jwks,
+            client_options,
+            issuer,
+        )
+    }
+
+    /// # Creates a client with request interceptor from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
+    /// `This is a blocking method.` Checkout [`Client::from_uri_with_interceptor_async()`] for async version.
+    ///
+    /// ```
+    /// # use openid_client::Client;
+    ///
+    /// fn main() {
+    ///     let client =
+    ///         Client::from_uri_with_interceptor("https://auth.example.com/client/id", None, None, None, None);
+    /// }
+    /// ```
+    ///
+    /// TODO: Document snippets using rest of the arguments
+    pub fn from_uri_with_interceptor(
+        registration_client_uri: &str,
+        interceptor: RequestInterceptor,
+        registration_access_token: Option<String>,
+        jwks: Option<Jwks>,
+        client_options: Option<ClientOptions>,
+        issuer: Option<&Issuer>,
+    ) -> Result<Self, OidcClientError> {
+        Self::from_uri_internal(
+            registration_client_uri,
+            registration_access_token,
+            jwks,
+            client_options,
+            interceptor,
+            issuer,
+        )
+    }
+
+    /// # Creates a client from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
+    /// `This is an async method.` Checkout [`Client::from_uri()`] for the blocking version.
+    ///
+    /// Creates a [Client] from the Client read endpoint.
+    ///
+    /// The Jwks is completely ignored if the jwks_uri is present from the response.
+    ///
+    /// ```
+    /// # use openid_client::Client;
+    ///
+    /// fn main() {
+    ///     let client =
+    ///         Client::from_uri_async("https://auth.example.com/client/id", None, None, None, None);
+    /// }
+    /// ```
+    ///
+    /// TODO: Document snippets using rest of the arguments
+    pub async fn from_uri_async(
+        registration_client_uri: &str,
+        registration_access_token: Option<String>,
+        jwks: Option<Jwks>,
+        client_options: Option<ClientOptions>,
+        issuer: Option<&Issuer>,
+    ) -> Result<Self, OidcClientError> {
+        Self::from_uri_with_interceptor_async(
+            registration_client_uri,
+            Box::new(default_request_interceptor),
+            registration_access_token,
+            jwks,
+            client_options,
+            issuer,
+        )
+        .await
+    }
+
+    /// # Creates a client with request interceptor from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
+    /// `This is an async method.` Checkout [`Client::from_uri_with_interceptor()`] for the blocking version.
+    ///
+    /// ```
+    /// # use openid_client::Client;
+    ///
+    /// fn main() {
+    ///     let client =
+    ///         Client::from_uri_with_interceptor_async("https://auth.example.com/client/id", None, None, None, None);
+    /// }
+    /// ```
+    ///
+    /// TODO: Document snippets using rest of the arguments
+    pub async fn from_uri_with_interceptor_async(
+        registration_client_uri: &str,
+        interceptor: RequestInterceptor,
+        registration_access_token: Option<String>,
+        jwks: Option<Jwks>,
+        client_options: Option<ClientOptions>,
+        issuer: Option<&Issuer>,
+    ) -> Result<Self, OidcClientError> {
+        Self::from_uri_internal_async(
+            registration_client_uri,
+            registration_access_token,
+            jwks,
+            client_options,
+            interceptor,
+            issuer,
+        )
+        .await
+    }
+
+    /// Internal method that requests and process the response for all the `from_uri_methods`
+    fn from_uri_internal(
+        registration_client_uri: &str,
+        registration_access_token: Option<String>,
+        jwks: Option<Jwks>,
+        client_options: Option<ClientOptions>,
+        mut interceptor: RequestInterceptor,
+        issuer: Option<&Issuer>,
+    ) -> Result<Self, OidcClientError> {
+        let req = Self::build_from_uri_request(
+            registration_client_uri,
+            registration_access_token.as_ref(),
+        )?;
+
+        let res = request(req, &mut interceptor)?;
+
+        Self::process_from_uri_response(
+            res,
+            issuer,
+            interceptor,
+            registration_client_uri,
+            registration_access_token,
+            jwks,
+            client_options,
+        )
+    }
+
+    /// Internal method that requests and process the response for all the `from_uri_methods` async version.
+    async fn from_uri_internal_async(
+        registration_client_uri: &str,
+        registration_access_token: Option<String>,
+        jwks: Option<Jwks>,
+        client_options: Option<ClientOptions>,
+        mut interceptor: RequestInterceptor,
+        issuer: Option<&Issuer>,
+    ) -> Result<Self, OidcClientError> {
+        let req = Self::build_from_uri_request(
+            registration_client_uri,
+            registration_access_token.as_ref(),
+        )?;
+
+        let res = request_async(req, &mut interceptor).await?;
+
+        Self::process_from_uri_response(
+            res,
+            issuer,
+            interceptor,
+            registration_client_uri,
+            registration_access_token,
+            jwks,
+            client_options,
+        )
+    }
+
+    /// Request builder for the `from_uri_internal` methods
+    fn build_from_uri_request(
+        registration_client_uri: &str,
+        registration_access_token: Option<&String>,
+    ) -> Result<Request, OidcClientError> {
+        let url = validate_url(registration_client_uri)?;
+
+        let mut headers = HeaderMap::new();
+        headers.insert("Accept", HeaderValue::from_static("application/json"));
+
+        if let Some(rat) = registration_access_token {
+            let header_value = match HeaderValue::from_str(&format!("Bearer {}", rat)) {
+                Ok(v) => v,
+                Err(_) => {
+                    return Err(OidcClientError {
+                        name: "TypeError".to_string(),
+                        error: "invalid access_token".to_string(),
+                        error_description: format!("registration_access_token {} is invalid", rat),
+                        response: None,
+                    })
+                }
+            };
+            headers.insert("Authorization", header_value);
+        }
+
+        Ok(Request {
+            url: url.to_string(),
+            method: reqwest::Method::GET,
+            expect_body: true,
+            expected: StatusCode::OK,
+            bearer: true,
+            headers,
+            ..Request::default()
+        })
+    }
+
+    /// Response processor for the `from_uri_internal` methods
+    fn process_from_uri_response(
+        response: Response,
+        issuer: Option<&Issuer>,
+        interceptor: RequestInterceptor,
+        registration_client_uri: &str,
+        registration_access_token: Option<String>,
+        jwks: Option<Jwks>,
+        client_options: Option<ClientOptions>,
+    ) -> Result<Self, OidcClientError> {
+        let client_metadata = convert_json_to::<ClientMetadata>(response.body.as_ref().unwrap())
+            .map_err(|_| {
+                OidcClientError::new(
+                    "OPError",
+                    "invalid_client_metadata",
+                    "invalid client metadata",
+                    Some(response),
+                )
+            })?;
+
+        Self::from_internal(
+            client_metadata,
+            issuer,
+            interceptor,
+            Some(registration_client_uri.to_string()),
+            registration_access_token,
+            jwks,
+            client_options,
+        )
+    }
+}
+
+/// Getter & Setter method implementations for Client
 impl Client {
     /// Get client id
     pub fn get_client_id(&self) -> String {
@@ -229,6 +533,15 @@ impl Client {
     pub fn get_response_type(&self) -> Option<String> {
         self.response_type.clone()
     }
+
+    /// Gets the issuer that the client was created with.
+    pub fn get_issuer(&self) -> Option<&Issuer> {
+        self.issuer.as_ref()
+    }
+
+    pub(crate) fn set_request_interceptor(&mut self, interceptor: RequestInterceptor) {
+        self.request_interceptor = interceptor;
+    }
 }
 
 fn assert_signing_alg_values_support(
@@ -249,6 +562,53 @@ fn assert_signing_alg_values_support(
         }
     }
     Ok(())
+}
+
+impl std::fmt::Debug for Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &self.client_secret)
+            .field("grant_types", &self.grant_types)
+            .field(
+                "id_token_signed_response_alg",
+                &self.id_token_signed_response_alg,
+            )
+            .field("response_types", &self.response_types)
+            .field(
+                "token_endpoint_auth_method",
+                &self.token_endpoint_auth_method,
+            )
+            .field(
+                "token_endpoint_auth_signing_alg",
+                &self.token_endpoint_auth_signing_alg,
+            )
+            .field(
+                "introspection_endpoint_auth_method",
+                &self.introspection_endpoint_auth_method,
+            )
+            .field(
+                "introspection_endpoint_auth_signing_alg",
+                &self.introspection_endpoint_auth_signing_alg,
+            )
+            .field(
+                "revocation_endpoint_auth_method",
+                &self.revocation_endpoint_auth_method,
+            )
+            .field(
+                "revocation_endpoint_auth_signing_alg",
+                &self.revocation_endpoint_auth_signing_alg,
+            )
+            .field("redirect_uri", &self.redirect_uri)
+            .field("redirect_uris", &self.redirect_uris)
+            .field("response_type", &self.response_type)
+            .field(
+                "request_interceptor",
+                &"fn(&RequestOptions) -> RequestOptions",
+            )
+            .field("other_fields", &self.other_fields)
+            .finish()
+    }
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// JWK structure
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Jwk {
     /// The specific cryptographic algorithm used with the key.
     #[serde(rename = "alg")]
@@ -38,21 +38,7 @@ pub struct Jwk {
 }
 
 impl Jwk {
-    pub fn default() -> Self {
-        Self {
-            algorithm: None,
-            key_type: None,
-            key_use: None,
-            x509_cert_chain: None,
-            rsa_modulus: None,
-            rsa_exponent: None,
-            key_id: None,
-            x509_sha1_thumbprint: None,
-            curve: None,
-        }
-    }
-
-    pub fn algorithms(&self) -> HashSet<String> {
+    pub(crate) fn algorithms(&self) -> HashSet<String> {
         let mut algs: HashSet<String> = HashSet::new();
 
         if self.algorithm.is_some() {
@@ -109,18 +95,17 @@ impl Jwk {
 }
 
 /// JWKS Structure
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Jwks {
     /// List of keys
     keys: Vec<Jwk>,
 }
 
 impl Jwks {
-    pub fn default() -> Self {
-        Self { keys: vec![] }
-    }
-
-    pub fn generate(&mut self, alg: &str, bits: Option<usize>, kid: Option<String>) -> bool {
+    /// Generates [Jwk} with specified algorithm
+    /// TODO: Should be a pub method once its complete
+    #[allow(dead_code)]
+    pub(crate) fn generate(&mut self, alg: &str, bits: Option<usize>, kid: Option<String>) -> bool {
         return match alg {
             "RSA" => {
                 let mut rng = rand::thread_rng();
@@ -130,12 +115,19 @@ impl Jwks {
                     RsaPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
                 let pub_key = RsaPublicKey::from(&priv_key);
 
-                let mut jwk = Jwk::default();
+                let jwk = Jwk {
+                    rsa_exponent: Some(STANDARD.encode(pub_key.e().to_bytes_be())),
+                    rsa_modulus: Some(STANDARD.encode(pub_key.n().to_bytes_be())),
+                    key_id: Some(key_id),
+                    key_type: Some("RSA".to_string()),
+                    /// TODO: Why?
+                    algorithm: None,
+                    key_use: None,
+                    x509_cert_chain: None,
+                    x509_sha1_thumbprint: None,
+                    curve: None,
+                };
 
-                jwk.rsa_exponent = Some(STANDARD.encode(pub_key.e().to_bytes_be()));
-                jwk.rsa_modulus = Some(STANDARD.encode(pub_key.n().to_bytes_be()));
-                jwk.key_id = Some(key_id);
-                jwk.key_type = Some("RSA".to_string());
                 self.keys.push(jwk);
 
                 true
@@ -145,7 +137,7 @@ impl Jwks {
     }
 
     #[allow(clippy::if_same_then_else)]
-    pub fn get(
+    pub(crate) fn get(
         &self,
         alg: Option<String>,
         key_use: Option<String>,
