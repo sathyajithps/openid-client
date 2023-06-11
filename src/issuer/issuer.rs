@@ -839,77 +839,77 @@ impl Issuer {
 
 impl Issuer {
     /// Get issuer
-    pub fn issuer(&self) -> String {
+    pub fn get_issuer(&self) -> String {
         self.issuer.clone()
     }
 
     /// Get authorization endpoint
-    pub fn authorization_endpoint(&self) -> Option<String> {
+    pub fn get_authorization_endpoint(&self) -> Option<String> {
         self.authorization_endpoint.clone()
     }
 
     /// Get token endpoint
-    pub fn token_endpoint(&self) -> Option<String> {
+    pub fn get_token_endpoint(&self) -> Option<String> {
         self.token_endpoint.clone()
     }
 
     /// Get jwks uri
-    pub fn jwks_uri(&self) -> Option<String> {
+    pub fn get_jwks_uri(&self) -> Option<String> {
         self.jwks_uri.clone()
     }
 
     /// Get userinfo endpoint
-    pub fn userinfo_endpoint(&self) -> Option<String> {
+    pub fn get_userinfo_endpoint(&self) -> Option<String> {
         self.userinfo_endpoint.clone()
     }
 
     /// Get revocation endpoint
-    pub fn revocation_endpoint(&self) -> Option<String> {
+    pub fn get_revocation_endpoint(&self) -> Option<String> {
         self.revocation_endpoint.clone()
     }
 
     /// Get claims paramter supported
-    pub fn claims_parameter_supported(&self) -> Option<bool> {
+    pub fn get_claims_parameter_supported(&self) -> Option<bool> {
         self.claims_parameter_supported
     }
 
     /// Get grant types supported
-    pub fn grant_types_supported(&self) -> Option<Vec<String>> {
+    pub fn get_grant_types_supported(&self) -> Option<Vec<String>> {
         Some(self.grant_types_supported.clone()?.to_vec())
     }
 
     /// Get request parameter supported
-    pub fn request_parameter_supported(&self) -> Option<bool> {
+    pub fn get_request_parameter_supported(&self) -> Option<bool> {
         self.request_parameter_supported
     }
 
     /// Get request uri parameter supported
-    pub fn request_uri_parameter_supported(&self) -> Option<bool> {
+    pub fn get_request_uri_parameter_supported(&self) -> Option<bool> {
         self.request_uri_parameter_supported
     }
 
     /// Get require request uri registration
-    pub fn require_request_uri_registration(&self) -> Option<bool> {
+    pub fn get_require_request_uri_registration(&self) -> Option<bool> {
         self.require_request_uri_registration
     }
 
     /// Get response modes supported
-    pub fn response_modes_supported(&self) -> Option<Vec<String>> {
+    pub fn get_response_modes_supported(&self) -> Option<Vec<String>> {
         Some(self.response_modes_supported.clone()?.to_vec())
     }
 
     /// Get claim types supported
-    pub fn claim_types_supported(&self) -> Vec<String> {
+    pub fn get_claim_types_supported(&self) -> Vec<String> {
         self.claim_types_supported.clone().to_vec()
     }
 
     /// Get token endpoint auth methods supported
-    pub fn token_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
+    pub fn get_token_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
         Some(self.token_endpoint_auth_methods_supported.clone()?.to_vec())
     }
 
     /// Get introspection endpoint auth methods supported
-    pub fn introspection_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
+    pub fn get_introspection_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
         Some(
             self.introspection_endpoint_auth_methods_supported
                 .clone()?
@@ -918,7 +918,9 @@ impl Issuer {
     }
 
     /// Get introspection endpoint auth signing algorithm values supported
-    pub fn introspection_endpoint_auth_signing_alg_values_supported(&self) -> Option<Vec<String>> {
+    pub fn get_introspection_endpoint_auth_signing_alg_values_supported(
+        &self,
+    ) -> Option<Vec<String>> {
         Some(
             self.introspection_endpoint_auth_signing_alg_values_supported
                 .clone()?
@@ -927,7 +929,7 @@ impl Issuer {
     }
 
     /// Get revocation endpoint auth methods supported
-    pub fn revocation_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
+    pub fn get_revocation_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
         Some(
             self.revocation_endpoint_auth_methods_supported
                 .clone()?
@@ -936,7 +938,7 @@ impl Issuer {
     }
 
     /// Get revocation endpoint auth signing algorithm values supported
-    pub fn revocation_endpoint_auth_signing_alg_values_supported(&self) -> Option<Vec<String>> {
+    pub fn get_revocation_endpoint_auth_signing_alg_values_supported(&self) -> Option<Vec<String>> {
         Some(
             self.revocation_endpoint_auth_signing_alg_values_supported
                 .clone()?
@@ -945,12 +947,12 @@ impl Issuer {
     }
 
     /// Get other fields
-    pub fn other_fields(&self) -> HashMap<String, serde_json::Value> {
+    pub fn get_other_fields(&self) -> HashMap<String, serde_json::Value> {
         self.other_fields.clone()
     }
 
     /// Get Jwks
-    pub fn keystore(&self) -> Option<Jwks> {
+    pub fn get_keystore(&self) -> Option<Jwks> {
         self.keystore.clone()
     }
 }
