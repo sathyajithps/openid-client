@@ -89,7 +89,7 @@ fn internal_get_jwk(
     key_use: Option<String>,
     kid: Option<String>,
 ) -> Result<Vec<&Jwk>, OidcClientError> {
-    let matched_keys = key_store.get(alg.clone(), key_use.clone(), kid.clone());
+    let matched_keys = key_store.get(alg.clone(), key_use.clone(), kid.clone())?;
 
     let unwrapped_kid = kid.clone().or_else(|| Some("".to_string())).unwrap();
     let unwrapped_key_use = key_use.or_else(|| Some("".to_string())).unwrap();
