@@ -33,18 +33,15 @@
 //!     - [Client::register]
 //!     - [Client::register_async]
 
-mod client;
+pub mod client;
 mod helpers;
 mod http;
-mod issuer;
+pub mod issuer;
 mod tests;
-mod types;
+pub mod types;
 
-pub use client::Client;
-pub use issuer::Issuer;
-pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-pub use serde_json::{json, Value};
-pub use types::{
-    ClientMetadata, ClientOptions, IssuerMetadata, Jwk, Jwks, MtlsEndpoints, OidcClientError,
-    Request, RequestInterceptor, RequestOptions, Response, WebFingerResponse,
-};
+/// Re exports from the crate
+pub mod re_exports {
+    pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+    pub use serde_json::{json, Value};
+}

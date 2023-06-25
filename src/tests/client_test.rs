@@ -3,7 +3,7 @@ mod client_new_tests {
     use std::collections::HashMap;
 
     use crate::issuer::Issuer;
-    use crate::{types::ClientMetadata, IssuerMetadata};
+    use crate::types::{ClientMetadata, IssuerMetadata};
 
     #[test]
     fn requires_client_id() {
@@ -317,7 +317,10 @@ mod client_new_tests {
 
     #[cfg(test)]
     mod dynamic_registration_defaults_not_supported_by_issuer {
-        use crate::{types::ClientMetadata, Issuer, IssuerMetadata};
+        use crate::{
+            issuer::Issuer,
+            types::{ClientMetadata, IssuerMetadata},
+        };
 
         #[test]
         fn token_endpoint_auth_method_vs_token_endpoint_auth_methods_supported() {
@@ -349,9 +352,10 @@ mod client_new_tests {
         use httpmock::{Method::GET, MockServer};
 
         use crate::{
+            client::Client,
             helpers::convert_json_to,
             tests::{get_url_with_count, set_mock_domain},
-            Client, Jwks,
+            types::{Jwks, OidcClientError},
         };
 
         pub fn get_default_expected_client_read_response() -> String {
@@ -360,10 +364,10 @@ mod client_new_tests {
 
         pub fn get_async_client_discovery(
             client_registration_uri: &str,
-        ) -> Result<Client, crate::OidcClientError> {
+        ) -> Result<Client, OidcClientError> {
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
-            let result: Result<Client, crate::OidcClientError> = async_runtime.block_on(async {
+            let result: Result<Client, OidcClientError> = async_runtime.block_on(async {
                 Client::from_uri_async(client_registration_uri, None, None, None, None, None).await
             });
             result
@@ -725,8 +729,10 @@ mod client_new_tests {
         use httpmock::{prelude::HttpMockRequest, Method::POST, MockServer};
 
         use crate::{
+            client::Client,
+            issuer::Issuer,
             tests::{get_url_with_count, set_mock_domain},
-            Client, ClientMetadata, Issuer, IssuerMetadata,
+            types::{ClientMetadata, IssuerMetadata},
         };
 
         pub fn get_default_expected_client_read_response() -> String {
@@ -1039,10 +1045,11 @@ mod client_new_tests {
             use httpmock::{prelude::HttpMockRequest, Method::POST, MockServer};
 
             use crate::{
+                client::Client,
                 helpers::convert_json_to,
+                issuer::Issuer,
                 tests::{get_url_with_count, set_mock_domain},
-                types::ClientRegistrationOptions,
-                Client, ClientMetadata, Issuer, IssuerMetadata, Jwks,
+                types::{ClientMetadata, ClientRegistrationOptions, IssuerMetadata, Jwks},
             };
 
             fn get_default_jwks_string() -> String {
@@ -1367,9 +1374,10 @@ mod client_new_tests {
             use httpmock::{Method::POST, MockServer};
 
             use crate::{
+                client::Client,
+                issuer::Issuer,
                 tests::{get_url_with_count, set_mock_domain},
-                types::ClientRegistrationOptions,
-                Client, ClientMetadata, Issuer, IssuerMetadata,
+                types::{ClientMetadata, ClientRegistrationOptions, IssuerMetadata},
             };
 
             pub fn get_default_expected_client_register_response() -> String {

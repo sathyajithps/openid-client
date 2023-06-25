@@ -8,8 +8,11 @@ use reqwest::{
 use crate::{
     helpers::{convert_json_to, validate_url},
     http::{default_request_interceptor, request, request_async},
-    types::{ClientMetadata, ClientOptions, ClientRegistrationOptions, Jwks},
-    Issuer, OidcClientError, Request, RequestInterceptor, Response,
+    issuer::Issuer,
+    types::{
+        ClientMetadata, ClientOptions, ClientRegistrationOptions, Jwks, OidcClientError, Request,
+        RequestInterceptor, Response,
+    },
 };
 
 /// # Client instance

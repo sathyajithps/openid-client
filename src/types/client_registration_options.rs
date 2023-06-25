@@ -1,4 +1,4 @@
-use crate::{ClientOptions, Jwks};
+use crate::types::{ClientOptions, Jwks};
 
 /// # Client Registration Options
 #[derive(Default, Clone)]
