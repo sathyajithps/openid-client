@@ -17,4 +17,4 @@ pub use errors::{OidcClientError, StandardBodyError};
 pub use http::{Request, RequestInterceptor, RequestOptions, Response};
 pub use issuer_metadata::{IssuerMetadata, MtlsEndpoints};
 pub use jwk::{Jwk, Jwks};
-pub use webfinger::{Link, WebFingerResponse};
+pub(crate) use webfinger::WebFingerResponse;

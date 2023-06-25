@@ -608,7 +608,6 @@ impl Issuer {
     /// }
     /// ```
     ///
-    /// ### You can also create a client fromt the issuer with custom request interceptor, jwks and client options
     ///  TODO: Document the client options and jwks and how it will be used by the client, and refactor the code snippet
     ///
     /// ```

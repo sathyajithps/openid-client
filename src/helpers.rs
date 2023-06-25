@@ -2,7 +2,7 @@ use httpmock::Regex;
 use reqwest::{header::HeaderValue, Url};
 use serde::Deserialize;
 
-use crate::{types::OidcClientError, Response};
+use crate::types::{OidcClientError, Response};
 
 pub fn validate_url(url: &str) -> Result<Url, OidcClientError> {
     let url_result = Url::parse(url);

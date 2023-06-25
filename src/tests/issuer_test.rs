@@ -2,13 +2,14 @@
 mod issuer_discovery_tests {
     use crate::issuer::Issuer;
     use crate::tests::{get_url_with_count, set_mock_domain};
+    use crate::types::OidcClientError;
     pub use httpmock::Method::GET;
     pub use httpmock::MockServer;
 
-    pub fn get_async_issuer_discovery(issuer: &str) -> Result<Issuer, crate::OidcClientError> {
+    pub fn get_async_issuer_discovery(issuer: &str) -> Result<Issuer, OidcClientError> {
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
-        let result: Result<Issuer, crate::OidcClientError> = async_runtime.block_on(async {
+        let result: Result<Issuer, OidcClientError> = async_runtime.block_on(async {
             let iss = Issuer::discover_async(issuer, None).await;
             return iss;
         });
@@ -872,11 +873,12 @@ mod issuer_webfinger_tests {
 
     use crate::issuer::Issuer;
     use crate::tests::{get_url_with_count, set_mock_domain};
+    use crate::types::OidcClientError;
 
-    pub fn get_async_webfinger_discovery(input: &str) -> Result<Issuer, crate::OidcClientError> {
+    pub fn get_async_webfinger_discovery(input: &str) -> Result<Issuer, OidcClientError> {
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
-        let result: Result<Issuer, crate::OidcClientError> = async_runtime.block_on(async {
+        let result: Result<Issuer, OidcClientError> = async_runtime.block_on(async {
             let iss = Issuer::webfinger_async(input, None).await;
             return iss;
         });
@@ -1199,7 +1201,7 @@ mod issuer_webfinger_tests {
         use crate::{
             issuer::Issuer,
             tests::{get_url_with_count, set_mock_domain},
-            types::RequestOptions,
+            types::{OidcClientError, RequestOptions},
         };
 
         #[test]
@@ -1284,10 +1286,9 @@ mod issuer_webfinger_tests {
 
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
-            let issuer_result: Result<Issuer, crate::OidcClientError> =
-                async_runtime.block_on(async {
-                    Issuer::webfinger_async(&resource, Some(Box::new(interceptor))).await
-                });
+            let issuer_result: Result<Issuer, OidcClientError> = async_runtime.block_on(async {
+                Issuer::webfinger_async(&resource, Some(Box::new(interceptor))).await
+            });
 
             webfinger_mock_server.assert();
             issuer_discovery_mock_server.assert();
@@ -1299,7 +1300,7 @@ mod issuer_webfinger_tests {
 #[cfg(test)]
 mod issuer_new {
     use crate::issuer::Issuer;
-    use crate::IssuerMetadata;
+    use crate::types::IssuerMetadata;
     use std::collections::HashMap;
 
     #[test]
@@ -1420,7 +1421,7 @@ mod issuer_new {
 #[cfg(test)]
 mod issuer_instance {
     use crate::tests::{get_url_with_count, set_mock_domain};
-    use crate::{Issuer, IssuerMetadata};
+    use crate::{issuer::Issuer, types::IssuerMetadata};
     use httpmock::Method::GET;
     use httpmock::MockServer;
 

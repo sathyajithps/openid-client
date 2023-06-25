@@ -1,8 +1,9 @@
 use crate::{
     helpers::{convert_json_to, parse_www_authenticate_error},
     tests::process_url,
-    types::{OidcClientError, Request, RequestOptions, Response, StandardBodyError},
-    RequestInterceptor,
+    types::{
+        OidcClientError, Request, RequestInterceptor, RequestOptions, Response, StandardBodyError,
+    },
 };
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::Value;

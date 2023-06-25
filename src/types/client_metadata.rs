@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::Jwks;
+use crate::types::Jwks;
 
 /// # Client Metadata
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq, Clone)]

@@ -10,8 +10,8 @@ use reqwest::{
 use crate::{
     helpers::convert_json_to,
     http::{request, request_async},
-    types::{Jwk, Jwks},
-    Issuer, OidcClientError, Request, RequestInterceptor, Response,
+    issuer::Issuer,
+    types::{Jwk, Jwks, OidcClientError, Request, RequestInterceptor, Response},
 };
 
 impl Issuer {

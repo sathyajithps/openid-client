@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::OidcClientError;
+use crate::types::OidcClientError;
 
 /// RSA Other Prime Info
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
