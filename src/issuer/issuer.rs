@@ -172,7 +172,7 @@ impl Issuer {
     /// If no introspection/revocation endpoint auth methods or algorithms are specified,
     /// value of token endpoint auth methods and algorithms are used as the the value for the said
     /// properties.
-    pub fn new(metadata: IssuerMetadata, request_interceptor: Option<RequestInterceptor>) -> Self {
+    pub fn new(metadata: IssuerMetadata, interceptor: Option<RequestInterceptor>) -> Self {
         let introspection_endpoint_auth_methods_supported =
             match metadata.introspection_endpoint_auth_methods_supported {
                 None => metadata.token_endpoint_auth_methods_supported.clone(),
@@ -201,7 +201,7 @@ impl Issuer {
                 Some(v) => Some(v),
             };
 
-        let interceptor = match request_interceptor {
+        let interceptor = match interceptor {
             Some(i) => i,
             None => Box::new(default_request_interceptor),
         };
@@ -261,9 +261,9 @@ impl Issuer {
     /// ```
     pub fn discover(
         issuer: &str,
-        request_interceptor: Option<RequestInterceptor>,
+        interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
-        let mut interceptor = request_interceptor.unwrap_or(Box::new(default_request_interceptor));
+        let mut interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
         let req = Self::build_discover_request(issuer)?;
 
         let res = request(req, &mut interceptor)?;
@@ -299,9 +299,9 @@ impl Issuer {
     /// ```
     pub async fn discover_async(
         issuer: &str,
-        request_interceptor: Option<RequestInterceptor>,
+        interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
-        let mut interceptor = request_interceptor.unwrap_or(Box::new(default_request_interceptor));
+        let mut interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
 
         let req = Self::build_discover_request(issuer)?;
 
@@ -343,7 +343,7 @@ impl Issuer {
     /// This is a private function that is used to process the discover response.
     fn process_discover_response(
         response: Response,
-        request_interceptor: RequestInterceptor,
+        interceptor: RequestInterceptor,
     ) -> Result<Issuer, OidcClientError> {
         let issuer_metadata =
             match convert_json_to::<IssuerMetadata>(response.body.as_ref().unwrap()) {
@@ -359,7 +359,7 @@ impl Issuer {
             };
 
         let mut issuer = Issuer::from(issuer_metadata);
-        issuer.request_interceptor = request_interceptor;
+        issuer.request_interceptor = interceptor;
 
         Ok(issuer)
     }
@@ -386,9 +386,9 @@ impl Issuer {
     /// ```
     pub fn webfinger(
         input: &str,
-        request_interceptor: Option<RequestInterceptor>,
+        interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
-        let mut interceptor = request_interceptor.unwrap_or(Box::new(default_request_interceptor));
+        let mut interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
 
         let req = Self::build_webfinger_request(input)?;
 
@@ -420,9 +420,9 @@ impl Issuer {
     /// ```
     pub async fn webfinger_async(
         input: &str,
-        request_interceptor: Option<RequestInterceptor>,
+        interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
-        let mut interceptor = request_interceptor.unwrap_or(Box::new(default_request_interceptor));
+        let mut interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
 
         let req = Self::build_webfinger_request(input)?;
 

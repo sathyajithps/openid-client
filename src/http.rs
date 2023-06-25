@@ -99,9 +99,9 @@ pub fn default_request_interceptor(_request: &Request) -> RequestOptions {
 
 fn pre_request(
     request: &Request,
-    request_options: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
+    interceptor: &mut RequestInterceptor,
 ) -> (RequestOptions, String) {
-    let options = request_options(request);
+    let options = interceptor(request);
 
     let url = process_url(&request.url);
     (options, url)
