@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use josekit::jwk::Jwk;
 use reqwest::{
     header::{HeaderMap, HeaderValue},
     Method, StatusCode,
@@ -11,7 +12,8 @@ use crate::{
     helpers::convert_json_to,
     http::{request, request_async},
     issuer::Issuer,
-    types::{Jwk, Jwks, OidcClientError, Request, RequestInterceptor, Response},
+    jwks::Jwks,
+    types::{OidcClientError, Request, RequestInterceptor, Response},
 };
 
 impl Issuer {

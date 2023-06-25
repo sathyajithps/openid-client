@@ -37,11 +37,13 @@ pub mod client;
 mod helpers;
 mod http;
 pub mod issuer;
+pub mod jwks;
 mod tests;
 pub mod types;
 
 /// Re exports from the crate
 pub mod re_exports {
+    pub use josekit::jwk;
     pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
     pub use serde_json::{json, Value};
 }

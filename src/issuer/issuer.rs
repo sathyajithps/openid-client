@@ -5,9 +5,10 @@ use std::fmt::Formatter;
 use crate::client::Client;
 use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
 use crate::http::{default_request_interceptor, request, request_async};
+use crate::jwks::Jwks;
 use crate::types::{
-    ClientMetadata, ClientOptions, IssuerMetadata, Jwks, OidcClientError, Request,
-    RequestInterceptor, Response, WebFingerResponse,
+    ClientMetadata, ClientOptions, IssuerMetadata, OidcClientError, Request, RequestInterceptor,
+    Response, WebFingerResponse,
 };
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
