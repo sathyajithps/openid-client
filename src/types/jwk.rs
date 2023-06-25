@@ -1,42 +1,83 @@
 use std::{cmp::Ordering, collections::HashSet};
 
-use base64::engine::{general_purpose::STANDARD, Engine};
-use rsa::{traits::PublicKeyParts, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::OidcClientError;
 
+/// RSA Other Prime Info
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct Oth {
+    /// Prime Factor
+    r: String,
+    /// Factor CRT Exponent
+    d: String,
+    /// Factor CRT Coefficient
+    t: String,
+}
+
 /// JWK structure
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Jwk {
     /// The specific cryptographic algorithm used with the key.
-    #[serde(rename = "alg")]
+    #[serde(rename = "alg", skip_serializing_if = "Option::is_none")]
     algorithm: Option<String>,
     /// The family of cryptographic algorithms used with the key.
-    #[serde(rename = "kty")]
+    #[serde(rename = "kty", skip_serializing_if = "Option::is_none")]
     key_type: Option<String>,
     /// How the key was meant to be used; sig represents the signature.
-    #[serde(rename = "use")]
+    #[serde(rename = "use", skip_serializing_if = "Option::is_none")]
     key_use: Option<String>,
     /// The x.509 certificate chain. The first entry in the array is the certificate to use for token verification; the other certificates can be used to verify this first certificate.
-    #[serde(rename = "x5c")]
+    #[serde(rename = "x5c", skip_serializing_if = "Option::is_none")]
     x509_cert_chain: Option<Vec<String>>,
     /// The modulus for the RSA public key.
-    #[serde(rename = "n")]
-    rsa_modulus: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    n: Option<String>,
     /// The exponent for the RSA public key.
-    #[serde(rename = "e")]
-    rsa_exponent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    e: Option<String>,
     /// The unique identifier for the key.
-    #[serde(rename = "kid")]
+    #[serde(rename = "kid", skip_serializing_if = "Option::is_none")]
     key_id: Option<String>,
     /// The thumbprint of the x.509 cert (SHA-1 thumbprint).
-    #[serde(rename = "x5t")]
+    #[serde(rename = "x5t", skip_serializing_if = "Option::is_none")]
     x509_sha1_thumbprint: Option<String>,
     /// Cryptographic curve used with the key.
-    #[serde(rename = "crv")]
+    #[serde(rename = "crv", skip_serializing_if = "Option::is_none")]
     curve: Option<String>,
+    /// x coordinate of EC
+    #[serde(skip_serializing_if = "Option::is_none")]
+    x: Option<String>,
+    /// y coordinate of EC
+    #[serde(skip_serializing_if = "Option::is_none")]
+    y: Option<String>,
+    /// RSA Secret Prime
+    #[serde(skip_serializing_if = "Option::is_none")]
+    p: Option<String>,
+    /// RSA Secret Prime, p < q
+    #[serde(skip_serializing_if = "Option::is_none")]
+    q: Option<String>,
+    /// RSA Multiplicative inverse u = p^-1 \bmod q.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    u: Option<String>,
+    /// Key of oct type key
+    #[serde(skip_serializing_if = "Option::is_none")]
+    k: Option<String>,
+    /// Private exponent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    d: Option<String>,
+    /// First Factor CRT Exponent Parameter
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dp: Option<String>,
+    /// Second Factor CRT Exponent Parameter
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dq: Option<String>,
+    /// First CRT Coefficient
+    #[serde(skip_serializing_if = "Option::is_none")]
+    qi: Option<String>,
+    /// Other Prime Info for RSA
+    #[serde(skip_serializing_if = "Option::is_none")]
+    oth: Option<Vec<Oth>>,
 }
 
 impl Jwk {
@@ -97,47 +138,13 @@ impl Jwk {
 }
 
 /// JWKS Structure
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Jwks {
     /// List of keys
     keys: Vec<Jwk>,
 }
 
 impl Jwks {
-    /// Generates [Jwk] with specified algorithm
-    /// TODO: Should be a pub method once its complete
-    #[allow(dead_code)]
-    pub(crate) fn generate(&mut self, alg: &str, bits: Option<usize>, kid: Option<String>) -> bool {
-        return match alg {
-            "RSA" => {
-                let mut rng = rand::thread_rng();
-                let bits = bits.unwrap_or(256);
-                let key_id = kid.unwrap_or(Uuid::new_v4().to_string());
-                let priv_key =
-                    RsaPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
-                let pub_key = RsaPublicKey::from(&priv_key);
-
-                let jwk = Jwk {
-                    rsa_exponent: Some(STANDARD.encode(pub_key.e().to_bytes_be())),
-                    rsa_modulus: Some(STANDARD.encode(pub_key.n().to_bytes_be())),
-                    key_id: Some(key_id),
-                    key_type: Some("RSA".to_string()),
-                    /// TODO: Why?
-                    algorithm: None,
-                    key_use: None,
-                    x509_cert_chain: None,
-                    x509_sha1_thumbprint: None,
-                    curve: None,
-                };
-
-                self.keys.push(jwk);
-
-                true
-            }
-            _ => false,
-        };
-    }
-
     #[allow(clippy::if_same_then_else)]
     pub(crate) fn get(
         &self,
@@ -209,6 +216,18 @@ impl Jwks {
             },
             _ => None,
         };
+    }
+
+    pub(crate) fn is_only_private_keys(&self) -> bool {
+        self.keys
+            .iter()
+            .all(|j| j.d.is_some() || j.key_type == Some("oct".to_string()))
+    }
+
+    pub(crate) fn has_oct_keys(&self) -> bool {
+        self.keys
+            .iter()
+            .any(|j| j.key_type == Some("oct".to_string()))
     }
 }
 

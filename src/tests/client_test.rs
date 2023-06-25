@@ -349,8 +349,9 @@ mod client_new_tests {
         use httpmock::{Method::GET, MockServer};
 
         use crate::{
+            helpers::convert_json_to,
             tests::{get_url_with_count, set_mock_domain},
-            Client,
+            Client, Jwks,
         };
 
         pub fn get_default_expected_client_read_response() -> String {
@@ -363,7 +364,7 @@ mod client_new_tests {
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let result: Result<Client, crate::OidcClientError> = async_runtime.block_on(async {
-                Client::from_uri_async(client_registration_uri, None, None, None, None).await
+                Client::from_uri_async(client_registration_uri, None, None, None, None, None).await
             });
             result
         }
@@ -387,7 +388,7 @@ mod client_new_tests {
                 format!("https://{}/client/identifier", auth_server_domain);
 
             let client =
-                Client::from_uri(&client_registration_uri, None, None, None, None).unwrap();
+                Client::from_uri(&client_registration_uri, None, None, None, None, None).unwrap();
 
             let client_async = get_async_client_discovery(&client_registration_uri).unwrap();
 
@@ -417,7 +418,8 @@ mod client_new_tests {
                 format!("https://{}/client/identifier", auth_server_domain);
 
             let client_error =
-                Client::from_uri(&client_registration_uri, None, None, None, None).unwrap_err();
+                Client::from_uri(&client_registration_uri, None, None, None, None, None)
+                    .unwrap_err();
 
             let client_error_async =
                 get_async_client_discovery(&client_registration_uri).unwrap_err();
@@ -454,7 +456,8 @@ mod client_new_tests {
                 format!("https://{}/client/identifier", auth_server_domain);
 
             let client_error =
-                Client::from_uri(&client_registration_uri, None, None, None, None).unwrap_err();
+                Client::from_uri(&client_registration_uri, None, None, None, None, None)
+                    .unwrap_err();
 
             let client_error_async =
                 get_async_client_discovery(&client_registration_uri).unwrap_err();
@@ -489,7 +492,8 @@ mod client_new_tests {
                 format!("https://{}/client/identifier", auth_server_domain);
 
             let client_error =
-                Client::from_uri(&client_registration_uri, None, None, None, None).unwrap_err();
+                Client::from_uri(&client_registration_uri, None, None, None, None, None)
+                    .unwrap_err();
 
             let client_error_async =
                 get_async_client_discovery(&client_registration_uri).unwrap_err();
@@ -527,7 +531,8 @@ mod client_new_tests {
                 format!("https://{}/client/identifier", auth_server_domain);
 
             let client_error =
-                Client::from_uri(&client_registration_uri, None, None, None, None).unwrap_err();
+                Client::from_uri(&client_registration_uri, None, None, None, None, None)
+                    .unwrap_err();
 
             let client_error_async =
                 get_async_client_discovery(&client_registration_uri).unwrap_err();
@@ -540,6 +545,77 @@ mod client_new_tests {
 
             assert_eq!(client_error.error_description, "unexpected body type");
             assert_eq!(client_error_async.error_description, "unexpected body type");
+        }
+
+        #[test]
+        fn does_not_accept_oct_keys() {
+            let client_registration_uri = "https://op.example.com/client/registration";
+
+            let jwks = Some(convert_json_to::<Jwks>("{\"keys\":[{\"k\":\"qHedLw\",\"kty\":\"oct\",\"kid\":\"R5OsS5S7xvrW7E0k0t0PwRsskJpdOkyfnAZi8S806Bg\"}]}").unwrap());
+
+            let client_error = Client::from_uri(
+                &client_registration_uri,
+                None,
+                jwks.clone(),
+                None,
+                None,
+                None,
+            )
+            .unwrap_err();
+
+            let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+            let _ = async_runtime.block_on(async {
+                let client_error_async =
+                    Client::from_uri_async(&client_registration_uri, None, jwks, None, None, None)
+                        .await
+                        .unwrap_err();
+
+                assert_eq!(
+                    "jwks must only contain private keys",
+                    client_error_async.error_description
+                );
+            });
+
+            assert_eq!(
+                "jwks must only contain private keys",
+                client_error.error_description
+            );
+        }
+
+        #[test]
+        fn does_not_accept_public_keys() {
+            let client_registration_uri = "https://op.example.com/client/registration";
+
+            let jwks = Some(convert_json_to::<Jwks>("{\"keys\":[{\"kty\":\"EC\",\"kid\":\"MFZeG102dQiqbANoaMlW_Jmf7fOZmtRsHt77JFhTpF0\",\"crv\":\"P-256\",\"x\":\"FWZ9rSkLt6Dx9E3pxLybhdM6xgR5obGsj5_pqmnz5J4\",\"y\":\"_n8G69C-A2Xl4xUW2lF0i8ZGZnk_KPYrhv4GbTGu5G4\"}]}").unwrap());
+            let client_error = Client::from_uri(
+                &client_registration_uri,
+                None,
+                jwks.clone(),
+                None,
+                None,
+                None,
+            )
+            .unwrap_err();
+
+            let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+            let _ = async_runtime.block_on(async {
+                let client_error_async =
+                    Client::from_uri_async(&client_registration_uri, None, jwks, None, None, None)
+                        .await
+                        .unwrap_err();
+
+                assert_eq!(
+                    "jwks must only contain private keys",
+                    client_error_async.error_description
+                );
+            });
+
+            assert_eq!(
+                "jwks must only contain private keys",
+                client_error.error_description
+            );
         }
 
         #[cfg(test)]
@@ -582,13 +658,13 @@ mod client_new_tests {
                 let client_registration_uri =
                     format!("https://{}/client/identifier", auth_server_domain);
 
-                let _ = Client::from_uri_with_interceptor(
+                let _ = Client::from_uri(
                     &client_registration_uri,
-                    Box::new(interceptor),
                     None,
                     None,
                     None,
                     None,
+                    Some(Box::new(interceptor)),
                 )
                 .unwrap();
 
@@ -625,17 +701,859 @@ mod client_new_tests {
                 let client_registration_uri =
                     format!("https://{}/client/identifier", auth_server_domain);
 
-                let _ = Client::from_uri_with_interceptor(
-                    &client_registration_uri,
-                    Box::new(interceptor),
-                    None,
-                    None,
-                    None,
+                let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+                let _ = async_runtime.block_on(async {
+                    let _ = Client::from_uri_async(
+                        &client_registration_uri,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(Box::new(interceptor)),
+                    )
+                    .await
+                    .unwrap();
+                    auth_mock_server.assert_hits(1);
+                });
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod client_register {
+        use httpmock::{prelude::HttpMockRequest, Method::POST, MockServer};
+
+        use crate::{
+            tests::{get_url_with_count, set_mock_domain},
+            Client, ClientMetadata, Issuer, IssuerMetadata,
+        };
+
+        pub fn get_default_expected_client_read_response() -> String {
+            "{\"client_id\":\"identifier\",\"client_secret\":\"secure\"}".to_string()
+        }
+
+        #[test]
+        fn asserts_the_issuer_has_a_registration_endpoint() {
+            let issuer_metadata = IssuerMetadata::default();
+
+            let issuer = Issuer::new(issuer_metadata, None);
+
+            let client_error =
+                Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
+
+            let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+            let _ = async_runtime.block_on(async {
+                let client_error_async =
+                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
+                        .await
+                        .unwrap_err();
+
+                assert_eq!(
+                    "registration_endpoint must be configured on the issuer",
+                    client_error_async.error_description
+                );
+            });
+
+            assert_eq!(
+                "registration_endpoint must be configured on the issuer",
+                client_error.error_description
+            );
+        }
+
+        #[test]
+        fn accepts_and_assigns_the_registered_metadata() {
+            let mock_http_server = MockServer::start();
+
+            let auth_server_domain = get_url_with_count("op.example<>.com");
+
+            let _auth_mock_server = mock_http_server.mock(|when, then| {
+                when.method(POST)
+                    .matches(|req: &HttpMockRequest| {
+                        if let Some(headers) = &req.headers {
+                            let mut iterator = headers.iter();
+                            let accept_header = iterator.find(|(header, value)| {
+                                header.to_lowercase() == "accept" && value == "application/json"
+                            });
+
+                            let content_length = iterator.find(|(header, value)| {
+                                header.to_lowercase() == "content-length"
+                                    && value.parse::<i64>().is_ok()
+                            });
+                            let transfer_encoding = iterator
+                                .find(|(header, _)| header.to_lowercase() == "transfer-encoding");
+
+                            return accept_header.is_some()
+                                && content_length.is_some()
+                                && transfer_encoding.is_none();
+                        }
+                        false
+                    })
+                    .path("/client/registration");
+                then.status(201)
+                    .body(get_default_expected_client_read_response());
+            });
+
+            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+
+            let registration_endpoint =
+                format!("https://{}/client/registration", auth_server_domain);
+
+            let issuer_metadata = IssuerMetadata {
+                registration_endpoint: Some(registration_endpoint),
+                ..IssuerMetadata::default()
+            };
+
+            let issuer = Issuer::new(issuer_metadata, None);
+
+            let client = Client::register(&issuer, ClientMetadata::default(), None, None).unwrap();
+
+            let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+            let _ = async_runtime.block_on(async {
+                let client_async =
+                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
+                        .await
+                        .unwrap();
+
+                assert_eq!("identifier", client_async.get_client_id());
+
+                assert_eq!("secure", client_async.get_client_secret().unwrap());
+            });
+
+            assert_eq!("identifier", client.get_client_id());
+
+            assert_eq!("secure", client.get_client_secret().unwrap());
+        }
+
+        #[test]
+        fn is_rejected_with_op_error_upon_oidc_error() {
+            let mock_http_server = MockServer::start();
+
+            let auth_server_domain = get_url_with_count("op.example<>.com");
+
+            let _auth_mock_server = mock_http_server.mock(|when, then| {
+                when.method(POST).path("/client/registration");
+                then.status(500).body(
+                "{\"error\":\"server_error\",\"error_description\":\"bad things are happening\"}",
+            );
+            });
+
+            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+
+            let registration_endpoint =
+                format!("https://{}/client/registration", auth_server_domain);
+
+            let issuer_metadata = IssuerMetadata {
+                registration_endpoint: Some(registration_endpoint),
+                ..IssuerMetadata::default()
+            };
+
+            let issuer = Issuer::new(issuer_metadata, None);
+
+            let client_error =
+                Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
+
+            let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+            let _ = async_runtime.block_on(async {
+                let client_error_async =
+                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
+                        .await
+                        .unwrap_err();
+
+                assert_eq!("OPError", client_error_async.name);
+
+                assert_eq!("server_error", client_error_async.error);
+
+                assert_eq!(
+                    "bad things are happening",
+                    client_error_async.error_description
+                );
+            });
+
+            assert_eq!("OPError", client_error.name);
+
+            assert_eq!("server_error", client_error.error);
+
+            assert_eq!("bad things are happening", client_error.error_description);
+        }
+
+        #[test]
+        fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() {
+            let mock_http_server = MockServer::start();
+
+            let auth_server_domain = get_url_with_count("op.example<>.com");
+
+            let _auth_mock_server = mock_http_server.mock(|when, then| {
+                when.method(POST).path("/client/registration");
+                then.status(401)
+                    .body("Unauthorized")
+                    .header("WWW-Authenticate", "Bearer error=\"invalid_token\", error_description=\"bad things are happening\"");
+            });
+
+            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+
+            let registration_endpoint =
+                format!("https://{}/client/registration", auth_server_domain);
+
+            let issuer_metadata = IssuerMetadata {
+                registration_endpoint: Some(registration_endpoint),
+                ..IssuerMetadata::default()
+            };
+
+            let issuer = Issuer::new(issuer_metadata, None);
+
+            let client_error =
+                Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
+
+            let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+            let _ = async_runtime.block_on(async {
+                let client_error_async =
+                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
+                        .await
+                        .unwrap_err();
+
+                assert_eq!("OPError", client_error_async.name);
+
+                assert_eq!("invalid_token", client_error_async.error);
+
+                assert_eq!(
+                    "bad things are happening",
+                    client_error_async.error_description
+                );
+            });
+
+            assert_eq!("OPError", client_error.name);
+
+            assert_eq!("invalid_token", client_error.error);
+
+            assert_eq!("bad things are happening", client_error.error_description);
+        }
+
+        #[test]
+        fn is_rejected_with_when_non_200_is_returned() {
+            let mock_http_server = MockServer::start();
+
+            let auth_server_domain = get_url_with_count("op.example<>.com");
+
+            let _auth_mock_server = mock_http_server.mock(|when, then| {
+                when.method(POST).path("/client/registration");
+                then.status(500).body("Internal Server Error");
+            });
+
+            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+
+            let registration_endpoint =
+                format!("https://{}/client/registration", auth_server_domain);
+
+            let issuer_metadata = IssuerMetadata {
+                registration_endpoint: Some(registration_endpoint),
+                ..IssuerMetadata::default()
+            };
+
+            let issuer = Issuer::new(issuer_metadata, None);
+
+            let client_error =
+                Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
+
+            let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+            let _ = async_runtime.block_on(async {
+                let client_error_async =
+                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
+                        .await
+                        .unwrap_err();
+
+                assert_eq!("OPError", client_error_async.name);
+
+                assert!(client_error_async.response.is_some());
+
+                assert_eq!(
+                    "expected 201 Created, got: 500 Internal Server Error",
+                    client_error_async.error_description
+                );
+            });
+
+            assert_eq!("OPError", client_error.name);
+
+            assert!(client_error.response.is_some());
+
+            assert_eq!(
+                "expected 201 Created, got: 500 Internal Server Error",
+                client_error.error_description
+            );
+        }
+
+        #[test]
+        fn is_rejected_with_json_parse_error_upon_invalid_response() {
+            let mock_http_server = MockServer::start();
+
+            let auth_server_domain = get_url_with_count("op.example<>.com");
+
+            let _auth_mock_server = mock_http_server.mock(|when, then| {
+                when.method(POST).path("/client/registration");
+                then.status(201).body("{\"notavalid\"}");
+            });
+
+            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let registration_endpoint =
+                format!("https://{}/client/registration", auth_server_domain);
+
+            let issuer_metadata = IssuerMetadata {
+                registration_endpoint: Some(registration_endpoint),
+                ..IssuerMetadata::default()
+            };
+
+            let issuer = Issuer::new(issuer_metadata, None);
+
+            let client_error =
+                Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
+
+            let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+            let _ = async_runtime.block_on(async {
+                let client_error_async =
+                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
+                        .await
+                        .unwrap_err();
+
+                assert_eq!(client_error_async.name, "TypeError");
+
+                assert_eq!(client_error_async.error, "parse_error");
+
+                assert_eq!(client_error_async.error_description, "unexpected body type");
+            });
+
+            assert_eq!(client_error.name, "TypeError");
+
+            assert_eq!(client_error.error, "parse_error");
+
+            assert_eq!(client_error.error_description, "unexpected body type");
+        }
+
+        #[cfg(test)]
+        mod with_key_store_as_an_option {
+            use httpmock::{prelude::HttpMockRequest, Method::POST, MockServer};
+
+            use crate::{
+                helpers::convert_json_to,
+                tests::{get_url_with_count, set_mock_domain},
+                types::ClientRegistrationOptions,
+                Client, ClientMetadata, Issuer, IssuerMetadata, Jwks,
+            };
+
+            fn get_default_jwks_string() -> String {
+                "{\"keys\":[{\"kty\":\"EC\",\"d\":\"okqKR79UYsyRRIVT1cQU8vyJxa4HF14Ig9BaXioH1co\",\"use\":\"sig\",\"crv\":\"P-256\",\"kid\":\"E5e5oAXKlVe1Pp1uYlorEE2XEDzZ-5sTNDuS4RcU_VA\",\"x\":\"hBWMzCM4tmlWWK0ovPlg2oCnpcdWAcVvtr9M5bichiA\",\"y\":\"yP7NOAHMReiT1PG-Nxl4MbegpvwJnUGfLCI_llPQIg4\",\"alg\":\"ES256\"}]}".to_string()
+            }
+
+            pub fn get_default_expected_client_register_response() -> String {
+                "{\"client_id\":\"identifier\",\"client_secret\":\"secure\"}".to_string()
+            }
+
+            #[test]
+            fn enriches_the_registration_with_jwks_if_not_provided_or_jwks_uri() {
+                let mock_http_server = MockServer::start();
+
+                let auth_server_domain = get_url_with_count("op.example<>.com");
+
+                let auth_mock_server = mock_http_server.mock(|when, then| {
+                    when.matches(|req: &HttpMockRequest| {
+                        if let Some(body) = req.body.clone() {
+                            let body_string = String::from_utf8(body);
+                            if let Ok(body_str) = body_string {
+                                if let Ok(metadata) = convert_json_to::<ClientMetadata>(&body_str) {
+                                    return metadata.jwks.unwrap()
+                                        == convert_json_to::<Jwks>(&get_default_jwks_string())
+                                            .unwrap();
+                                }
+                            }
+                        }
+                        false
+                    })
+                    .method(POST)
+                    .path("/client/registration");
+                    then.status(201)
+                        .body(get_default_expected_client_register_response());
+                });
+
+                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+
+                let registration_endpoint =
+                    format!("https://{}/client/registration", auth_server_domain);
+
+                let issuer_metadata = IssuerMetadata {
+                    registration_endpoint: Some(registration_endpoint),
+                    ..IssuerMetadata::default()
+                };
+
+                let issuer = Issuer::new(issuer_metadata, None);
+
+                let register_options = ClientRegistrationOptions {
+                    jwks: Some(convert_json_to::<Jwks>(&get_default_jwks_string()).unwrap()),
+                    ..Default::default()
+                };
+
+                let _ = Client::register(
+                    &issuer,
+                    ClientMetadata::default(),
+                    Some(register_options.clone()),
                     None,
                 )
                 .unwrap();
 
+                let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+                let _ = async_runtime.block_on(async {
+                    let _ = Client::register_async(
+                        &issuer,
+                        ClientMetadata::default(),
+                        Some(register_options.clone()),
+                        None,
+                    )
+                    .await
+                    .unwrap();
+                    auth_mock_server.assert_hits(2);
+                });
+            }
+
+            #[test]
+            fn ignores_the_keystore_during_registration_if_jwks_is_provided() {
+                let mock_http_server = MockServer::start();
+
+                let auth_server_domain = get_url_with_count("op.example<>.com");
+
+                let auth_mock_server = mock_http_server.mock(|when, then| {
+                    when.matches(|req: &HttpMockRequest| {
+                        if let Some(body) = req.body.clone() {
+                            let body_string = String::from_utf8(body);
+                            if let Ok(body_str) = body_string {
+                                if let Ok(metadata) = convert_json_to::<ClientMetadata>(&body_str) {
+                                    return metadata.jwks.unwrap() == Jwks::default();
+                                }
+                            }
+                        }
+                        false
+                    })
+                    .method(POST)
+                    .path("/client/registration");
+                    then.status(201)
+                        .body(get_default_expected_client_register_response());
+                });
+
+                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+                let registration_endpoint =
+                    format!("https://{}/client/registration", auth_server_domain);
+
+                let issuer_metadata = IssuerMetadata {
+                    registration_endpoint: Some(registration_endpoint),
+                    ..IssuerMetadata::default()
+                };
+
+                let issuer = Issuer::new(issuer_metadata, None);
+
+                let register_options = ClientRegistrationOptions {
+                    jwks: Some(convert_json_to::<Jwks>(&get_default_jwks_string()).unwrap()),
+                    ..Default::default()
+                };
+
+                let client_metadata = ClientMetadata {
+                    jwks: Some(Jwks::default()),
+                    ..Default::default()
+                };
+
+                let _ = Client::register(
+                    &issuer,
+                    client_metadata.clone(),
+                    Some(register_options.clone()),
+                    None,
+                )
+                .unwrap();
+
+                let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+                let _ = async_runtime.block_on(async {
+                    let _ = Client::register_async(
+                        &issuer,
+                        client_metadata,
+                        Some(register_options),
+                        None,
+                    )
+                    .await
+                    .unwrap();
+                    auth_mock_server.assert_hits(2);
+                });
+            }
+
+            #[test]
+            fn ignores_the_keystore_during_registration_if_jwks_uri_is_provided() {
+                let mock_http_server = MockServer::start();
+
+                let auth_server_domain = get_url_with_count("op.example<>.com");
+
+                let auth_mock_server = mock_http_server.mock(|when, then| {
+                    when.matches(|req: &HttpMockRequest| {
+                        if let Some(body) = req.body.clone() {
+                            let body_string = String::from_utf8(body);
+                            if let Ok(body_str) = body_string {
+                                if let Ok(metadata) = convert_json_to::<ClientMetadata>(&body_str) {
+                                    return metadata
+                                        == ClientMetadata {
+                                            jwks_uri: Some(
+                                                "https://rp.example.com/certs".to_string(),
+                                            ),
+                                            ..Default::default()
+                                        };
+                                }
+                            }
+                        }
+                        false
+                    })
+                    .method(POST)
+                    .path("/client/registration");
+                    then.status(201)
+                        .body(get_default_expected_client_register_response());
+                });
+
+                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+                let registration_endpoint =
+                    format!("https://{}/client/registration", auth_server_domain);
+
+                let issuer_metadata = IssuerMetadata {
+                    registration_endpoint: Some(registration_endpoint),
+                    ..IssuerMetadata::default()
+                };
+
+                let issuer = Issuer::new(issuer_metadata, None);
+
+                let register_options = ClientRegistrationOptions {
+                    jwks: Some(convert_json_to::<Jwks>(&get_default_jwks_string()).unwrap()),
+                    ..Default::default()
+                };
+
+                let client_metadata = ClientMetadata {
+                    jwks_uri: Some("https://rp.example.com/certs".to_string()),
+                    ..Default::default()
+                };
+
+                let _ = Client::register(
+                    &issuer,
+                    client_metadata.clone(),
+                    Some(register_options.clone()),
+                    None,
+                )
+                .unwrap();
+
+                let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+                let _ = async_runtime.block_on(async {
+                    let _ = Client::register_async(
+                        &issuer,
+                        client_metadata,
+                        Some(register_options),
+                        None,
+                    )
+                    .await
+                    .unwrap();
+                    auth_mock_server.assert_hits(2);
+                });
+            }
+
+            #[test]
+            fn does_not_accept_oct_keys() {
+                let registration_endpoint = "https://op.example.com/client/registration";
+
+                let issuer_metadata = IssuerMetadata {
+                    registration_endpoint: Some(registration_endpoint.to_string()),
+                    ..IssuerMetadata::default()
+                };
+
+                let issuer = Issuer::new(issuer_metadata, None);
+
+                let register_options = ClientRegistrationOptions {
+                    jwks: Some(convert_json_to::<Jwks>("{\"keys\":[{\"k\":\"qHedLw\",\"kty\":\"oct\",\"kid\":\"R5OsS5S7xvrW7E0k0t0PwRsskJpdOkyfnAZi8S806Bg\"}]}").unwrap()),
+                    ..Default::default()
+                };
+
+                let client_metadata = ClientMetadata::default();
+
+                let client_error = Client::register(
+                    &issuer,
+                    client_metadata.clone(),
+                    Some(register_options.clone()),
+                    None,
+                )
+                .unwrap_err();
+
+                let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+                let _ = async_runtime.block_on(async {
+                    let client_error_async = Client::register_async(
+                        &issuer,
+                        client_metadata,
+                        Some(register_options),
+                        None,
+                    )
+                    .await
+                    .unwrap_err();
+
+                    assert_eq!(
+                        "jwks must only contain private keys",
+                        client_error_async.error_description
+                    );
+                });
+
+                assert_eq!(
+                    "jwks must only contain private keys",
+                    client_error.error_description
+                );
+            }
+
+            #[test]
+            fn does_not_accept_public_keys() {
+                let registration_endpoint = "https://op.example.com/client/registration";
+
+                let issuer_metadata = IssuerMetadata {
+                    registration_endpoint: Some(registration_endpoint.to_string()),
+                    ..IssuerMetadata::default()
+                };
+
+                let issuer = Issuer::new(issuer_metadata, None);
+
+                let register_options = ClientRegistrationOptions {
+                    jwks: Some(convert_json_to::<Jwks>("{\"keys\":[{\"kty\":\"EC\",\"kid\":\"MFZeG102dQiqbANoaMlW_Jmf7fOZmtRsHt77JFhTpF0\",\"crv\":\"P-256\",\"x\":\"FWZ9rSkLt6Dx9E3pxLybhdM6xgR5obGsj5_pqmnz5J4\",\"y\":\"_n8G69C-A2Xl4xUW2lF0i8ZGZnk_KPYrhv4GbTGu5G4\"}]}").unwrap()),
+                    ..Default::default()
+                };
+
+                let client_metadata = ClientMetadata::default();
+
+                let client_error = Client::register(
+                    &issuer,
+                    client_metadata.clone(),
+                    Some(register_options.clone()),
+                    None,
+                )
+                .unwrap_err();
+
+                let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+                let _ = async_runtime.block_on(async {
+                    let client_error_async = Client::register_async(
+                        &issuer,
+                        client_metadata,
+                        Some(register_options),
+                        None,
+                    )
+                    .await
+                    .unwrap_err();
+
+                    assert_eq!(
+                        "jwks must only contain private keys",
+                        client_error_async.error_description
+                    );
+                });
+
+                assert_eq!(
+                    "jwks must only contain private keys",
+                    client_error.error_description
+                );
+            }
+        }
+
+        #[cfg(test)]
+        mod with_initial_access_token {
+            use httpmock::{Method::POST, MockServer};
+
+            use crate::{
+                tests::{get_url_with_count, set_mock_domain},
+                types::ClientRegistrationOptions,
+                Client, ClientMetadata, Issuer, IssuerMetadata,
+            };
+
+            pub fn get_default_expected_client_register_response() -> String {
+                "{\"client_id\":\"identifier\",\"client_secret\":\"secure\"}".to_string()
+            }
+
+            #[test]
+            fn uses_the_initial_access_token_in_a_bearer_authorization_scheme() {
+                let mock_http_server = MockServer::start();
+
+                let auth_server_domain = get_url_with_count("op.example<>.com");
+
+                let auth_mock_server = mock_http_server.mock(|when, then| {
+                    when.method(POST)
+                        .path("/client/registration")
+                        .header("authorization", "Bearer foobar");
+                    then.status(201)
+                        .body(get_default_expected_client_register_response());
+                });
+
+                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+                let registration_endpoint =
+                    format!("https://{}/client/registration", auth_server_domain);
+
+                let issuer_metadata = IssuerMetadata {
+                    registration_endpoint: Some(registration_endpoint),
+                    ..IssuerMetadata::default()
+                };
+
+                let issuer = Issuer::new(issuer_metadata, None);
+
+                let register_options = ClientRegistrationOptions {
+                    initial_access_token: Some("foobar".to_string()),
+                    ..Default::default()
+                };
+
+                let _ = Client::register(
+                    &issuer,
+                    ClientMetadata::default(),
+                    Some(register_options.clone()),
+                    None,
+                )
+                .unwrap();
+
+                let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+                let _ = async_runtime.block_on(async {
+                    let _ = Client::register_async(
+                        &issuer,
+                        ClientMetadata::default(),
+                        Some(register_options),
+                        None,
+                    )
+                    .await
+                    .unwrap();
+
+                    auth_mock_server.assert_hits(2);
+                });
+            }
+        }
+
+        #[cfg(test)]
+        mod http_options {
+            use std::time::Duration;
+
+            use reqwest::header::{HeaderMap, HeaderValue};
+
+            use crate::{
+                tests::get_url_with_count,
+                types::{ClientRegistrationOptions, RequestOptions},
+            };
+
+            use super::*;
+
+            pub fn get_default_expected_client_register_response() -> String {
+                "{\"client_id\":\"identifier\",\"client_secret\":\"secure\"}".to_string()
+            }
+
+            #[test]
+            fn allows_for_http_options_to_be_defined_for_issuer_discover_calls() {
+                let mock_http_server = MockServer::start();
+
+                let auth_server_domain = get_url_with_count("op.example<>.com");
+
+                let auth_mock_server = mock_http_server.mock(|when, then| {
+                    when.method(POST)
+                        .header("testHeader", "testHeaderValue")
+                        .path("/client/registration");
+                    then.status(201)
+                        .body(get_default_expected_client_register_response());
+                });
+
+                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+
+                let interceptor = |_request: &crate::types::Request| {
+                    let mut headers = HeaderMap::new();
+                    headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
+
+                    RequestOptions {
+                        headers,
+                        timeout: Duration::from_millis(3500),
+                    }
+                };
+
+                let registration_endpoint =
+                    format!("https://{}/client/registration", auth_server_domain);
+
+                let issuer_metadata = IssuerMetadata {
+                    registration_endpoint: Some(registration_endpoint),
+                    ..IssuerMetadata::default()
+                };
+
+                let issuer = Issuer::new(issuer_metadata, None);
+
+                let register_options = ClientRegistrationOptions {
+                    initial_access_token: Some("foobar".to_string()),
+                    ..Default::default()
+                };
+
+                let _ = Client::register(
+                    &issuer,
+                    ClientMetadata::default(),
+                    Some(register_options),
+                    Some(Box::new(interceptor)),
+                )
+                .unwrap();
+
                 auth_mock_server.assert_hits(1);
+            }
+
+            #[test]
+            fn allows_for_http_options_to_be_defined_for_issuer_discover_calls_async() {
+                let mock_http_server = MockServer::start();
+
+                let auth_server_domain = get_url_with_count("op.example<>.com");
+
+                let auth_mock_server = mock_http_server.mock(|when, then| {
+                    when.method(POST)
+                        .header("testHeader", "testHeaderValue")
+                        .path("/client/registration");
+                    then.status(201)
+                        .body(get_default_expected_client_register_response());
+                });
+
+                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+
+                let interceptor = |_request: &crate::types::Request| {
+                    let mut headers = HeaderMap::new();
+                    headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
+
+                    RequestOptions {
+                        headers,
+                        timeout: Duration::from_millis(3500),
+                    }
+                };
+
+                let registration_endpoint =
+                    format!("https://{}/client/registration", auth_server_domain);
+
+                let issuer_metadata = IssuerMetadata {
+                    registration_endpoint: Some(registration_endpoint),
+                    ..IssuerMetadata::default()
+                };
+
+                let issuer = Issuer::new(issuer_metadata, None);
+
+                let register_options = ClientRegistrationOptions {
+                    initial_access_token: Some("foobar".to_string()),
+                    ..Default::default()
+                };
+
+                let async_runtime = tokio::runtime::Runtime::new().unwrap();
+
+                let _ = async_runtime.block_on(async {
+                    let _ = Client::register_async(
+                        &issuer,
+                        ClientMetadata::default(),
+                        Some(register_options),
+                        Some(Box::new(interceptor)),
+                    )
+                    .await
+                    .unwrap();
+                    auth_mock_server.assert_hits(1);
+                });
             }
         }
     }

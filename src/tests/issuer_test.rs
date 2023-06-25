@@ -9,7 +9,7 @@ mod issuer_discovery_tests {
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
         let result: Result<Issuer, crate::OidcClientError> = async_runtime.block_on(async {
-            let iss = Issuer::discover_async(issuer).await;
+            let iss = Issuer::discover_async(issuer, None).await;
             return iss;
         });
         result
@@ -45,7 +45,7 @@ mod issuer_discovery_tests {
                 auth_server_domain
             );
 
-            let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(issuer.issuer, format!("https://{0}", &auth_server_domain));
@@ -118,7 +118,7 @@ mod issuer_discovery_tests {
                 auth_server_domain
             );
 
-            let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(issuer.issuer, format!("https://{0}", &auth_server_domain));
@@ -184,7 +184,7 @@ mod issuer_discovery_tests {
 
             let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
-            let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(issuer.issuer, issuer_discovery_url);
@@ -212,7 +212,7 @@ mod issuer_discovery_tests {
 
             let issuer_discovery_url = format!("https://{}/oidc/", auth_server_domain);
 
-            let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(
@@ -246,7 +246,7 @@ mod issuer_discovery_tests {
 
             let issuer_discovery_url = format!("https://{}/oidc", auth_server_domain);
 
-            let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(
@@ -283,7 +283,7 @@ mod issuer_discovery_tests {
                 auth_server_domain
             );
 
-            let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(
@@ -323,7 +323,7 @@ mod issuer_discovery_tests {
                 auth_server_domain
             );
 
-            let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(issuer.issuer, format!("https://{}", &auth_server_domain));
@@ -393,7 +393,7 @@ mod issuer_discovery_tests {
                 auth_server_domain
             );
 
-            let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(
@@ -427,7 +427,7 @@ mod issuer_discovery_tests {
             auth_server_domain
         );
 
-        let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+        let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
         let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
         assert_eq!(issuer.claims_parameter_supported.unwrap(), false);
@@ -496,7 +496,7 @@ mod issuer_discovery_tests {
 
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
-        let issuer = Issuer::discover(&issuer_discovery_url).unwrap();
+        let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
         let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
         assert_eq!(issuer.claims_parameter_supported.unwrap(), false);
@@ -565,7 +565,7 @@ mod issuer_discovery_tests {
 
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
-        let error = Issuer::discover(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
         let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
         assert_eq!(error.name, "OPError");
@@ -580,7 +580,7 @@ mod issuer_discovery_tests {
 
     #[test]
     fn is_rejected_with_error_when_no_absolute_url_is_provided() {
-        let error = Issuer::discover("op.example.com/.well-known/foobar").unwrap_err();
+        let error = Issuer::discover("op.example.com/.well-known/foobar", None).unwrap_err();
         let async_error =
             get_async_issuer_discovery("op.example.com/.well-known/foobar").unwrap_err();
 
@@ -616,7 +616,7 @@ mod issuer_discovery_tests {
 
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
-        let error = Issuer::discover(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
         let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
         assert_eq!(error.name, "OPError");
@@ -650,7 +650,7 @@ mod issuer_discovery_tests {
 
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
-        let error = Issuer::discover(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
         let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
         assert_eq!(error.name, "OPError");
@@ -687,7 +687,7 @@ mod issuer_discovery_tests {
 
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
-        let error = Issuer::discover(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
         let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
         assert_eq!(error.name, "TypeError");
@@ -718,7 +718,7 @@ mod issuer_discovery_tests {
 
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
-        let error = Issuer::discover(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
         let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
         assert_eq!(error.name, "OPError");
@@ -752,7 +752,7 @@ mod issuer_discovery_tests {
 
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
-        let error = Issuer::discover(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
         let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
         assert_eq!(error.name, "OPError");
@@ -808,12 +808,12 @@ mod issuer_discovery_tests {
 
             set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
 
-            let _ = Issuer::discover_with_interceptor(
+            let _ = Issuer::discover(
                 &format!(
                     "https://{}/.well-known/custom-configuration",
                     auth_server_domain
                 ),
-                Box::new(interceptor),
+                Some(Box::new(interceptor)),
             );
 
             auth_mock_server.assert_hits(1);
@@ -849,12 +849,12 @@ mod issuer_discovery_tests {
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let _ = async_runtime.block_on(async {
-                Issuer::discover_with_interceptor_async(
+                Issuer::discover_async(
                     &format!(
                         "https://{}/.well-known/custom-configuration",
                         auth_server_domain
                     ),
-                    Box::new(interceptor),
+                    Some(Box::new(interceptor)),
                 )
                 .await
             });
@@ -877,7 +877,7 @@ mod issuer_webfinger_tests {
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
         let result: Result<Issuer, crate::OidcClientError> = async_runtime.block_on(async {
-            let iss = Issuer::webfinger_async(input).await;
+            let iss = Issuer::webfinger_async(input, None).await;
             return iss;
         });
         result
@@ -908,7 +908,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(discovery_document_response_body);
         });
 
-        let _ = Issuer::webfinger(&resource);
+        let _ = Issuer::webfinger(&resource, None);
 
         let _ = get_async_webfinger_discovery(&resource);
 
@@ -938,7 +938,7 @@ mod issuer_webfinger_tests {
 
         let resource = format!("joe@{}", auth_server_domain);
 
-        let error = Issuer::webfinger(&resource).unwrap_err();
+        let error = Issuer::webfinger(&resource, None).unwrap_err();
         let async_error = get_async_webfinger_discovery(&resource).unwrap_err();
 
         assert_eq!(
@@ -968,7 +968,7 @@ mod issuer_webfinger_tests {
 
         let resource = format!("joe@{}", auth_server_domain);
 
-        let error = Issuer::webfinger(&resource).unwrap_err();
+        let error = Issuer::webfinger(&resource, None).unwrap_err();
         let async_error = get_async_webfinger_discovery(&resource).unwrap_err();
 
         assert_eq!(
@@ -998,7 +998,7 @@ mod issuer_webfinger_tests {
 
         let resource = format!("joe@{}", auth_server_domain);
 
-        let error = Issuer::webfinger(&resource).unwrap_err();
+        let error = Issuer::webfinger(&resource, None).unwrap_err();
         let async_error = get_async_webfinger_discovery(&resource).unwrap_err();
 
         assert_eq!(error.error_description, "invalid issuer location 1");
@@ -1029,8 +1029,8 @@ mod issuer_webfinger_tests {
     //         then.status(200).body(discovery_document_response_body);
     //     });
 
-    //     let _ = Issuer::webfinger(&resource);
-    //     let __ = Issuer::webfinger(&resource);
+    //     let _ = Issuer::webfinger(&resource, None);
+    //     let __ = Issuer::webfinger(&resource, None);
 
     //     webfinger_mock_server.assert_hits(2);
     //     issuer_discovery_mock_server.assert_hits(1);
@@ -1059,7 +1059,7 @@ mod issuer_webfinger_tests {
 
         let resource = format!("joe@{}", auth_server_domain);
 
-        let error = Issuer::webfinger(&resource).unwrap_err();
+        let error = Issuer::webfinger(&resource, None).unwrap_err();
         let async_error = get_async_webfinger_discovery(&resource).unwrap_err();
 
         assert_eq!(
@@ -1106,7 +1106,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(discovery_document_response_body);
         });
 
-        let issuer_result = Issuer::webfinger(&webfinger_url);
+        let issuer_result = Issuer::webfinger(&webfinger_url, None);
         let async_issuer_result = get_async_webfinger_discovery(&webfinger_url);
 
         assert!(issuer_result.is_ok());
@@ -1145,7 +1145,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(discovery_document_response_body);
         });
 
-        let issuer_result = Issuer::webfinger(&auth_server_domain_with_port);
+        let issuer_result = Issuer::webfinger(&auth_server_domain_with_port, None);
         let async_issuer_result = get_async_webfinger_discovery(&auth_server_domain_with_port);
 
         assert!(issuer_result.is_ok());
@@ -1179,7 +1179,7 @@ mod issuer_webfinger_tests {
             then.status(200).body(discovery_document_response_body);
         });
 
-        let issuer_result = Issuer::webfinger(&resource);
+        let issuer_result = Issuer::webfinger(&resource, None);
         let async_issuer_result = get_async_webfinger_discovery(&resource);
 
         assert!(issuer_result.is_ok());
@@ -1239,8 +1239,7 @@ mod issuer_webfinger_tests {
                 }
             };
 
-            let issuer_result =
-                Issuer::webfinger_with_interceptor(&resource, Box::new(interceptor));
+            let issuer_result = Issuer::webfinger(&resource, Some(Box::new(interceptor)));
 
             webfinger_mock_server.assert();
             issuer_discovery_mock_server.assert();
@@ -1287,7 +1286,7 @@ mod issuer_webfinger_tests {
 
             let issuer_result: Result<Issuer, crate::OidcClientError> =
                 async_runtime.block_on(async {
-                    Issuer::webfinger_with_interceptor_async(&resource, Box::new(interceptor)).await
+                    Issuer::webfinger_async(&resource, Some(Box::new(interceptor))).await
                 });
 
             webfinger_mock_server.assert();
@@ -1421,15 +1420,12 @@ mod issuer_new {
 #[cfg(test)]
 mod issuer_instance {
     use crate::tests::{get_url_with_count, set_mock_domain};
-    use crate::types::Jwks;
     use crate::{Issuer, IssuerMetadata};
     use httpmock::Method::GET;
     use httpmock::MockServer;
 
     fn get_default_jwks() -> String {
-        let mut jwks = Jwks::default();
-        jwks.generate("RSA", None, None);
-        serde_json::to_string(&jwks).unwrap()
+        "{\"keys\":[{\"e\":\"AQAB\",\"n\":\"zwGRh6jBiyfwbSz_gs71ehiLLuVNd5Cyb67wKVPaS6GFyHtPjD5r-Yta5aZ7OaZV1AB7ieuhvvKsjvx4pzBAnQzwyYcaFDdb91jVHad019LMkjO_UTwSHegV_Bcwrhi0g64tfW3bTNUMEEKLZEusJZElpLi9HLZsGRJUlRCYRTqMeq1SYjQunVF9GmTTJlgK7IIdMYJ6ktQNRkQFz9ACpTZCS6SCUCjA4psFz-vtW-pBOvwO1gu4hWFQx9IFmPIojyZhF5kgfVlOnAc0YTRgj03uEMYXwLpBlbC-SPM9YXmFq1iflRbxEZqEP170J_27HjYpvo8eK2YwL9jXxNLC4Q\",\"kty\":\"RSA\",\"kid\":\"RraeLjB4KnAKQaihCOLHPByOJaSjXc0iWkhq2b3I7-o\"}]}".to_string()
     }
 
     #[test]
@@ -1666,11 +1662,6 @@ mod issuer_instance {
 
         let mock_http_server = MockServer::start();
 
-        let mut jwks = Jwks::default();
-        jwks.generate("RSA", None, None);
-        jwks.generate("RSA", None, None);
-        let jwks = serde_json::to_string(&jwks).unwrap();
-
         let _jwks_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET)
                 .header("Accept", "application/json,application/jwk-set+json")
@@ -1678,7 +1669,7 @@ mod issuer_instance {
 
             then.status(200)
                 .header("content-type", "application/jwk-set+json")
-                .body(jwks);
+                .body("{\"keys\":[{\"e\":\"AQAB\",\"n\":\"5RnVQ2VT79TaW_Louj5ib7_dVJ1vX5ebaVeifBjNDlUp3KsrHm5sq1KWzPVz-XE6m4GBGXnVxMc5pmN7pQcqGe2rzw_jTAOIQzjYZ2UPTvl8HSjPCf9VwJleHiy4195YgnOcAF-PVASLKNKnoHjgn4b2gXpikMnztvdTFZrQAAlEVwslbW0Z17imHQsYzDXDYVzwpxjiRl4tWretNXhJS2Bk1NZoctW5kY6otkeMZ8VLpCUfbBzrhhLh5b_7Q0JKQjGX94f8j5tpVz_CXkpwQUXyymfBH9B-FY5s7LDZRKCEneSnCwSFce_nVzPqcO5J4SwsVF6FhwVQMvCC0QmNGw\",\"kty\":\"RSA\"},{\"e\":\"AQAB\",\"n\":\"3ANc8Uhup5_tnZfJuR4jQIwzobzEegcPGySt_EVzdF8ft2L4RoOE8wWq2fff9tRtrzNcKjSTgpw6cDMXSEa2Mx07FUvuyvjXSzlUG_fEPGIhyEJXqD5NZ89CrgHy55kizSuvgxcpQLkvSddBXVYnccWRGXfCurj7BkY1ycxvm55LAkPkaEtSWmnX8gWX6289SeKx-3rD0Xl20lhoe0_f4nChWibn-2egKBfrq-d1nXnsyxOcDhOZHS9nC4N4UeiZyQ6ervyGDg1fxzi98gxe4qb14J3vogX3KUdyG0YuC4D1SgUtEnmrVbbQl9y3fYBKZy7ysk48j9CdWjA9KYoWUQ\",\"kty\":\"RSA\"}]}");
         });
 
         set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
@@ -1724,15 +1715,6 @@ mod issuer_instance {
 
         let mock_http_server = MockServer::start();
 
-        let mut jwks = Jwks::default();
-
-        let kid = uuid::Uuid::new_v4().to_string();
-
-        jwks.generate("RSA", None, Some(kid.clone()));
-        jwks.generate("RSA", None, Some(kid.clone()));
-
-        let jwks = serde_json::to_string(&jwks).unwrap();
-
         let _jwks_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET)
                 .header("Accept", "application/json,application/jwk-set+json")
@@ -1740,7 +1722,7 @@ mod issuer_instance {
 
             then.status(200)
                 .header("content-type", "application/jwk-set+json")
-                .body(jwks);
+                .body("{\"keys\":[{\"e\":\"AQAB\",\"n\":\"5RnVQ2VT79TaW_Louj5ib7_dVJ1vX5ebaVeifBjNDlUp3KsrHm5sq1KWzPVz-XE6m4GBGXnVxMc5pmN7pQcqGe2rzw_jTAOIQzjYZ2UPTvl8HSjPCf9VwJleHiy4195YgnOcAF-PVASLKNKnoHjgn4b2gXpikMnztvdTFZrQAAlEVwslbW0Z17imHQsYzDXDYVzwpxjiRl4tWretNXhJS2Bk1NZoctW5kY6otkeMZ8VLpCUfbBzrhhLh5b_7Q0JKQjGX94f8j5tpVz_CXkpwQUXyymfBH9B-FY5s7LDZRKCEneSnCwSFce_nVzPqcO5J4SwsVF6FhwVQMvCC0QmNGw\",\"kty\":\"RSA\",\"kid\":\"0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A\"},{\"e\":\"AQAB\",\"n\":\"3ANc8Uhup5_tnZfJuR4jQIwzobzEegcPGySt_EVzdF8ft2L4RoOE8wWq2fff9tRtrzNcKjSTgpw6cDMXSEa2Mx07FUvuyvjXSzlUG_fEPGIhyEJXqD5NZ89CrgHy55kizSuvgxcpQLkvSddBXVYnccWRGXfCurj7BkY1ycxvm55LAkPkaEtSWmnX8gWX6289SeKx-3rD0Xl20lhoe0_f4nChWibn-2egKBfrq-d1nXnsyxOcDhOZHS9nC4N4UeiZyQ6ervyGDg1fxzi98gxe4qb14J3vogX3KUdyG0YuC4D1SgUtEnmrVbbQl9y3fYBKZy7ysk48j9CdWjA9KYoWUQ\",\"kty\":\"RSA\",\"kid\":\"0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A\"}]}");
         });
 
         set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
@@ -1759,7 +1741,7 @@ mod issuer_instance {
         let jwk_result = issuer.get_jwk(
             Some("RS256".to_string()),
             Some("sig".to_string()),
-            Some(kid.clone()),
+            Some("0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A".to_string()),
         );
 
         assert!(jwk_result.is_ok());
@@ -1774,7 +1756,7 @@ mod issuer_instance {
                 .get_jwk_async(
                     Some("RS256".to_string()),
                     Some("sig".to_string()),
-                    Some(kid),
+                    Some("0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A".to_string()),
                 )
                 .await;
 
@@ -1824,12 +1806,12 @@ mod issuer_instance {
 
             set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
 
-            let _ = Issuer::discover_with_interceptor(
+            let _ = Issuer::discover(
                 &format!(
                     "https://{}/.well-known/custom-configuration",
                     auth_server_domain
                 ),
-                Box::new(interceptor),
+                Some(Box::new(interceptor)),
             );
 
             let metadata = IssuerMetadata {
@@ -1873,12 +1855,12 @@ mod issuer_instance {
 
             set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
 
-            let _ = Issuer::discover_with_interceptor(
+            let _ = Issuer::discover(
                 &format!(
                     "https://{}/.well-known/custom-configuration",
                     auth_server_domain
                 ),
-                Box::new(interceptor),
+                Some(Box::new(interceptor)),
             );
 
             let metadata = IssuerMetadata {

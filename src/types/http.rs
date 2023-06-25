@@ -24,6 +24,10 @@ pub struct Request {
     pub headers: HeaderMap,
     /// Query Params that are send with the request
     pub search_params: HashMap<String, Vec<String>>,
+    /// The request body to be sent
+    pub json: Option<serde_json::Value>,
+    /// Expected response type
+    pub response_type: Option<String>,
 }
 
 impl Default for Request {
@@ -36,6 +40,8 @@ impl Default for Request {
             method: Method::GET,
             url: "".to_string(),
             search_params: HashMap::new(),
+            json: None,
+            response_type: None,
         }
     }
 }
