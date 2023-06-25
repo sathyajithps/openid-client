@@ -354,8 +354,9 @@ mod client_new_tests {
         use crate::{
             client::Client,
             helpers::convert_json_to,
+            jwks::Jwks,
             tests::{get_url_with_count, set_mock_domain},
-            types::{Jwks, OidcClientError},
+            types::OidcClientError,
         };
 
         pub fn get_default_expected_client_read_response() -> String {
@@ -1048,8 +1049,9 @@ mod client_new_tests {
                 client::Client,
                 helpers::convert_json_to,
                 issuer::Issuer,
+                jwks::Jwks,
                 tests::{get_url_with_count, set_mock_domain},
-                types::{ClientMetadata, ClientRegistrationOptions, IssuerMetadata, Jwks},
+                types::{ClientMetadata, ClientRegistrationOptions, IssuerMetadata},
             };
 
             fn get_default_jwks_string() -> String {

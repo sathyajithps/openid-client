@@ -9,8 +9,9 @@ use crate::{
     helpers::{convert_json_to, validate_url},
     http::{default_request_interceptor, request, request_async},
     issuer::Issuer,
+    jwks::Jwks,
     types::{
-        ClientMetadata, ClientOptions, ClientRegistrationOptions, Jwks, OidcClientError, Request,
+        ClientMetadata, ClientOptions, ClientRegistrationOptions, OidcClientError, Request,
         RequestInterceptor, Response,
     },
 };
