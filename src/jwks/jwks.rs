@@ -7,6 +7,8 @@ use crate::types::OidcClientError;
 
 pub(crate) trait CustomJwk {
     fn algorithms(&self) -> HashSet<String>;
+
+    fn is_private_key(&self) -> bool;
 }
 
 impl CustomJwk for Jwk {
@@ -63,6 +65,10 @@ impl CustomJwk for Jwk {
             }
             _ => algs,
         };
+    }
+
+    fn is_private_key(&self) -> bool {
+        self.key_type() == "oct" || self.parameter("d").is_some()
     }
 }
 
@@ -144,13 +150,21 @@ impl Jwks {
     }
 
     pub(crate) fn is_only_private_keys(&self) -> bool {
-        self.keys
-            .iter()
-            .all(|j| j.parameter("d").is_some() || j.key_type() == "oct")
+        self.keys.iter().all(|j| j.is_private_key())
     }
 
     pub(crate) fn has_oct_keys(&self) -> bool {
         self.keys.iter().any(|j| j.key_type() == "oct")
+    }
+
+    pub(crate) fn get_public_jwks(&self) -> Self {
+        Self {
+            keys: self
+                .keys
+                .iter()
+                .filter_map(|k| k.to_public_key().ok())
+                .collect(),
+        }
     }
 }
 

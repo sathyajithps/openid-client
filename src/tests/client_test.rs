@@ -1075,7 +1075,7 @@ mod client_new_tests {
                             if let Ok(body_str) = body_string {
                                 if let Ok(metadata) = convert_json_to::<ClientMetadata>(&body_str) {
                                     return metadata.jwks.unwrap()
-                                        == convert_json_to::<Jwks>(&get_default_jwks_string())
+                                        == convert_json_to::<Jwks>("{\"keys\":[{\"kty\":\"EC\",\"use\":\"sig\",\"crv\":\"P-256\",\"x\":\"hBWMzCM4tmlWWK0ovPlg2oCnpcdWAcVvtr9M5bichiA\",\"y\":\"yP7NOAHMReiT1PG-Nxl4MbegpvwJnUGfLCI_llPQIg4\"}]}")
                                             .unwrap();
                                 }
                             }
