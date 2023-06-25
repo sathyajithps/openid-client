@@ -15,7 +15,7 @@ pub fn request(
     let (options, url) = pre_request(&request, interceptor);
 
     let client = reqwest::blocking::Client::new();
-    let req = client
+    let mut req = client
         .request(request.method.clone(), url)
         .headers(combine_and_create_new_header_map(
             &request.headers,
@@ -23,6 +23,20 @@ pub fn request(
         ))
         .query(&request.get_reqwest_query())
         .timeout(options.timeout);
+
+    if let Some(json_body) = &request.json {
+        match serde_json::to_string(json_body) {
+            Ok(serialized) => req = req.body(serialized),
+            _ => {
+                return Err(OidcClientError::new(
+                    "SerializeError",
+                    "invalid json",
+                    "error while serializing body to string",
+                    None,
+                ))
+            }
+        }
+    }
 
     let response = match req.send() {
         Ok(res) => Response::from(res),
@@ -34,12 +48,12 @@ pub fn request(
 
 pub async fn request_async(
     request: Request,
-    interceptor: &mut Box<dyn FnMut(&Request) -> RequestOptions>,
+    interceptor: &mut RequestInterceptor,
 ) -> Result<Response, OidcClientError> {
     let (options, url) = pre_request(&request, interceptor);
 
     let client = reqwest::Client::new();
-    let req = client
+    let mut req = client
         .request(request.method.clone(), url)
         .headers(combine_and_create_new_header_map(
             &request.headers,
@@ -47,6 +61,20 @@ pub async fn request_async(
         ))
         .query(&request.get_reqwest_query())
         .timeout(options.timeout);
+
+    if let Some(json_body) = &request.json {
+        match serde_json::to_string(json_body) {
+            Ok(serialized) => req = req.body(serialized),
+            _ => {
+                return Err(OidcClientError::new(
+                    "SerializeError",
+                    "invalid json",
+                    "error while serializing body to string",
+                    None,
+                ))
+            }
+        }
+    }
 
     let response = match req.send().await {
         Ok(res) => Response::from_async(res).await,
@@ -82,6 +110,12 @@ fn process_response(response: Response, request: &Request) -> Result<Response, O
     let mut res = return_error_if_not_expected_status(response, request)?;
 
     res = return_error_if_expected_body_is_absent(res, request)?;
+
+    if let Some(response_type) = &request.response_type {
+        if response_type != "json" {
+            todo!()
+        }
+    }
 
     let mut invalid_json = false;
 

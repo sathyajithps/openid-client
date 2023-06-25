@@ -20,15 +20,15 @@ impl Issuer {
     pub fn get_keystore(&mut self, refresh: bool) -> Result<&Jwks, OidcClientError> {
         self.jwks_uri_check()?;
 
-        if refresh || self.keystore.is_none() {
+        if refresh || self.jwks.is_none() {
             let keystore = fetch_jwks(
                 &mut self.request_interceptor,
                 self.jwks_uri.as_ref().unwrap(),
             )?;
-            self.keystore = Some(keystore);
+            self.jwks = Some(keystore);
         }
 
-        Ok(self.keystore.as_ref().unwrap())
+        Ok(self.jwks.as_ref().unwrap())
     }
 
     /// # Gets Jwks for the issuer
@@ -36,16 +36,16 @@ impl Issuer {
     pub async fn get_keystore_async(&mut self, refresh: bool) -> Result<&Jwks, OidcClientError> {
         self.jwks_uri_check()?;
 
-        if refresh || self.keystore.is_none() {
+        if refresh || self.jwks.is_none() {
             let keystore = fetch_jwks_async(
                 &mut self.request_interceptor,
                 self.jwks_uri.as_ref().unwrap(),
             )
             .await?;
-            self.keystore = Some(keystore);
+            self.jwks = Some(keystore);
         }
 
-        Ok(self.keystore.as_ref().unwrap())
+        Ok(self.jwks.as_ref().unwrap())
     }
 
     fn jwks_uri_check(&mut self) -> Result<(), OidcClientError> {
@@ -150,6 +150,7 @@ fn make_get_jwks_uri_request(url: &str) -> Request {
         headers,
         bearer: false,
         search_params: HashMap::new(),
+        ..Default::default()
     }
 }
 

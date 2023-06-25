@@ -15,22 +15,23 @@
 //!
 //! - Well known Discovery API:
 //!     - [Issuer::discover]
-//!     - [Issuer::discover_with_interceptor]
 //!     - [Issuer::discover_async]
-//!     - [Issuer::discover_with_interceptor_async]
 //!
 //! - Webfinger Discovery API:
 //!     - [Issuer::webfinger]
-//!     - [Issuer::webfinger_with_interceptor]
 //!     - [Issuer::webfinger_async]
-//!     - [Issuer::webfinger_with_interceptor_async]
 //! - Client from Issuer API
 //!     - [Issuer::client]
 //!
 //! ## Client API
-//! - From Uri
+//!
+//! - Client Read
 //!     - [Client::from_uri]
-//!     - [Client::from_uri_with_interceptor]
+//!     - [Client::from_uri_async]
+//!
+//! - Dynamic Client Registration
+//!     - [Client::register]
+//!     - [Client::register_async]
 
 mod client;
 mod helpers;
