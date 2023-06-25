@@ -43,6 +43,7 @@ mod types;
 pub use client::Client;
 pub use issuer::Issuer;
 pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+pub use serde_json::{json, Value};
 pub use types::{
     ClientMetadata, ClientOptions, IssuerMetadata, Jwk, Jwks, MtlsEndpoints, OidcClientError,
     Request, RequestInterceptor, RequestOptions, Response, WebFingerResponse,
