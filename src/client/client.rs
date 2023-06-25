@@ -654,8 +654,9 @@ impl Client {
                 && client_metadata.jwks_uri.is_none()
                 && client_metadata.jwks.is_none()
             {
-                // TODO: This should be the public part of the jwks passed in. VIP
-                client_metadata.jwks = options.jwks.clone();
+                if let Some(jwks) = options.jwks.as_ref() {
+                    client_metadata.jwks = Some(jwks.get_public_jwks());
+                }
             }
         }
 

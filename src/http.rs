@@ -114,7 +114,7 @@ fn process_response(response: Response, request: &Request) -> Result<Response, O
 
     if let Some(response_type) = &request.response_type {
         if response_type != "json" {
-            todo!()
+            return Ok(res);
         }
     }
 

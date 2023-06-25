@@ -55,7 +55,6 @@ pub struct Issuer {
     pub(crate) revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
     /// Extra key values
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
-    // TODO: should be public keys
     /// Jwk Key Set,
     pub(crate) jwks: Option<Jwks>,
     /// Client registration endpoint
