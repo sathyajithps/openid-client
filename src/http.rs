@@ -85,15 +85,19 @@ pub async fn request_async(
     process_response(response, &request)
 }
 
+/// The Default [RequestInterceptor] that is Used if no interceptor
+/// is passed to the methods that accepts the interceptor
 pub fn default_request_interceptor(_request: &Request) -> RequestOptions {
     let mut headers = HeaderMap::new();
     headers.append(
         "User-Agent",
-        HeaderValue::from_static("openid-client/0.0.0"),
+        HeaderValue::from_static(
+            "openid-client/0.0.15-dev (https://github.com/sathyajithps/openid-client)",
+        ),
     );
     RequestOptions {
         headers,
-        timeout: Duration::from_millis(3500),
+        timeout: Duration::from_millis(5000),
     }
 }
 
@@ -163,7 +167,9 @@ fn return_error_if_not_expected_status(
                 return Err(OidcClientError::new(
                     "OPError",
                     &standard_body_error.error,
-                    &standard_body_error.error_description,
+                    &standard_body_error
+                        .error_description
+                        .unwrap_or("server_error".to_string()),
                     Some(response),
                 ));
             } else if let Some(header_value) = response.headers.get("www-authenticate") {

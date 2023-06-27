@@ -72,10 +72,10 @@ impl CustomJwk for Jwk {
     }
 }
 
-/// Jwks that wraps [josekit::jwk:JwkSet]
+/// Jwks that wraps [josekit::jwk::JwkSet]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Jwks {
-    /// [josekit::jwk:JwkSet]
+    /// [josekit::jwk::JwkSet]
     keys: Vec<Jwk>,
 }
 

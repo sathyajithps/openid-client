@@ -95,6 +95,7 @@ impl Default for Issuer {
     }
 }
 
+/// Issuer Instance Creation
 impl Issuer {
     fn from(metadata: IssuerMetadata) -> Self {
         let token_endpoint_auth_methods_supported =
@@ -148,12 +149,23 @@ impl Issuer {
         }
     }
 
-    /// # Instantiate new Issuer using [IssuerMetadata]
+    /// ## Issuer
     ///
-    /// ```
-    /// # use openid_client::{Issuer, IssuerMetadata};
+    /// Create an [Issuer] instance using [IssuerMetadata].
     ///
-    /// fn main() {
+    /// - `metadata` - [IssuerMetadata]
+    /// - `interceptor` - [RequestInterceptor]
+    ///
+    /// No OIDC Discovery defaults are set if Issuer is created using this method.
+    ///
+    /// If no introspection/revocation endpoint auth methods or algorithms are specified,
+    /// value of token endpoint auth methods and algorithms are used as the the value for the said
+    /// properties.
+    ///
+    ///
+    /// ### *Example:*
+    ///
+    /// ```rust
     ///     let metadata = IssuerMetadata {
     ///         issuer: "https://auth.example.com".to_string(),
     ///         authorization_endpoint: Some("https://auth.example.com/authorize".to_string()),
@@ -164,14 +176,39 @@ impl Issuer {
     ///     };
     ///
     ///     let issuer = Issuer::new(metadata, None);
-    /// }
     /// ```
     ///
-    /// No OIDC Discovery defaults are set if Issuer is made through this method.
+    /// ### *Example: with a request interceptor*
     ///
-    /// If no introspection/revocation endpoint auth methods or algorithms are specified,
-    /// value of token endpoint auth methods and algorithms are used as the the value for the said
-    /// properties.
+    /// ```rust
+    ///     let metadata = IssuerMetadata {
+    ///         issuer: "https://auth.example.com".to_string(),
+    ///         authorization_endpoint: Some("https://auth.example.com/authorize".to_string()),
+    ///         token_endpoint: Some("https://auth.example.com/token".to_string()),
+    ///         userinfo_endpoint: Some("https://auth.example.com/userinfo".to_string()),
+    ///         jwks_uri: Some("https://auth.example.com/certs".to_string()),
+    ///         ..IssuerMetadata::default()
+    ///     };
+    ///
+    ///     let interceptor = |request: &Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///
+    ///         if request.url == "https://auth.example.com/certs" {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(10000),
+    ///         }
+    ///     };
+    ///
+    ///     let issuer = Issuer::new(metadata, Some(Box::new(interceptor)));
+    ///
+    ///     // Get jwks request will send the header foo: bar in the request
+    ///     let _ = issuer.get_jwks();
+    /// ```
+    ///
     pub fn new(metadata: IssuerMetadata, interceptor: Option<RequestInterceptor>) -> Self {
         let introspection_endpoint_auth_methods_supported =
             match metadata.introspection_endpoint_auth_methods_supported {
@@ -237,27 +274,57 @@ impl Issuer {
 impl Issuer {
     /// # Discover OIDC Issuer
     ///
-    /// `This is a blocking method.` Checkout [`Issuer::discover_async()`] for async version.
+    /// *This is a blocking method. Checkout [`Issuer::discover_async()`] for async version.*
     ///
-    /// Discover an OIDC Issuer using the issuer url method.
+    /// Discover an OIDC Issuer using the issuer url.
     ///
+    /// - `issuer` - The issuer url (absolute).
+    /// - `interceptor` - [RequestInterceptor]
+    ///
+    /// *Only an absolute urls are accepted, passing in `auth.example.com` will result in an error.*
+    ///
+    ///
+    /// ### *Example:*
+    ///
+    /// ```rust
+    ///     let _ = Issuer::discover("https://auth.example.com", None).unwrap();
     /// ```
-    /// # use openid_client::Issuer;
     ///
-    /// fn main(){
-    ///     let issuer = Issuer::discover("https://auth.example.com").unwrap();
-    /// }
-    /// ```
-    /// Only an absolute urls are accepted, passing in `auth.example.com` will result in an error.
+    /// ### *Example: with .well-known/openid-configuration*
     ///
     /// Urls with `.well-known/openid-configuration` can also be used to discover issuer.
     ///
+    /// ```rust
+    ///     let _ = Issuer::discover(
+    ///         "https://auth.example.com/.well-known/openid-configuration",
+    ///         None,
+    ///     )
+    ///     .unwrap();
     /// ```
-    /// # use openid_client::Issuer;
     ///
-    /// fn main(){
-    ///     let issuer = Issuer::discover("https://auth.example.com/.well-known/openid-configurtaion").unwrap();
-    /// }
+    /// ### *Example: with interceptor*
+    ///
+    /// ```rust
+    ///     let interceptor = |request: &Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///
+    ///         if request.url == "https://auth.example.com/.well-known/openid-configuration" {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(10000),
+    ///         }
+    ///     };
+    ///
+    ///     // The discovery request will send header foo: bar in the request headers
+    ///
+    ///     let _ = Issuer::discover(
+    ///         "https://auth.example.com/.well-known/openid-configuration",
+    ///         Some(Box::new(interceptor)),
+    ///     )
+    ///     .unwrap();
     /// ```
     pub fn discover(
         issuer: &str,
@@ -273,29 +340,62 @@ impl Issuer {
 
     /// # Discover OIDC Issuer
     ///
-    /// `This is an async method.` Checkout [`Issuer::discover()`] for blocking version.
+    /// *This is an async method. Checkout [`Issuer::discover()`] for blocking version.*
     ///
-    /// Discover an OIDC Issuer using the issuer url method.
+    /// Discover an OIDC Issuer using the issuer url.
     ///
+    /// - `issuer` - The issuer url (absolute).
+    /// - `interceptor` - [RequestInterceptor]
+    ///
+    /// *Only an absolute urls are accepted, passing in `auth.example.com` will result in an error.*
+    ///
+    ///
+    /// ### *Example:*
+    ///
+    /// ```rust
+    ///     let _ = Issuer::discover_async("https://auth.example.com", None)
+    ///         .await
+    ///         .unwrap();
     /// ```
-    /// # use openid_client::Issuer;
     ///
-    /// #[tokio::main]
-    ///async fn main(){
-    ///     let issuer = Issuer::discover_async("https://auth.example.com").await.unwrap();
-    /// }
-    /// ```
-    /// Only an absolute urls are accepted, passing in `auth.example.com` will result in an error.
+    /// ### *Example: with .well-known/openid-configuration*
     ///
     /// Urls with `.well-known/openid-configuration` can also be used to discover issuer.
     ///
+    /// ```rust
+    ///     let _ = Issuer::discover_async(
+    ///         "https://auth.example.com/.well-known/openid-configuration",
+    ///         None,
+    ///     )
+    ///     .await
+    ///     .unwrap();
     /// ```
-    /// # use openid_client::Issuer;
     ///
-    ///#[tokio::main]
-    ///async fn main(){
-    ///     let issuer = Issuer::discover_async("https://auth.example.com/.well-known/openid-configurtaion").await.unwrap();
-    /// }
+    /// ### *Example: with interceptor*
+    ///
+    /// ```rust
+    ///     let interceptor = |request: &Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///
+    ///         if request.url == "https://auth.example.com/.well-known/openid-configuration" {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(10000),
+    ///         }
+    ///     };
+    ///
+    ///     // The discovery request will send header foo: bar in the request headers
+    ///
+    ///     let _ = Issuer::discover_async(
+    ///         "https://auth.example.com/.well-known/openid-configuration",
+    ///         Some(Box::new(interceptor)),
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///
     /// ```
     pub async fn discover_async(
         issuer: &str,
@@ -369,21 +469,43 @@ impl Issuer {
 impl Issuer {
     /// # Webfinger OIDC Issuer Discovery
     ///
-    /// > `This is a blocking method.` Checkout [`Issuer::webfinger_async()`] for async version.
+    /// *This is a blocking method. Checkout [`Issuer::webfinger_async()`] for async version.*
     ///
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
-    /// ```
-    /// # use openid_client::Issuer;
+    /// - `input` - The resource.
+    /// - `interceptor` - [RequestInterceptor]
     ///
-    /// fn main(){
-    ///     let issuer_email = Issuer::webfinger("joe@auth.example.com").unwrap();
-    ///     let issuer_url = Issuer::webfinger("https://auth.example.com/joe").unwrap();
-    ///     let issuer_url_port = Issuer::webfinger("auth.example.com:3000/joe").unwrap();
-    ///     let issuer_acct_email = Issuer::webfinger("acct:joe@auth.example.com").unwrap();
-    ///     let issuer_acct_host = Issuer::webfinger("acct:auth.example.com").unwrap();
-    /// }
+    /// ### *Example:*
+    ///
+    /// ```rust
+    ///     let _issuer_email = Issuer::webfinger("joe@auth.example.com", None).unwrap();
+    ///     let _issuer_url = Issuer::webfinger("https://auth.example.com/joe", None).unwrap();
+    ///     let _issuer_url_port = Issuer::webfinger("auth.example.com:3000/joe", None).unwrap();
+    ///     let _issuer_acct_email = Issuer::webfinger("acct:joe@auth.example.com", None).unwrap();
+    ///     let _issuer_acct_host = Issuer::webfinger("acct:auth.example.com", None).unwrap();
     /// ```
+    /// ### *Example: with interceptor*
+    ///
+    /// ```rust
+    ///     // This interceptor will insert a header foo: bar for the discovery request made
+    ///     // internally after webfinger request
+    ///     let interceptor = |request: &Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///
+    ///         if request.url == "https://auth.example.com/.well-known/openid-configuration" {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(10000),
+    ///         }
+    ///     };
+    ///
+    ///     let _issuer = Issuer::webfinger("joe@auth.example.com", Some(Box::new(interceptor))).unwrap();
+    /// ```
+    ///
     pub fn webfinger(
         input: &str,
         interceptor: Option<RequestInterceptor>,
@@ -403,20 +525,58 @@ impl Issuer {
 
     /// # Webfinger OIDC Issuer Discovery
     ///
-    /// > `This is an async method.` Checkout [`Issuer::webfinger()`] for blocking version.
+    /// *This is an async method. Checkout [`Issuer::webfinger()`] for blocking version.*
     ///
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
-    /// ```
-    /// use openid_client::Issuer;
-    ///#[tokio::main]
-    ///async fn main(){
-    ///     let issuer_email = Issuer::webfinger_async("joe@auth.example.com").await.unwrap();
-    ///     let issuer_url = Issuer::webfinger_async("https://auth.example.com/joe").await.unwrap();
-    ///     let issuer_url_port = Issuer::webfinger_async("auth.example.com:3000/joe").await.unwrap();
-    ///     let issuer_acct_email = Issuer::webfinger_async("acct:joe@auth.example.com").await.unwrap();
-    ///     let issuer_acct_host = Issuer::webfinger_async("acct:auth.example.com").await.unwrap();
+    /// - `input` - The resource.
+    /// - `interceptor` - [RequestInterceptor]
+    ///
+    /// ### *Example:*
+    ///
+    /// ```rust
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let _issuer_email = Issuer::webfinger_async("joe@auth.example.com", None)
+    ///         .await
+    ///         .unwrap();
+    ///     let _issuer_url = Issuer::webfinger_async("https://auth.example.com/joe", None)
+    ///         .await
+    ///         .unwrap();
+    ///     let _issuer_url_port = Issuer::webfinger_async("auth.example.com:3000/joe", None)
+    ///         .await
+    ///         .unwrap();
+    ///     let _issuer_acct_email = Issuer::webfinger_async("acct:joe@auth.example.com", None)
+    ///         .await
+    ///         .unwrap();
+    ///     let _issuer_acct_host = Issuer::webfinger_async("acct:auth.example.com", None)
+    ///         .await
+    ///         .unwrap();
     /// }
+    ///
+    /// ```
+    ///
+    /// ### *Example: with interceptor*
+    ///
+    /// ```rust
+    ///     // This interceptor will insert a header foo: bar for the discovery request made
+    ///     // internally after webfinger request
+    ///     let interceptor = |request: &Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///
+    ///         if request.url == "https://auth.example.com/.well-known/openid-configuration" {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(10000),
+    ///         }
+    ///     };
+    ///
+    ///     let _issuer = Issuer::webfinger_async("joe@auth.example.com", Some(Box::new(interceptor)))
+    ///         .await
+    ///         .unwrap();
     /// ```
     pub async fn webfinger_async(
         input: &str,
@@ -573,9 +733,14 @@ impl Issuer {
 
 /// New [Client] implementation for Issuer
 impl Issuer {
-    /// # Get client from the issuer
+    /// # Creates a client from the issuer
     /// This method creates a new [Client] from the issuer.
     /// A client metadata with a required `client_id` field is also required
+    ///
+    /// - `metadata` - [ClientMetadata]
+    /// - `interceptor` - [RequestInterceptor]
+    /// - `jwks` - The client jwks with private keys.
+    /// - `client_options` - Client options.
     ///
     /// - Note: The request interceptor from the issuer is not carried over to the client.
     ///         If no `interceptor` is provided with the method, a client with default request interceptor
@@ -584,60 +749,50 @@ impl Issuer {
     ///         when you are trying to create a [Client] from the `issuer` that you get back from
     ///         the [`Client::get_issuer()`].
     ///
-    /// ```
-    /// # use openid_client::{Issuer, IssuerMetadata, ClientMetadata};
+    /// ### *Example:*
     ///
-    /// fn main(){
-    ///   let issuer_metadata = IssuerMetadata {
-    ///       issuer: "https://auth.example.com".to_string(),
-    ///       token_endpoint_auth_methods_supported: Some(vec![
-    ///           "client_secret_post".to_string(),
-    ///           "private_key_jwt".to_string(),
-    ///        ]),
-    ///        ..IssuerMetadata::default()
-    ///    };
-    ///    
-    ///   let issuer = Issuer::new(issuer_metadata, None);
-    ///
-    ///   let client_metadata = ClientMetadata {
-    ///       client_id: Some("client_id".to_string()),
-    ///       ..ClientMetadata::default()
-    ///   };
-    ///
-    ///   let client = issuer.client(client_metadata, None, None, None).unwrap();
-    /// }
-    /// ```
-    ///
-    ///  TODO: Document the client options and jwks and how it will be used by the client, and refactor the code snippet
-    ///
-    /// ```
-    /// # use std::time::Duration;
-    ///
-    /// # use openid_client::{
-    /// #     types::{ClientOptions, Jwks},
-    /// #     ClientMetadata, Issuer, IssuerMetadata, RequestOptions, HeaderMap, HeaderValue
-    /// # };
-    ///
-    /// fn main() {
-    ///     let issuer_metadata = IssuerMetadata {
-    ///         issuer: "https://auth.example.com".to_string(),
-    ///         token_endpoint_auth_methods_supported: Some(vec![
-    ///             "client_secret_post".to_string(),
-    ///             "private_key_jwt".to_string(),
-    ///         ]),
-    ///         ..IssuerMetadata::default()
+    /// ```rust
+    ///     let issuer = Issuer::discover("https://auth.example.com", None).unwrap();
+    ///     
+    ///     let client_metadata = ClientMetadata {
+    ///         client_id: Some("client_id".to_string()),
+    ///         ..ClientMetadata::default()
     ///     };
+    ///     
+    ///     let _client = issuer.client(client_metadata, None, None, None).unwrap();
+    /// ```
     ///
-    ///     let issuer = Issuer::new(issuer_metadata, None);
+    /// ### *Example: with jwks*
+    ///
+    /// ```rust
+    ///     let issuer = Issuer::discover("https://auth.example.com", None).unwrap();
     ///
     ///     let client_metadata = ClientMetadata {
     ///         client_id: Some("client_id".to_string()),
     ///         ..ClientMetadata::default()
     ///     };
     ///
-    ///     let interceptor = |_request: &crate::types::Request| {
+    ///     let jwk = jwk::Jwk::generate_rsa_key(2048).unwrap();
+    ///
+    ///     let jwks = Jwks::from(vec![jwk]);
+    ///
+    ///     let _client = issuer
+    ///         .client(client_metadata, None, Some(jwks), None)
+    ///         .unwrap();
+    /// ```
+    ///
+    /// ### *Example: with interceptor*
+    ///
+    /// ```rust
+    ///     let issuer = Issuer::discover("https://auth.example.com", None).unwrap();
+    ///
+    ///     // Adds a foo: bar header for all urls that contains `userinfo`
+    ///     let interceptor = |request: &Request| {
     ///         let mut headers = HeaderMap::new();
-    ///         headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
+    ///
+    ///         if request.url.contains("userinfo") {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
     ///
     ///         RequestOptions {
     ///             headers,
@@ -645,17 +800,14 @@ impl Issuer {
     ///         }
     ///     };
     ///
-    ///     let client = issuer
-    ///         .client(
-    ///             client_metadata,
-    ///             Some(Box::new(interceptor)),
-    ///             Some(Jwks::default()),
-    ///             Some(ClientOptions {
-    ///                 additional_authorized_parties: Some(vec!["azp".to_string()]),
-    ///             }),
-    ///         )
+    ///     let client_metadata = ClientMetadata {
+    ///         client_id: Some("client_id".to_string()),
+    ///         ..ClientMetadata::default()
+    ///     };
+    ///
+    ///     let _client = issuer
+    ///         .client(client_metadata, Some(Box::new(interceptor)), None, None)
     ///         .unwrap();
-    /// }
     /// ```
     pub fn client(
         &self,
@@ -665,6 +817,8 @@ impl Issuer {
         client_options: Option<ClientOptions>,
     ) -> Result<Client, OidcClientError> {
         let interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
+
+        Client::jwks_only_private_keys_validation(jwks.as_ref())?;
 
         Client::from_internal(metadata, Some(self), interceptor, jwks, client_options)
     }

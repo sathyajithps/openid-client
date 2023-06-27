@@ -7,3 +7,4 @@ target/
 *.pdb
 /.vscode
 docs/book
+run.sh

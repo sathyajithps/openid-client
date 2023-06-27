@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::types::{OidcClientError, Response};
 
-pub fn validate_url(url: &str) -> Result<Url, OidcClientError> {
+pub(crate) fn validate_url(url: &str) -> Result<Url, OidcClientError> {
     let url_result = Url::parse(url);
     if url_result.is_err() {
         return Err(OidcClientError::new(
@@ -17,7 +17,7 @@ pub fn validate_url(url: &str) -> Result<Url, OidcClientError> {
     Ok(url_result.unwrap())
 }
 
-pub fn convert_json_to<T: for<'a> Deserialize<'a>>(plain: &str) -> Result<T, String> {
+pub(crate) fn convert_json_to<T: for<'a> Deserialize<'a>>(plain: &str) -> Result<T, String> {
     let result: Result<T, _> = serde_json::from_str(plain);
     if result.is_err() {
         return Err("Parse Error".to_string());
@@ -60,7 +60,7 @@ fn acct_scheme_assumed(input: &str) -> bool {
     !(host.contains(':') || host.contains('/') || host.contains('?'))
 }
 
-pub fn webfinger_normalize(input: &str) -> String {
+pub(crate) fn webfinger_normalize(input: &str) -> String {
     let output: String;
 
     if has_scheme(input) {
@@ -74,7 +74,7 @@ pub fn webfinger_normalize(input: &str) -> String {
     output.split('#').next().unwrap().to_string()
 }
 
-pub fn parse_www_authenticate_error(
+pub(crate) fn parse_www_authenticate_error(
     header_value: &HeaderValue,
     response: &Response,
 ) -> Result<(), OidcClientError> {

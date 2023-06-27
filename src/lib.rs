@@ -10,28 +10,30 @@
 //!
 //! ## Issuer API
 //!
-//! - New Instance API:
-//!     - [Issuer::new]
+//! ### New Instance
+//!    
+//! - [issuer::Issuer::new]
 //!
-//! - Well known Discovery API:
-//!     - [Issuer::discover]
-//!     - [Issuer::discover_async]
+//! ### OIDC Discovery
+//! - [issuer::Issuer::discover]
+//! - [issuer::Issuer::discover_async]
 //!
-//! - Webfinger Discovery API:
-//!     - [Issuer::webfinger]
-//!     - [Issuer::webfinger_async]
-//! - Client from Issuer API
-//!     - [Issuer::client]
+//! ### Webfinger Discovery
+//! - [issuer::Issuer::webfinger]
+//! - [issuer::Issuer::webfinger_async]
 //!
-//! ## Client API
+//! ### Client from Issuer
+//! - [issuer::Issuer::client]
 //!
-//! - Client Read
-//!     - [Client::from_uri]
-//!     - [Client::from_uri_async]
+//! ## Client
 //!
-//! - Dynamic Client Registration
-//!     - [Client::register]
-//!     - [Client::register_async]
+//! ### Client Read
+//! - [client::Client::from_uri]
+//! - [client::Client::from_uri_async]
+//!
+//! ### Dynamic Client Registration
+//! - [client::Client::register]
+//! - [client::Client::register_async]
 
 pub mod client;
 mod helpers;
