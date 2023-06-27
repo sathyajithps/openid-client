@@ -16,9 +16,13 @@ use crate::{
     types::{OidcClientError, Request, RequestInterceptor, Response},
 };
 
+// TODO: Make jwks fetch from the uri on create.
+// TODO: Introduce jwks cache and expiration
+
+/// Methods for the jwks of [Issuer]
 impl Issuer {
-    /// # Gets Jwks for the issuer
-    /// If the jwks is empty, tries to fetch from the jwks_uri
+    /// # Gets Jwks of the Issuer
+    /// - `refresh` - If the jwks is empty, tries to fetch from the jwks_uri if it exists
     pub fn get_keystore(&mut self, refresh: bool) -> Result<&Jwks, OidcClientError> {
         self.jwks_uri_check()?;
 
@@ -33,8 +37,8 @@ impl Issuer {
         Ok(self.jwks.as_ref().unwrap())
     }
 
-    /// # Gets Jwks for the issuer
-    /// If the jwks is empty, tries to fetch from the jwks_uri
+    /// # Gets Jwks of the Issuer
+    /// - `refresh` - If the jwks is empty, tries to fetch from the jwks_uri if it exists
     pub async fn get_keystore_async(&mut self, refresh: bool) -> Result<&Jwks, OidcClientError> {
         self.jwks_uri_check()?;
 
@@ -62,7 +66,10 @@ impl Issuer {
         Ok(())
     }
 
-    /// Gets as list of Jwk for the arguments specified
+    /// # Gets as list of Jwk
+    /// - `alg` - Algorithm to find
+    /// - `key_use` - Key use to find
+    /// - `kid` - Key id to find
     pub fn get_jwk(
         &mut self,
         alg: Option<String>,
@@ -73,7 +80,10 @@ impl Issuer {
         internal_get_jwk(key_store, alg, key_use, kid)
     }
 
-    /// Gets as list of Jwk for the arguments specified
+    /// # Gets as list of Jwk
+    /// - `alg` - Algorithm to find
+    /// - `key_use` - Key use to find
+    /// - `kid` - Key id to find
     pub async fn get_jwk_async(
         &mut self,
         alg: Option<String>,

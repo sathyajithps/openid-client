@@ -2,12 +2,15 @@ use std::{collections::HashMap, time::Duration};
 
 use reqwest::{header::HeaderMap, Method, StatusCode};
 
-/// `type RequestInterceptor` is the alias for the closure that can be passed through
-/// one of several methods that will be executed every time a request is being made.
+// TODO: enrich request options with agent, ca, cert, crl, headers, key, lookup, passphrase, pfx, timeout. (refer panva doc)
+
+/// # Request Interceptor
+/// `RequestInterceptor` is the alias for the closure that will be executed
+///  every time a request is being made.
 pub type RequestInterceptor = Box<dyn FnMut(&Request) -> RequestOptions>;
 
 /// # Request
-/// Request is an internal struct that is used by each OIDC protocol methods.
+/// Request is an internal struct used to create various OIDC requests.
 #[derive(Debug)]
 pub struct Request {
     /// Url of the request without query params
@@ -75,7 +78,7 @@ pub struct Response {
 
 impl Response {
     /// Creates a new instance of Response from [reqwest::blocking::Response]
-    pub fn from(response: reqwest::blocking::Response) -> Self {
+    pub(crate) fn from(response: reqwest::blocking::Response) -> Self {
         let status = response.status();
         let headers = response.headers().clone();
         let body_result = response.text();
@@ -94,7 +97,7 @@ impl Response {
     }
 
     /// Creates a new instance of Response from [reqwest::Response]
-    pub async fn from_async(response: reqwest::Response) -> Self {
+    pub(crate) async fn from_async(response: reqwest::Response) -> Self {
         let status = response.status();
         let headers = response.headers().clone();
         let body_result = response.text().await;
@@ -116,10 +119,14 @@ impl Response {
 /// # RequestOptions
 /// This struct is the return type of the request interceptor that can be passed to various methods
 /// such as:
-/// 1. [`Issuer::webfinger_with_interceptor_async()`]
-/// 2. [`Issuer::webfinger_with_interceptor()`]
-/// 3. [`Issuer::discover_with_interceptor_async()`]
-/// 4. [`Issuer::discover_with_interceptor()`]
+/// 1. [`crate::issuer::Issuer::webfinger_async()`]
+/// 2. [`crate::issuer::Issuer::webfinger()`]
+/// 3. [`crate::issuer::Issuer::discover_async()`]
+/// 4. [`crate::issuer::Issuer::discover()`]
+/// 5. [`crate::client::Client::from_uri()`]
+/// 6. [`crate::client::Client::from_uri_async()`]
+/// 7. [`crate::client::Client::register()`]
+/// 8. [`crate::client::Client::register_async()`]
 #[derive(Debug)]
 pub struct RequestOptions {
     /// Headers that are tobe appended with the request that is going to be made

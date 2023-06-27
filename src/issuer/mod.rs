@@ -1,4 +1,4 @@
-//! # Issuer struct contains the discovered OpenID Connect Issuer Metadata.
+//! # Issuer
 
 #[allow(clippy::module_inception)]
 mod issuer;

@@ -319,21 +319,21 @@ impl Client {
             .or(client.get_token_endpoint_auth_signing_alg());
 
         if let Some(iss) = issuer {
-            assert_signing_alg_values_support(
+            Self::assert_signing_alg_values_support(
                 &Some(client.token_endpoint_auth_method.clone()),
                 &client.token_endpoint_auth_signing_alg,
                 &iss.token_endpoint_auth_methods_supported,
                 "token",
             )?;
 
-            assert_signing_alg_values_support(
+            Self::assert_signing_alg_values_support(
                 &client.introspection_endpoint_auth_method,
                 &client.introspection_endpoint_auth_signing_alg,
                 &iss.introspection_endpoint_auth_methods_supported,
                 "introspection",
             )?;
 
-            assert_signing_alg_values_support(
+            Self::assert_signing_alg_values_support(
                 &client.revocation_endpoint_auth_method,
                 &client.revocation_endpoint_auth_signing_alg,
                 &iss.revocation_endpoint_auth_methods_supported,
@@ -355,30 +355,93 @@ impl Client {
 
         Ok(client)
     }
+
+    fn assert_signing_alg_values_support(
+        auth_method: &Option<String>,
+        supported_alg: &Option<String>,
+        issuer_supported_alg_values: &Option<Vec<String>>,
+        endpoint: &str,
+    ) -> Result<(), OidcClientError> {
+        if let Some(am) = auth_method {
+            if am.ends_with("_jwt")
+                && supported_alg.is_none()
+                && issuer_supported_alg_values.is_none()
+            {
+                return Err(OidcClientError::new(
+                "TypeError",
+                "invalid configuration",
+                &format!("{0}_endpoint_auth_signing_alg_values_supported must be configured on the issuer if {0}_endpoint_auth_signing_alg is not defined on a client", endpoint),
+                None
+            ));
+            }
+        }
+        Ok(())
+    }
 }
 
+/// Implementation for Client Read Methods
 impl Client {
     /// # Creates a client from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
-    /// > `This is a blocking method.` Checkout [`Client::from_uri_async()`] for async version.
+    /// *This is a blocking method. Checkout [`Client::from_uri_async()`] for async version*
     ///
-    /// Creates a [Client] from the Client read endpoint.
+    /// Creates a [Client] from the Client Read Endpoint.
     ///
-    /// The Jwks is completely ignored if the jwks_uri is present from the response.
+    /// - `registration_client_uri` - The client read endpoint
+    /// - `registration_access_token` - The access token to be sent with the request
+    /// - `jwks` - Private [Jwks] of the client
+    /// - `client_options` - The [ClientOptions]
+    /// - `issuer` - [Issuer]
+    /// - `interceptor` - [RequestInterceptor]
     ///
-    /// `registration_client_uri` - The client read endpoint
-    /// `registration_access_token` - The access token to be sent with the request
-    /// `jwks` - Private [Jwks]
-    /// `client_options` - The [ClientOptions]
-    /// `issuer` - [Issuer]
-    /// `interceptor` - [RequestInterceptor]
+    /// ### *Example:*
     ///
+    /// ```rust
+    ///     let _client = Client::from_uri(
+    ///         "https://auth.example.com/client/id",
+    ///         None,
+    ///         None,
+    ///         None,
+    ///         None,
+    ///         None,
+    ///     )
+    ///     .unwrap();
     /// ```
-    /// # use openid_client::Client;
     ///
-    /// fn main() {
-    ///     let client =
-    ///         Client::from_uri("https://auth.example.com/client/id", None, None, None, None, None).unwrap();
-    /// }
+    /// ### *Example: with all params*
+    ///
+    /// ```rust
+    ///     let jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///
+    ///     let jwks = Jwks::from(vec![jwk]);
+    ///
+    ///     let client_options = ClientOptions {
+    ///         additional_authorized_parties: Some(vec!["authParty".to_string()]),
+    ///     };
+    ///
+    ///     let interceptor = |request: &Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///
+    ///         if request.url.contains("userinfor") || request.url.contains("token") {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(10000),
+    ///         }
+    ///     };
+    ///
+    ///     let issuer = Issuer::discover("https://auth.example.com", Some(Box::new(interceptor))).unwrap();
+    ///
+    ///     let _client = Client::from_uri(
+    ///         "https://auth.example.com/client/id",
+    ///         Some("token".to_string()),
+    ///         Some(jwks),
+    ///         Some(client_options),
+    ///         Some(&issuer),
+    ///         Some(Box::new(interceptor)),
+    ///     )
+    ///     .unwrap();
     /// ```
     ///
     pub fn from_uri(
@@ -404,29 +467,71 @@ impl Client {
     }
 
     /// # Creates a client from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
-    /// > `This is an async method.` Checkout [`Client::from_uri()`] for the blocking version.
+    /// *This is an async method. Checkout [`Client::from_uri()`] for the blocking version.*
     ///
     /// Creates a [Client] from the Client read endpoint.
     ///
-    /// The Jwks is completely ignored if the jwks_uri is present from the response.
+    /// - `registration_client_uri` - The client read endpoint
+    /// - `registration_access_token` - The access token to be sent with the request
+    /// - `jwks` - Private [Jwks] of the client
+    /// - `client_options` - The [ClientOptions]
+    /// - `issuer` - [Issuer]
+    /// - `interceptor` - [RequestInterceptor]
     ///
-    /// `registration_client_uri` - The client read endpoint
-    /// `registration_access_token` - The access token to be sent with the request
-    /// `jwks` - Private [Jwks]
-    /// `client_options` - The [ClientOptions]
-    /// `issuer` - [Issuer]
-    /// `interceptor` - [RequestInterceptor]
+    /// ### *Example:*
     ///
+    /// ```rust
+    ///     let _client = Client::from_uri_async(
+    ///         "https://auth.example.com/client/id",
+    ///         None,
+    ///         None,
+    ///         None,
+    ///         None,
+    ///         None,
+    ///     )
+    ///     .await
+    ///     .unwrap();
     /// ```
-    /// # use openid_client::Client;
     ///
-    /// #[tokio::main]
-    /// fn main() {
-    ///     let client =
-    ///         Client::from_uri_async("https://auth.example.com/client/id", None, None, None, None).unwrap();
-    /// }
-    /// ```
+    /// ### *Example: with all params*
     ///
+    /// ```rust
+    ///     let jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///
+    ///     let jwks = Jwks::from(vec![jwk]);
+    ///
+    ///     let client_options = ClientOptions {
+    ///         additional_authorized_parties: Some(vec!["authParty".to_string()]),
+    ///     };
+    ///
+    ///     let interceptor = |request: &Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///
+    ///         if request.url.contains("userinfor") || request.url.contains("token") {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(10000),
+    ///         }
+    ///     };
+    ///
+    ///     let issuer = Issuer::discover_async("https://auth.example.com", Some(Box::new(interceptor)))
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let _client = Client::from_uri_async(
+    ///         "https://auth.example.com/client/id",
+    ///         Some("token".to_string()),
+    ///         Some(jwks),
+    ///         Some(client_options),
+    ///         Some(&issuer),
+    ///         Some(Box::new(interceptor)),
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///```
     pub async fn from_uri_async(
         registration_client_uri: &str,
         registration_access_token: Option<String>,
@@ -448,9 +553,12 @@ impl Client {
 
         Self::process_from_uri_response(res, issuer, request_interceptor, jwks, client_options)
     }
+}
 
+/// Implementations for Dynamic Client Registration
+impl Client {
     /// # Dynamic Client Registration
-    /// > `This is a blocking method.` Checkout [`Client::register_async()`] for async version.
+    /// *This is a blocking method. Checkout [`Client::register_async()`] for async version.*
     ///
     /// Attempts a Dynamic Client Registration using the Issuer's `registration_endpoint`
     ///
@@ -459,21 +567,59 @@ impl Client {
     /// - `register_options` - [ClientRegistrationOptions]
     /// - `interceptor` - [RequestInterceptor]
     ///
-    /// ```
-    /// # use openid_client::{Client, ClientMetadata, Issuer};
+    /// ### *Example:*
     ///
-    /// fn main() {
-    ///     let issuer = Issuer::discover("https://auth.example.com").unwrap();
+    /// ```rust
+    ///     let issuer = Issuer::discover("https://auth.example.com", None).unwrap();
     ///
     ///     let metadata = ClientMetadata {
-    ///                     client_id: Some("example_id".to_string()),
-    ///                     ..ClientMetadata::default()
-    ///                   };
+    ///         client_id: Some("identifier".to_string()),
+    ///         ..ClientMetadata::default()
+    ///     };
     ///
-    ///     let client =
-    ///         Client::register(&issuer, Some(metadata), None, None, None).unwrap();
-    /// }
+    ///     let _client = Client::register(&issuer, metadata, None, None).unwrap();
     /// ```
+    ///
+    /// ### *Example: with all params*
+    ///
+    /// ```rust
+    ///     let interceptor = |request: &Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///
+    ///         if request.url.contains("token") {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(10000),
+    ///         }
+    ///     };
+    ///
+    ///     let issuer = Issuer::discover("https://auth.example.com", Some(Box::new(interceptor))).unwrap();
+    ///
+    ///     let metadata = ClientMetadata {
+    ///         client_id: Some("identifier".to_string()),
+    ///         ..ClientMetadata::default()
+    ///     };
+    ///
+    ///     let jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///
+    ///     let registration_options = ClientRegistrationOptions {
+    ///         initial_access_token: Some("initial_access_token".to_string()),
+    ///         jwks: Some(Jwks::from(vec![jwk])),
+    ///         client_options: Default::default(),
+    ///     };
+    ///
+    ///     let _client = Client::register(
+    ///         &issuer,
+    ///         metadata,
+    ///         Some(registration_options),
+    ///         Some(Box::new(interceptor)),
+    ///     )
+    ///     .unwrap();
+    /// ```
+    ///
     pub fn register(
         issuer: &Issuer,
         mut client_metadata: ClientMetadata,
@@ -498,7 +644,7 @@ impl Client {
     }
 
     /// # Dynamic Client Registration
-    /// > `This is an async method.` Checkout [`Client::regiter()`] for the blocking version.
+    /// *This is an async method. Checkout [`Client::register()`] for the blocking version.*
     ///
     /// Attempts a Dynamic Client Registration using the Issuer's `registration_endpoint`
     ///
@@ -507,22 +653,66 @@ impl Client {
     /// - `register_options` - [ClientRegistrationOptions]
     /// - `interceptor` - [RequestInterceptor]
     ///
-    /// ```
-    /// # use openid_client::{Client, ClientMetadata, Issuer};
+    /// ### *Example:*
     ///
-    /// #[tokio::main]
-    /// fn main() {
-    ///     let issuer = Issuer::discover_async("https://auth.example.com").await.unwrap();
+    /// ```rust
+    ///     let issuer = Issuer::discover_async("https://auth.example.com", None)
+    ///         .await
+    ///         .unwrap();
     ///
     ///     let metadata = ClientMetadata {
-    ///                     client_id: Some("example_id".to_string()),
-    ///                     ..ClientMetadata::default()
-    ///                   };
+    ///         client_id: Some("identifier".to_string()),
+    ///         ..ClientMetadata::default()
+    ///     };
     ///
-    ///     let client =
-    ///         Client::register_async(&issuer, Some(metadata), None, None, None).await.unwrap();
-    /// }
+    ///     let _client = Client::register_async(&issuer, metadata, None, None)
+    ///         .await
+    ///         .unwrap();
     /// ```
+    ///
+    /// ### *Example: with all params*
+    ///
+    /// ```rust
+    ///     let interceptor = |request: &Request| {
+    ///         let mut headers = HeaderMap::new();
+    ///
+    ///         if request.url.contains("token") {
+    ///             headers.append("foo", HeaderValue::from_static("bar"));
+    ///         }
+    ///
+    ///         RequestOptions {
+    ///             headers,
+    ///             timeout: Duration::from_millis(10000),
+    ///         }
+    ///     };
+    ///
+    ///     let issuer = Issuer::discover_async("https://auth.example.com", Some(Box::new(interceptor)))
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let metadata = ClientMetadata {
+    ///         client_id: Some("identifier".to_string()),
+    ///         ..ClientMetadata::default()
+    ///     };
+    ///
+    ///     let jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///
+    ///     let registration_options = ClientRegistrationOptions {
+    ///         initial_access_token: Some("initial_access_token".to_string()),
+    ///         jwks: Some(Jwks::from(vec![jwk])),
+    ///         client_options: Default::default(),
+    ///     };
+    ///
+    ///     let _client = Client::register_async(
+    ///         &issuer,
+    ///         metadata,
+    ///         Some(registration_options),
+    ///         Some(Box::new(interceptor)),
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    /// ```
+    ///
     pub async fn register_async(
         issuer: &Issuer,
         mut client_metadata: ClientMetadata,
@@ -549,7 +739,9 @@ impl Client {
 
 impl Client {
     /// Returs error if JWKS only has private keys
-    fn jwks_only_private_keys_validation(jwks: Option<&Jwks>) -> Result<(), OidcClientError> {
+    pub(crate) fn jwks_only_private_keys_validation(
+        jwks: Option<&Jwks>,
+    ) -> Result<(), OidcClientError> {
         if let Some(jwks) = jwks {
             if !jwks.is_only_private_keys() || jwks.has_oct_keys() {
                 return Err(OidcClientError::new(
@@ -981,26 +1173,6 @@ impl Client {
     pub(crate) fn set_request_interceptor(&mut self, interceptor: RequestInterceptor) {
         self.request_interceptor = interceptor;
     }
-}
-
-fn assert_signing_alg_values_support(
-    auth_method: &Option<String>,
-    supported_alg: &Option<String>,
-    issuer_supported_alg_values: &Option<Vec<String>>,
-    endpoint: &str,
-) -> Result<(), OidcClientError> {
-    if let Some(am) = auth_method {
-        if am.ends_with("_jwt") && supported_alg.is_none() && issuer_supported_alg_values.is_none()
-        {
-            return Err(OidcClientError::new(
-                "TypeError",
-                "invalid configuration",
-                &format!("{0}_endpoint_auth_signing_alg_values_supported must be configured on the issuer if {0}_endpoint_auth_signing_alg is not defined on a client", endpoint),
-                None
-            ));
-        }
-    }
-    Ok(())
 }
 
 impl std::fmt::Debug for Client {

@@ -2,14 +2,8 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-/// #MtlsEndpoints
-/// Alternative endpoints that can be used by a client with mTLS to access
-/// 1. `token_endpoint`
-/// 2. `userinfo_endpoint`
-/// 3. `revocation_endpoint`
-/// 4. `introspection_endpoint`
-/// 5. `device_authorization_endpoint`
-/// All the endpoints are optional
+/// # MtlsEndpoints
+/// [OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens](https://datatracker.ietf.org/doc/html/rfc8705)
 #[derive(Deserialize, Debug)]
 pub struct MtlsEndpoints {
     /// mTLS token endpoint

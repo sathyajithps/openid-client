@@ -4,12 +4,15 @@ use super::http::Response;
 
 /// # StandardBodyError
 /// Error that is returned from the OIDC Server
+/// - [Error Response](https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1)
 #[derive(Debug, Deserialize)]
 pub struct StandardBodyError {
     /// Short title of the error
     pub error: String,
-    /// Description
-    pub error_description: String,
+    /// Description of the error
+    pub error_description: Option<String>,
+    /// Error uri
+    pub error_uri: Option<String>,
 }
 
 /// # OidcClientError

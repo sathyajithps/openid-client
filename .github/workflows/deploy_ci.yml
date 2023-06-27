@@ -29,6 +29,9 @@ jobs:
             - name: Running Tests
               run: cargo test -- --include-ignored
 
+            - name: Running Doc Compile
+              run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+
             - name: Publishing to Crates.io
               run: cargo publish --token ${CRATES_TOKEN}
               env:
