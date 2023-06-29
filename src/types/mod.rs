@@ -12,7 +12,9 @@ mod webfinger;
 pub use client_metadata::ClientMetadata;
 pub use client_options::ClientOptions;
 pub use client_registration_options::ClientRegistrationOptions;
-pub use errors::{OidcClientError, StandardBodyError};
+pub use errors::{
+    Error, ErrorWithResponse, OidcClientError, RPError, StandardBodyError, TypeError,
+};
 pub use http::{Request, RequestInterceptor, RequestOptions, Response};
 pub use issuer_metadata::{IssuerMetadata, MtlsEndpoints};
 pub(crate) use webfinger::WebFingerResponse;

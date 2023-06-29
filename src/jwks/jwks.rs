@@ -94,9 +94,7 @@ impl Jwks {
         kid: Option<String>,
     ) -> Result<Vec<&Jwk>, OidcClientError> {
         if key_use.is_none() || alg.is_none() {
-            return Err(OidcClientError::new(
-                "JwksError",
-                "invalid query",
+            return Err(OidcClientError::new_error(
                 "key_use or alg should be present",
                 None,
             ));
@@ -179,9 +177,7 @@ fn get_kty_from_alg(alg: Option<&String>) -> Result<&str, OidcClientError> {
         _ => None,
     };
 
-    kty.ok_or(OidcClientError::new(
-        "JwksError",
-        "invalid query",
+    kty.ok_or(OidcClientError::new_error(
         "key_use or alg should be present",
         None,
     ))

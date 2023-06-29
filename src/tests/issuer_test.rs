@@ -49,46 +49,46 @@ mod issuer_discovery_tests {
             let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
-            assert_eq!(issuer.issuer, format!("https://{0}", &auth_server_domain));
+            assert_eq!(format!("https://{0}", &auth_server_domain), issuer.issuer);
             assert_eq!(
+                format!("https://{0}", &auth_server_domain),
                 async_issuer.issuer,
-                format!("https://{0}", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{0}/oauth2/v3/certs", &auth_server_domain),
                 issuer.jwks_uri.unwrap(),
-                format!("https://{0}/oauth2/v3/certs", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{0}/oauth2/v3/certs", &auth_server_domain),
                 async_issuer.jwks_uri.unwrap(),
-                format!("https://{0}/oauth2/v3/certs", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{0}/oauth2/v4/token", &auth_server_domain),
                 issuer.token_endpoint.unwrap(),
-                format!("https://{0}/oauth2/v4/token", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{0}/oauth2/v4/token", &auth_server_domain),
                 async_issuer.token_endpoint.unwrap(),
-                format!("https://{0}/oauth2/v4/token", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain),
                 issuer.userinfo_endpoint.unwrap(),
-                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain),
                 async_issuer.userinfo_endpoint.unwrap(),
-                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain),
                 issuer.authorization_endpoint.unwrap(),
-                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain),
                 async_issuer.authorization_endpoint.unwrap(),
-                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain)
             );
         }
     }
@@ -122,46 +122,46 @@ mod issuer_discovery_tests {
             let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
-            assert_eq!(issuer.issuer, format!("https://{0}", &auth_server_domain));
+            assert_eq!(format!("https://{0}", &auth_server_domain), issuer.issuer);
             assert_eq!(
+                format!("https://{0}", &auth_server_domain),
                 async_issuer.issuer,
-                format!("https://{0}", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{0}/oauth2/v3/certs", &auth_server_domain),
                 issuer.jwks_uri.unwrap(),
-                format!("https://{0}/oauth2/v3/certs", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{0}/oauth2/v3/certs", &auth_server_domain),
                 async_issuer.jwks_uri.unwrap(),
-                format!("https://{0}/oauth2/v3/certs", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{0}/oauth2/v4/token", &auth_server_domain),
                 issuer.token_endpoint.unwrap(),
-                format!("https://{0}/oauth2/v4/token", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{0}/oauth2/v4/token", &auth_server_domain),
                 async_issuer.token_endpoint.unwrap(),
-                format!("https://{0}/oauth2/v4/token", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain),
                 issuer.userinfo_endpoint.unwrap(),
-                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain),
                 async_issuer.userinfo_endpoint.unwrap(),
-                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain),
                 issuer.authorization_endpoint.unwrap(),
-                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain),
                 async_issuer.authorization_endpoint.unwrap(),
-                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain)
             );
         }
 
@@ -188,8 +188,8 @@ mod issuer_discovery_tests {
             let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
-            assert_eq!(issuer.issuer, issuer_discovery_url);
-            assert_eq!(async_issuer.issuer, issuer_discovery_url);
+            assert_eq!(issuer_discovery_url, issuer.issuer);
+            assert_eq!(issuer_discovery_url, async_issuer.issuer);
         }
 
         #[test]
@@ -217,12 +217,12 @@ mod issuer_discovery_tests {
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(
+                format!("https://{}/oidc", auth_server_domain),
                 issuer.issuer,
-                format!("https://{}/oidc", auth_server_domain)
             );
             assert_eq!(
+                format!("https://{}/oidc", auth_server_domain),
                 async_issuer.issuer,
-                format!("https://{}/oidc", auth_server_domain)
             );
         }
 
@@ -251,12 +251,12 @@ mod issuer_discovery_tests {
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(
+                format!("https://{}/oidc", auth_server_domain),
                 issuer.issuer,
-                format!("https://{}/oidc", auth_server_domain)
             );
             assert_eq!(
+                format!("https://{}/oidc", auth_server_domain),
                 async_issuer.issuer,
-                format!("https://{}/oidc", auth_server_domain)
             );
         }
 
@@ -288,12 +288,12 @@ mod issuer_discovery_tests {
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(
+                format!("https://{}/oidc", auth_server_domain),
                 issuer.issuer,
-                format!("https://{}/oidc", auth_server_domain)
             );
             assert_eq!(
+                format!("https://{}/oidc", auth_server_domain),
                 async_issuer.issuer,
-                format!("https://{}/oidc", auth_server_domain)
             );
         }
     }
@@ -327,46 +327,46 @@ mod issuer_discovery_tests {
             let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
-            assert_eq!(issuer.issuer, format!("https://{}", &auth_server_domain));
+            assert_eq!(format!("https://{}", &auth_server_domain), issuer.issuer);
             assert_eq!(
+                format!("https://{}", &auth_server_domain),
                 async_issuer.issuer,
-                format!("https://{}", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{}/oauth2/v3/certs", &auth_server_domain),
                 issuer.jwks_uri.unwrap(),
-                format!("https://{}/oauth2/v3/certs", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{}/oauth2/v3/certs", &auth_server_domain),
                 async_issuer.jwks_uri.unwrap(),
-                format!("https://{}/oauth2/v3/certs", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{}/oauth2/v4/token", &auth_server_domain),
                 issuer.token_endpoint.unwrap(),
-                format!("https://{}/oauth2/v4/token", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{}/oauth2/v4/token", &auth_server_domain),
                 async_issuer.token_endpoint.unwrap(),
-                format!("https://{}/oauth2/v4/token", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{}/oauth2/v3/userinfo", &auth_server_domain),
                 issuer.userinfo_endpoint.unwrap(),
-                format!("https://{}/oauth2/v3/userinfo", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{}/oauth2/v3/userinfo", &auth_server_domain),
                 async_issuer.userinfo_endpoint.unwrap(),
-                format!("https://{}/oauth2/v3/userinfo", &auth_server_domain)
             );
 
             assert_eq!(
+                format!("https://{}/o/oauth2/v2/auth", &auth_server_domain),
                 issuer.authorization_endpoint.unwrap(),
-                format!("https://{}/o/oauth2/v2/auth", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{}/o/oauth2/v2/auth", &auth_server_domain),
                 async_issuer.authorization_endpoint.unwrap(),
-                format!("https://{}/o/oauth2/v2/auth", &auth_server_domain)
             );
         }
 
@@ -398,12 +398,12 @@ mod issuer_discovery_tests {
             let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
             assert_eq!(
+                format!("https://{}/oauth2", &auth_server_domain),
                 issuer.issuer,
-                format!("https://{}/oauth2", &auth_server_domain)
             );
             assert_eq!(
+                format!("https://{}/oauth2", &auth_server_domain),
                 async_issuer.issuer,
-                format!("https://{}/oauth2", &auth_server_domain)
             );
         }
     }
@@ -431,52 +431,52 @@ mod issuer_discovery_tests {
         let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
         let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
-        assert_eq!(issuer.claims_parameter_supported.unwrap(), false);
-        assert_eq!(async_issuer.claims_parameter_supported.unwrap(), false);
+        assert_eq!(false, issuer.claims_parameter_supported.unwrap());
+        assert_eq!(false, async_issuer.claims_parameter_supported.unwrap());
 
         assert_eq!(
+            vec!["authorization_code".to_string(), "implicit".to_string(),],
             issuer.grant_types_supported.unwrap(),
-            vec!["authorization_code".to_string(), "implicit".to_string(),]
         );
         assert_eq!(
+            vec!["authorization_code".to_string(), "implicit".to_string(),],
             async_issuer.grant_types_supported.unwrap(),
-            vec!["authorization_code".to_string(), "implicit".to_string(),]
         );
 
-        assert_eq!(issuer.request_parameter_supported.unwrap(), false);
-        assert_eq!(async_issuer.request_parameter_supported.unwrap(), false);
+        assert_eq!(false, issuer.request_parameter_supported.unwrap());
+        assert_eq!(false, async_issuer.request_parameter_supported.unwrap());
 
-        assert_eq!(issuer.request_uri_parameter_supported.unwrap(), true);
-        assert_eq!(async_issuer.request_uri_parameter_supported.unwrap(), true);
+        assert_eq!(true, issuer.request_uri_parameter_supported.unwrap());
+        assert_eq!(true, async_issuer.request_uri_parameter_supported.unwrap());
 
-        assert_eq!(issuer.require_request_uri_registration.unwrap(), false);
+        assert_eq!(false, issuer.require_request_uri_registration.unwrap());
         assert_eq!(
+            false,
             async_issuer.require_request_uri_registration.unwrap(),
-            false
         );
 
         assert_eq!(
+            vec!["query".to_string(), "fragment".to_string()],
             issuer.response_modes_supported.unwrap(),
-            vec!["query".to_string(), "fragment".to_string()]
         );
         assert_eq!(
+            vec!["query".to_string(), "fragment".to_string()],
             async_issuer.response_modes_supported.unwrap(),
-            vec!["query".to_string(), "fragment".to_string()]
         );
 
-        assert_eq!(issuer.claim_types_supported, vec!["normal".to_string()]);
+        assert_eq!(vec!["normal".to_string()], issuer.claim_types_supported);
         assert_eq!(
+            vec!["normal".to_string()],
             async_issuer.claim_types_supported,
-            vec!["normal".to_string()]
         );
 
         assert_eq!(
+            vec!["client_secret_basic".to_string()],
             issuer.token_endpoint_auth_methods_supported.unwrap(),
-            vec!["client_secret_basic".to_string()]
         );
         assert_eq!(
+            vec!["client_secret_basic".to_string()],
             async_issuer.token_endpoint_auth_methods_supported.unwrap(),
-            vec!["client_secret_basic".to_string()]
         );
     }
 
@@ -500,52 +500,52 @@ mod issuer_discovery_tests {
         let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
         let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
 
-        assert_eq!(issuer.claims_parameter_supported.unwrap(), false);
-        assert_eq!(async_issuer.claims_parameter_supported.unwrap(), false);
+        assert_eq!(false, issuer.claims_parameter_supported.unwrap());
+        assert_eq!(false, async_issuer.claims_parameter_supported.unwrap());
 
         assert_eq!(
+            vec!["authorization_code".to_string(), "implicit".to_string(),],
             issuer.grant_types_supported.unwrap(),
-            vec!["authorization_code".to_string(), "implicit".to_string(),]
         );
         assert_eq!(
+            vec!["authorization_code".to_string(), "implicit".to_string(),],
             async_issuer.grant_types_supported.unwrap(),
-            vec!["authorization_code".to_string(), "implicit".to_string(),]
         );
 
-        assert_eq!(issuer.request_parameter_supported.unwrap(), false);
-        assert_eq!(async_issuer.request_parameter_supported.unwrap(), false);
+        assert_eq!(false, issuer.request_parameter_supported.unwrap());
+        assert_eq!(false, async_issuer.request_parameter_supported.unwrap());
 
-        assert_eq!(issuer.request_uri_parameter_supported.unwrap(), true);
-        assert_eq!(async_issuer.request_uri_parameter_supported.unwrap(), true);
+        assert_eq!(true, issuer.request_uri_parameter_supported.unwrap());
+        assert_eq!(true, async_issuer.request_uri_parameter_supported.unwrap());
 
-        assert_eq!(issuer.require_request_uri_registration.unwrap(), false);
+        assert_eq!(false, issuer.require_request_uri_registration.unwrap());
         assert_eq!(
+            false,
             async_issuer.require_request_uri_registration.unwrap(),
-            false
         );
 
         assert_eq!(
+            vec!["query".to_string(), "fragment".to_string()],
             issuer.response_modes_supported.unwrap(),
-            vec!["query".to_string(), "fragment".to_string()]
         );
         assert_eq!(
+            vec!["query".to_string(), "fragment".to_string()],
             async_issuer.response_modes_supported.unwrap(),
-            vec!["query".to_string(), "fragment".to_string()]
         );
 
-        assert_eq!(issuer.claim_types_supported, vec!["normal".to_string()]);
+        assert_eq!(vec!["normal".to_string()], issuer.claim_types_supported);
         assert_eq!(
+            vec!["normal".to_string()],
             async_issuer.claim_types_supported,
-            vec!["normal".to_string()]
         );
 
         assert_eq!(
+            vec!["client_secret_basic".to_string()],
             issuer.token_endpoint_auth_methods_supported.unwrap(),
-            vec!["client_secret_basic".to_string()]
         );
         assert_eq!(
+            vec!["client_secret_basic".to_string()],
             async_issuer.token_endpoint_auth_methods_supported.unwrap(),
-            vec!["client_secret_basic".to_string()]
         );
     }
 
@@ -567,37 +567,43 @@ mod issuer_discovery_tests {
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
         let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
-        assert_eq!(error.name, "OPError");
-        assert_eq!(async_error.name, "OPError");
+        assert!(error.is_op_error());
+        assert!(error_async.is_op_error());
 
-        assert_eq!(error.error, "server_error");
-        assert_eq!(async_error.error, "server_error");
+        let err = error.op_error().error;
+        let err_async = error_async.op_error().error;
 
-        assert_eq!(error.error_description, "bad things are happening");
-        assert_eq!(async_error.error_description, "bad things are happening");
+        assert_eq!(err.error, "server_error");
+        assert_eq!(err_async.error, "server_error");
+
+        assert_eq!(
+            Some("bad things are happening".to_string()),
+            err.error_description
+        );
+        assert_eq!(
+            Some("bad things are happening".to_string()),
+            err_async.error_description
+        );
     }
 
     #[test]
     fn is_rejected_with_error_when_no_absolute_url_is_provided() {
         let error = Issuer::discover("op.example.com/.well-known/foobar", None).unwrap_err();
-        let async_error =
+        let error_async =
             get_async_issuer_discovery("op.example.com/.well-known/foobar").unwrap_err();
 
-        assert_eq!(error.name, "TypeError");
-        assert_eq!(async_error.name, "TypeError");
+        assert!(error.is_type_error());
+        assert!(error_async.is_type_error());
 
-        assert_eq!(error.error, "invalid_url");
-        assert_eq!(async_error.error, "invalid_url");
+        let err = error.type_error().error;
+        let err_async = error_async.type_error().error;
 
+        assert_eq!("only valid absolute URLs can be requested", err.message,);
         assert_eq!(
-            error.error_description,
-            "only valid absolute URLs can be requested"
-        );
-        assert_eq!(
-            async_error.error_description,
-            "only valid absolute URLs can be requested"
+            "only valid absolute URLs can be requested",
+            err_async.message,
         );
     }
 
@@ -618,21 +624,24 @@ mod issuer_discovery_tests {
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
         let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
-        assert_eq!(error.name, "OPError");
-        assert_eq!(async_error.name, "OPError");
+        assert!(error.is_op_error());
+        assert!(error_async.is_op_error());
 
-        assert_eq!(error.error, "server_error");
-        assert_eq!(async_error.error, "server_error");
+        let err = error.op_error().error;
+        let err_async = error_async.op_error().error;
+
+        assert_eq!("server_error", err.error);
+        assert_eq!("server_error", err_async.error);
 
         assert_eq!(
-            error.error_description,
-            "expected 200 OK, got: 400 Bad Request"
+            Some("expected 200 OK, got: 400 Bad Request".to_string()),
+            err.error_description,
         );
         assert_eq!(
-            async_error.error_description,
-            "expected 200 OK, got: 400 Bad Request"
+            Some("expected 200 OK, got: 400 Bad Request".to_string()),
+            err_async.error_description,
         );
     }
 
@@ -652,25 +661,28 @@ mod issuer_discovery_tests {
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
         let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
-        assert_eq!(error.name, "OPError");
-        assert_eq!(async_error.name, "OPError");
+        assert!(error.is_op_error());
+        assert!(error_async.is_op_error());
 
-        assert_eq!(error.error, "server_error");
-        assert_eq!(async_error.error, "server_error");
+        let err = error.op_error();
+        let err_async = error_async.op_error();
+
+        assert_eq!("server_error", err.error.error);
+        assert_eq!("server_error", err_async.error.error);
 
         assert_eq!(
-            error.error_description,
-            "expected 200 OK, got: 500 Internal Server Error"
+            Some("expected 200 OK, got: 500 Internal Server Error".to_string()),
+            err.error.error_description,
         );
         assert_eq!(
-            async_error.error_description,
-            "expected 200 OK, got: 500 Internal Server Error"
+            Some("expected 200 OK, got: 500 Internal Server Error".to_string()),
+            err_async.error.error_description,
         );
 
-        assert!(error.response.is_some());
-        assert!(async_error.response.is_some());
+        assert!(err.response.is_some());
+        assert!(err_async.response.is_some());
     }
 
     #[test]
@@ -689,19 +701,19 @@ mod issuer_discovery_tests {
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
         let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
-        assert_eq!(error.name, "TypeError");
-        assert_eq!(async_error.name, "TypeError");
+        assert!(error.is_type_error());
+        assert!(error_async.is_type_error());
 
-        assert_eq!(error.error, "parse_error");
-        assert_eq!(async_error.error, "parse_error");
+        let err = error.type_error();
+        let err_async = error_async.type_error();
 
-        assert_eq!(error.error_description, "unexpected body type");
-        assert_eq!(async_error.error_description, "unexpected body type");
+        assert_eq!("unexpected body type", err.error.message);
+        assert_eq!("unexpected body type", err_async.error.message);
 
-        assert!(error.response.is_some());
-        assert!(async_error.response.is_some());
+        assert!(err.response.is_some());
+        assert!(err_async.response.is_some());
     }
 
     #[test]
@@ -720,21 +732,24 @@ mod issuer_discovery_tests {
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
         let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
-        assert_eq!(error.name, "OPError");
-        assert_eq!(async_error.name, "OPError");
+        assert!(error.is_op_error());
+        assert!(error_async.is_op_error());
 
-        assert_eq!(error.error, "server_error");
-        assert_eq!(async_error.error, "server_error");
+        let err = error.op_error().error;
+        let err_async = error_async.op_error().error;
+
+        assert_eq!("server_error", err.error);
+        assert_eq!("server_error", err_async.error);
 
         assert_eq!(
-            error.error_description,
-            "expected 200 OK with body but no body was returned"
+            Some("expected 200 OK with body but no body was returned".to_string()),
+            err.error_description,
         );
         assert_eq!(
-            async_error.error_description,
-            "expected 200 OK with body but no body was returned"
+            Some("expected 200 OK with body but no body was returned".to_string()),
+            err_async.error_description,
         );
     }
 
@@ -754,21 +769,24 @@ mod issuer_discovery_tests {
         let issuer_discovery_url = format!("https://{}", auth_server_domain);
 
         let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let async_error = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
 
-        assert_eq!(error.name, "OPError");
-        assert_eq!(async_error.name, "OPError");
+        assert!(error.is_op_error());
+        assert!(error_async.is_op_error());
 
-        assert_eq!(error.error, "server_error");
-        assert_eq!(async_error.error, "server_error");
+        let err = error.op_error().error;
+        let err_async = error_async.op_error().error;
+
+        assert_eq!("server_error", err.error);
+        assert_eq!("server_error", err_async.error);
 
         assert_eq!(
-            error.error_description,
-            "expected 200 OK, got: 301 Moved Permanently"
+            Some("expected 200 OK, got: 301 Moved Permanently".to_string()),
+            err.error_description,
         );
         assert_eq!(
-            async_error.error_description,
-            "expected 200 OK, got: 301 Moved Permanently"
+            Some("expected 200 OK, got: 301 Moved Permanently".to_string()),
+            err_async.error_description,
         );
     }
 
@@ -790,7 +808,7 @@ mod issuer_discovery_tests {
 
             let auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
-                    .header_exists("testHeader")
+                    .header("testHeader", "testHeaderValue")
                     .path("/.well-known/custom-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
@@ -828,7 +846,7 @@ mod issuer_discovery_tests {
 
             let auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
-                    .header_exists("testHeader")
+                    .header("testHeader", "testHeaderValue")
                     .path("/.well-known/custom-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
@@ -941,15 +959,15 @@ mod issuer_webfinger_tests {
         let resource = format!("joe@{}", auth_server_domain);
 
         let error = Issuer::webfinger(&resource, None).unwrap_err();
-        let async_error = get_async_webfinger_discovery(&resource).unwrap_err();
+        let error_async = get_async_webfinger_discovery(&resource).unwrap_err();
 
         assert_eq!(
-            error.error_description,
-            "no issuer found in webfinger response"
+            "no issuer found in webfinger response",
+            error.rp_error().error.message,
         );
         assert_eq!(
-            async_error.error_description,
-            "no issuer found in webfinger response"
+            "no issuer found in webfinger response",
+            error_async.rp_error().error.message,
         );
     }
 
@@ -971,15 +989,22 @@ mod issuer_webfinger_tests {
         let resource = format!("joe@{}", auth_server_domain);
 
         let error = Issuer::webfinger(&resource, None).unwrap_err();
-        let async_error = get_async_webfinger_discovery(&resource).unwrap_err();
+        let error_async = get_async_webfinger_discovery(&resource).unwrap_err();
 
         assert_eq!(
-            error.error_description,
-            format!("invalid issuer location https://{}", auth_server_domain)
+            Some(format!(
+                "invalid issuer location https://{}",
+                auth_server_domain
+            )),
+            error.op_error().error.error_description,
         );
+
         assert_eq!(
-            async_error.error_description,
-            format!("invalid issuer location https://{}", auth_server_domain)
+            Some(format!(
+                "invalid issuer location https://{}",
+                auth_server_domain
+            )),
+            error_async.op_error().error.error_description,
         );
     }
 
@@ -1001,10 +1026,17 @@ mod issuer_webfinger_tests {
         let resource = format!("joe@{}", auth_server_domain);
 
         let error = Issuer::webfinger(&resource, None).unwrap_err();
-        let async_error = get_async_webfinger_discovery(&resource).unwrap_err();
+        let error_async = get_async_webfinger_discovery(&resource).unwrap_err();
 
-        assert_eq!(error.error_description, "invalid issuer location 1");
-        assert_eq!(async_error.error_description, "invalid issuer location 1");
+        assert_eq!(
+            Some("invalid issuer location 1".to_string()),
+            error.op_error().error.error_description
+        );
+
+        assert_eq!(
+            Some("invalid issuer location 1".to_string()),
+            error_async.op_error().error.error_description,
+        );
     }
 
     // Todo: not implementing cache right now
@@ -1062,21 +1094,21 @@ mod issuer_webfinger_tests {
         let resource = format!("joe@{}", auth_server_domain);
 
         let error = Issuer::webfinger(&resource, None).unwrap_err();
-        let async_error = get_async_webfinger_discovery(&resource).unwrap_err();
+        let error_async = get_async_webfinger_discovery(&resource).unwrap_err();
 
         assert_eq!(
-            format!(
+            Some(format!(
                 "discovered issuer mismatch, expected https://{}, got: https://another.issuer.com",
                 auth_server_domain
-            ),
-            error.error_description
+            )),
+            error.op_error().error.error_description,
         );
         assert_eq!(
-            format!(
+            Some(format!(
                 "discovered issuer mismatch, expected https://{}, got: https://another.issuer.com",
                 auth_server_domain
-            ),
-            async_error.error_description
+            )),
+            error_async.op_error().error.error_description,
         );
 
         webfinger_mock_server.assert_hits(2);
@@ -1369,27 +1401,27 @@ mod issuer_new {
         let issuer = Issuer::new(metadata, None);
 
         assert_eq!(
+            token_endpoint_auth_methods_supported(),
             issuer
                 .introspection_endpoint_auth_methods_supported
                 .unwrap(),
-            token_endpoint_auth_methods_supported()
         );
         assert_eq!(
+            token_endpoint_auth_methods_supported(),
             issuer.revocation_endpoint_auth_methods_supported.unwrap(),
-            token_endpoint_auth_methods_supported()
         );
 
         assert_eq!(
+            token_endpoint_auth_signing_alg_values_supported(),
             issuer
                 .revocation_endpoint_auth_signing_alg_values_supported
                 .unwrap(),
-            token_endpoint_auth_signing_alg_values_supported()
         );
         assert_eq!(
+            token_endpoint_auth_signing_alg_values_supported(),
             issuer
                 .introspection_endpoint_auth_signing_alg_values_supported
                 .unwrap(),
-            token_endpoint_auth_signing_alg_values_supported()
         );
     }
 
@@ -1409,11 +1441,11 @@ mod issuer_new {
 
         let issuer = Issuer::new(metadata, None);
 
-        assert_eq!(issuer.issuer, "https://op.example.com".to_string());
+        assert_eq!("https://op.example.com".to_string(), issuer.issuer);
         assert!(issuer.other_fields.contains_key("foo"));
         assert_eq!(
+            Some(&serde_json::Value::String("bar".to_string())),
             issuer.other_fields.get("foo"),
-            Some(&serde_json::Value::String("bar".to_string()))
         );
     }
 }
@@ -1435,20 +1467,27 @@ mod issuer_instance {
 
         assert!(issuer.get_keystore(false).is_err());
         assert_eq!(
-            issuer.get_keystore(false).unwrap_err().error_description,
-            "jwks_uri must be configured on the issuer".to_string()
+            "jwks_uri must be configured on the issuer".to_string(),
+            issuer
+                .get_keystore(false)
+                .unwrap_err()
+                .type_error()
+                .error
+                .message,
         );
 
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
         async_runtime.block_on(async {
             assert!(issuer.get_keystore_async(false).await.is_err());
             assert_eq!(
+                "jwks_uri must be configured on the issuer".to_string(),
                 issuer
                     .get_keystore_async(false)
                     .await
                     .unwrap_err()
-                    .error_description,
-                "jwks_uri must be configured on the issuer".to_string()
+                    .type_error()
+                    .error
+                    .message,
             );
         });
     }
@@ -1637,7 +1676,7 @@ mod issuer_instance {
 
         let error = jwk_result.unwrap_err();
 
-        assert_eq!(expected_error, error.error_description);
+        assert_eq!(expected_error, error.error().error.message);
 
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
         async_runtime.block_on(async {
@@ -1653,7 +1692,7 @@ mod issuer_instance {
 
             let error_async = jwk_result_async.unwrap_err();
 
-            assert_eq!(expected_error, error_async.error_description);
+            assert_eq!(expected_error, error_async.error().error.message);
         });
     }
 
@@ -1694,7 +1733,7 @@ mod issuer_instance {
 
         let error = jwk_result.unwrap_err();
 
-        assert_eq!(expected_error, error.error_description);
+        assert_eq!(expected_error, error.error().error.message);
 
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
         async_runtime.block_on(async {
@@ -1706,7 +1745,7 @@ mod issuer_instance {
 
             let error_async = jwk_result_async.unwrap_err();
 
-            assert_eq!(expected_error, error_async.error_description);
+            assert_eq!(expected_error, error_async.error().error.message);
         });
     }
 
@@ -1788,7 +1827,9 @@ mod issuer_instance {
             let jwks_uri = format!("https://{}/jwks", auth_server_domain);
 
             let jwks_mock_server = mock_http_server.mock(|when, then| {
-                when.method(GET).header_exists("testHeader").path("/jwks");
+                when.method(GET)
+                    .header("testHeader", "testHeaderValue")
+                    .path("/jwks");
 
                 then.status(200)
                     .header("content-type", "application/jwk-set+json")
@@ -1837,7 +1878,9 @@ mod issuer_instance {
             let jwks_uri = format!("https://{}/jwks", auth_server_domain);
 
             let jwks_mock_server = mock_http_server.mock(|when, then| {
-                when.method(GET).header_exists("testHeader").path("/jwks");
+                when.method(GET)
+                    .header("testHeader", "testHeaderValue")
+                    .path("/jwks");
 
                 then.status(200)
                     .header("content-type", "application/jwk-set+json")

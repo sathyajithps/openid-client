@@ -204,9 +204,7 @@ impl Client {
         }
 
         if !valid_client_id {
-            return Err(OidcClientError::new(
-                "MetadataError",
-                "client_id is required",
+            return Err(OidcClientError::new_type_error(
                 "client_id is required",
                 None,
             ));
@@ -251,9 +249,7 @@ impl Client {
         }
 
         if metadata.response_type.is_some() && metadata.response_types.is_some() {
-            return Err(OidcClientError::new(
-                "TypeError",
-                "invalid configuration",
+            return Err(OidcClientError::new_type_error(
                 "provide a response_type or response_types, not both",
                 None,
             ));
@@ -269,9 +265,7 @@ impl Client {
         }
 
         if metadata.redirect_uri.is_some() && metadata.redirect_uris.is_some() {
-            return Err(OidcClientError::new(
-                "TypeError",
-                "invalid configuration",
+            return Err(OidcClientError::new_type_error(
                 "provide a redirect_uri or redirect_uris, not both",
                 None,
             ));
@@ -367,9 +361,7 @@ impl Client {
                 && supported_alg.is_none()
                 && issuer_supported_alg_values.is_none()
             {
-                return Err(OidcClientError::new(
-                "TypeError",
-                "invalid configuration",
+                return Err(OidcClientError::new_type_error(
                 &format!("{0}_endpoint_auth_signing_alg_values_supported must be configured on the issuer if {0}_endpoint_auth_signing_alg is not defined on a client", endpoint),
                 None
             ));
@@ -744,9 +736,7 @@ impl Client {
     ) -> Result<(), OidcClientError> {
         if let Some(jwks) = jwks {
             if !jwks.is_only_private_keys() || jwks.has_oct_keys() {
-                return Err(OidcClientError::new(
-                    "TypeError",
-                    "invalid configuration",
+                return Err(OidcClientError::new_error(
                     "jwks must only contain private keys",
                     None,
                 ));
@@ -771,9 +761,7 @@ impl Client {
             let header_value = match HeaderValue::from_str(&format!("Bearer {}", rat)) {
                 Ok(v) => v,
                 Err(_) => {
-                    return Err(OidcClientError::new(
-                        "TypeError",
-                        "invalid access_token",
+                    return Err(OidcClientError::new_type_error(
                         &format!("registration_access_token {} is invalid", rat),
                         None,
                     ))
@@ -803,10 +791,12 @@ impl Client {
     ) -> Result<Self, OidcClientError> {
         let client_metadata = convert_json_to::<ClientMetadata>(response.body.as_ref().unwrap())
             .map_err(|_| {
-                OidcClientError::new(
-                    "OPError",
-                    "invalid_client_metadata",
-                    "invalid client metadata",
+                OidcClientError::new_op_error(
+                    "invalid client metadata".to_string(),
+                    Some("error while deserializing".to_string()),
+                    None,
+                    None,
+                    None,
                     Some(response),
                 )
             })?;
@@ -825,9 +815,7 @@ impl Client {
     ) -> Result<(Option<String>, Option<Jwks>, Option<ClientOptions>, String), OidcClientError>
     {
         if issuer.registration_endpoint.is_none() {
-            return Err(OidcClientError::new(
-                "TypeError",
-                "invalid configuration",
+            return Err(OidcClientError::new_type_error(
                 "registration_endpoint must be configured on the issuer",
                 None,
             ));
@@ -871,12 +859,7 @@ impl Client {
         let url = validate_url(registration_endpoint)?;
 
         let body = serde_json::to_value(registration_metadata).map_err(|_| {
-            OidcClientError::new(
-                "TypeError",
-                "invalid registration metadata",
-                "metadata is an invalid json",
-                None,
-            )
+            OidcClientError::new_error("client metadata is an invalid json format", None)
         })?;
 
         let mut headers = HeaderMap::new();
@@ -886,10 +869,8 @@ impl Client {
             let header_value = match HeaderValue::from_str(&format!("Bearer {}", iat)) {
                 Ok(v) => v,
                 Err(_) => {
-                    return Err(OidcClientError::new(
-                        "TypeError",
-                        "invalid access_token",
-                        &format!("initial_access_token {} is invalid", iat),
+                    return Err(OidcClientError::new_error(
+                        "access token is invalid. wtf?",
                         None,
                     ))
                 }
@@ -920,10 +901,12 @@ impl Client {
     ) -> Result<Self, OidcClientError> {
         let client_metadata = convert_json_to::<ClientMetadata>(response.body.as_ref().unwrap())
             .map_err(|_| {
-                OidcClientError::new(
-                    "OPError",
-                    "invalid_client_metadata",
-                    "invalid client metadata",
+                OidcClientError::new_op_error(
+                    "invalid client metadata".to_string(),
+                    None,
+                    None,
+                    None,
+                    None,
                     Some(response),
                 )
             })?;

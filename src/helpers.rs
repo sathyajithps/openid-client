@@ -2,14 +2,12 @@ use httpmock::Regex;
 use reqwest::{header::HeaderValue, Url};
 use serde::Deserialize;
 
-use crate::types::{OidcClientError, Response};
+use crate::types::{OidcClientError, Response, StandardBodyError};
 
 pub(crate) fn validate_url(url: &str) -> Result<Url, OidcClientError> {
     let url_result = Url::parse(url);
     if url_result.is_err() {
-        return Err(OidcClientError::new(
-            "TypeError",
-            "invalid_url",
+        return Err(OidcClientError::new_type_error(
             "only valid absolute URLs can be requested",
             None,
         ));
@@ -81,12 +79,13 @@ pub(crate) fn parse_www_authenticate_error(
     if let Ok(header_value_str) = header_value.to_str() {
         let regex = Regex::new(r#"(\w+)=("[^"]*")"#).unwrap();
 
-        let mut oidc_error = OidcClientError::new(
-            "OPError",
-            "authentication_error",
-            "authentication_error",
-            Some(response.clone()),
-        );
+        let mut oidc_error = StandardBodyError {
+            error: "".to_string(),
+            error_description: None,
+            error_uri: None,
+            scope: None,
+            state: None,
+        };
 
         for capture in regex.captures_iter(header_value_str) {
             if let Some(key_match) = capture.get(1) {
@@ -100,13 +99,20 @@ pub(crate) fn parse_www_authenticate_error(
                     }
 
                     if key_str == "error_description" {
-                        oidc_error.error_description = value.to_string();
+                        oidc_error.error_description = Some(value.to_string());
                     }
                 }
             }
         }
 
-        return Err(oidc_error);
+        if oidc_error.error.is_empty() {
+            return Err(OidcClientError::new_error(
+                "www authenticate error",
+                Some(response.clone()),
+            ));
+        }
+
+        return Err(OidcClientError::OPError(oidc_error, Some(response.clone())));
     }
 
     Ok(())

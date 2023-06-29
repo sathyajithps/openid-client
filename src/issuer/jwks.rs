@@ -56,9 +56,7 @@ impl Issuer {
 
     fn jwks_uri_check(&mut self) -> Result<(), OidcClientError> {
         if self.jwks_uri.is_none() {
-            return Err(OidcClientError::new(
-                "TypeError",
-                "jwks_uri_invalid",
+            return Err(OidcClientError::new_type_error(
                 "jwks_uri must be configured on the issuer",
                 None,
             ));
@@ -108,23 +106,13 @@ fn internal_get_jwk(
     let unwrapped_alg = alg.or_else(|| Some("".to_string())).unwrap();
 
     if matched_keys.is_empty() {
-        let error_description = format!("no valid key found in issuer\'s jwks_uri for key parameters kid: {}, alg: {}, key_use: {}", unwrapped_kid, unwrapped_alg, unwrapped_key_use);
-        return Err(OidcClientError::new(
-            "IssuerError",
-            "no matching key found",
-            &error_description,
-            None,
-        ));
+        let message = format!("no valid key found in issuer\'s jwks_uri for key parameters kid: {}, alg: {}, key_use: {}", unwrapped_kid, unwrapped_alg, unwrapped_key_use);
+        return Err(OidcClientError::new_error(&message, None));
     }
 
     if (kid.is_none() || unwrapped_kid.is_empty()) && matched_keys.len() > 1 {
-        let error_description = format!("multiple matching keys found in issuer\'s jwks_uri for key parameters kid: {}, key_use: {}, alg: {}, kid must be provided in this case", unwrapped_kid, unwrapped_key_use, unwrapped_alg);
-        return Err(OidcClientError::new(
-            "IssuerError",
-            "multiple matching keys found",
-            &error_description,
-            None,
-        ));
+        let message = format!("multiple matching keys found in issuer\'s jwks_uri for key parameters kid: {}, key_use: {}, alg: {}, kid must be provided in this case", unwrapped_kid, unwrapped_key_use, unwrapped_alg);
+        return Err(OidcClientError::new_error(&message, None));
     }
 
     Ok(matched_keys)
@@ -171,17 +159,21 @@ fn process_jwks_response(res: Response) -> Result<Jwks, OidcClientError> {
     match jwks_body {
         Some(body) => match convert_json_to::<Jwks>(body) {
             Ok(jwks) => Ok(jwks),
-            Err(_) => Err(OidcClientError::new(
-                "TypeErr",
-                "invalid jwks",
-                "jwks was invalid",
+            Err(_) => Err(OidcClientError::new_op_error(
+                "invalid jwks".to_string(),
+                Some("jwks was invalid".to_string()),
+                None,
+                None,
+                None,
                 Some(res),
             )),
         },
-        None => Err(OidcClientError::new(
-            "ServerError",
-            "body empty",
-            "Jwks response was empty",
+        None => Err(OidcClientError::new_op_error(
+            "body empty".to_string(),
+            Some("Jwks response was empty".to_string()),
+            None,
+            None,
+            None,
             Some(res),
         )),
     }

@@ -449,10 +449,12 @@ impl Issuer {
             match convert_json_to::<IssuerMetadata>(response.body.as_ref().unwrap()) {
                 Ok(metadata) => metadata,
                 Err(_) => {
-                    return Err(OidcClientError::new(
-                        "OPError",
-                        "invalid_issuer_metadata",
-                        "invalid issuer metadata",
+                    return Err(OidcClientError::new_op_error(
+                        "invalid_issuer_metadata".to_string(),
+                        None,
+                        None,
+                        None,
+                        None,
                         Some(response),
                     ));
                 }
@@ -619,9 +621,7 @@ impl Issuer {
         }
 
         if host.is_none() {
-            return Err(OidcClientError::new(
-                "TypeError",
-                "invalid_resource",
+            return Err(OidcClientError::new_type_error(
                 "given input was invalid",
                 None,
             ));
@@ -657,10 +657,12 @@ impl Issuer {
             match convert_json_to::<WebFingerResponse>(response.body.as_ref().unwrap()) {
                 Ok(res) => res,
                 Err(_) => {
-                    return Err(OidcClientError::new(
-                        "OPError",
-                        "invalid_webfinger_response",
-                        "invalid  webfinger response",
+                    return Err(OidcClientError::new_op_error(
+                        "invalid  webfinger response".to_string(),
+                        None,
+                        None,
+                        None,
+                        None,
                         Some(response),
                     ));
                 }
@@ -674,9 +676,7 @@ impl Issuer {
         let expected_issuer = match location_link_result {
             Some(link) => link.href.as_ref().unwrap(),
             None => {
-                return Err(OidcClientError::new(
-                    "OPError",
-                    "empty_location_link",
+                return Err(OidcClientError::new_rp_error(
                     "no issuer found in webfinger response",
                     Some(response),
                 ));
@@ -684,10 +684,12 @@ impl Issuer {
         };
 
         if !expected_issuer.starts_with("https://") {
-            return Err(OidcClientError::new(
-                "OPError",
-                "invalid_location",
-                &format!("invalid issuer location {}", expected_issuer),
+            return Err(OidcClientError::new_op_error(
+                "invalid_location".to_string(),
+                Some(format!("invalid issuer location {}", expected_issuer)),
+                None,
+                None,
+                None,
                 Some(response),
             ));
         }
@@ -700,30 +702,46 @@ impl Issuer {
         issuer_result: Result<Issuer, OidcClientError>,
         expected_issuer: String,
     ) -> Result<Issuer, OidcClientError> {
+        let mut response = None;
+
         let issuer = match issuer_result {
             Ok(i) => i,
-            Err(err) => match err.response {
-                Some(err_response) if err_response.status == StatusCode::NOT_FOUND => {
-                    return Err(OidcClientError::new(
-                        &err.name,
-                        "no_issuer",
-                        &format!("invalid issuer location {}", expected_issuer),
-                        Some(err_response),
-                    ));
+            Err(err) => {
+                response = match &err {
+                    OidcClientError::Error(_, response) => response.as_ref(),
+                    OidcClientError::TypeError(_, response) => response.as_ref(),
+                    OidcClientError::RPError(_, response) => response.as_ref(),
+                    OidcClientError::OPError(_, response) => response.as_ref(),
+                };
+
+                if let Some(error_res) = response {
+                    if error_res.status == StatusCode::NOT_FOUND {
+                        return Err(OidcClientError::new_op_error(
+                            "no_issuer".to_string(),
+                            Some(format!("invalid issuer location {}", expected_issuer)),
+                            None,
+                            None,
+                            None,
+                            Some(error_res.clone()),
+                        ));
+                    }
                 }
-                _ => return Err(err),
-            },
+
+                return Err(err);
+            }
         };
 
         if issuer.issuer != expected_issuer {
-            return Err(OidcClientError::new(
-                "OPError",
-                "issuer_mismatch",
-                &format!(
+            return Err(OidcClientError::new_op_error(
+                "issuer_mismatch".to_string(),
+                Some(format!(
                     "discovered issuer mismatch, expected {}, got: {}",
                     expected_issuer, issuer.issuer
-                ),
+                )),
                 None,
+                None,
+                None,
+                response.cloned(),
             ));
         }
 

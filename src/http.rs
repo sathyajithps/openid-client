@@ -29,9 +29,7 @@ pub fn request(
         match serde_json::to_string(json_body) {
             Ok(serialized) => req = req.body(serialized),
             _ => {
-                return Err(OidcClientError::new(
-                    "SerializeError",
-                    "invalid json",
+                return Err(OidcClientError::new_error(
                     "error while serializing body to string",
                     None,
                 ))
@@ -67,9 +65,7 @@ pub async fn request_async(
         match serde_json::to_string(json_body) {
             Ok(serialized) => req = req.body(serialized),
             _ => {
-                return Err(OidcClientError::new(
-                    "SerializeError",
-                    "invalid json",
+                return Err(OidcClientError::new_error(
                     "error while serializing body to string",
                     None,
                 ))
@@ -147,12 +143,7 @@ fn combine_and_create_new_header_map(one: &HeaderMap, two: &HeaderMap) -> Header
 
 #[inline]
 fn request_send_error() -> OidcClientError {
-    OidcClientError::new(
-        "OPError",
-        "unknown_error",
-        "error while sending the request",
-        None,
-    )
+    OidcClientError::new_error("error while sending the request", None)
 }
 
 #[inline]
@@ -163,13 +154,13 @@ fn return_error_if_not_expected_status(
     if response.status != request.expected {
         if let Some(body) = &response.body {
             let standard_body_error_result: Result<StandardBodyError, _> = convert_json_to(body);
-            if let Ok(standard_body_error) = standard_body_error_result {
-                return Err(OidcClientError::new(
-                    "OPError",
-                    &standard_body_error.error,
-                    &standard_body_error
-                        .error_description
-                        .unwrap_or("server_error".to_string()),
+            if let Ok(sbe) = standard_body_error_result {
+                return Err(OidcClientError::new_op_error(
+                    sbe.error,
+                    sbe.error_description,
+                    sbe.error_uri,
+                    sbe.scope,
+                    sbe.state,
                     Some(response),
                 ));
             } else if let Some(header_value) = response.headers.get("www-authenticate") {
@@ -179,10 +170,15 @@ fn return_error_if_not_expected_status(
             }
         }
 
-        return Err(OidcClientError::new(
-            "OPError",
-            "server_error",
-            &format!("expected {}, got: {}", request.expected, response.status),
+        return Err(OidcClientError::new_op_error(
+            "server_error".to_string(),
+            Some(format!(
+                "expected {}, got: {}",
+                request.expected, response.status
+            )),
+            None,
+            None,
+            None,
             Some(response),
         ));
     }
@@ -195,13 +191,15 @@ fn return_error_if_expected_body_is_absent(
     request: &Request,
 ) -> Result<Response, OidcClientError> {
     if request.expect_body && response.body.is_none() {
-        return Err(OidcClientError::new(
-            "OPError",
-            "server_error",
-            &format!(
+        return Err(OidcClientError::new_op_error(
+            "server_error".to_string(),
+            Some(format!(
                 "expected {} with body but no body was returned",
                 request.expected
-            ),
+            )),
+            None,
+            None,
+            None,
             Some(response),
         ));
     }
@@ -215,9 +213,7 @@ fn return_error_if_json_is_invalid(
     request: &Request,
 ) -> Result<Response, OidcClientError> {
     if request.expect_body && invalid_json {
-        return Err(OidcClientError::new(
-            "TypeError",
-            "parse_error",
+        return Err(OidcClientError::new_type_error(
             "unexpected body type",
             Some(response),
         ));
