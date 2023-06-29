@@ -15,7 +15,7 @@ mod client_new_tests {
 
         let error = client_result.unwrap_err();
 
-        assert_eq!("client_id is required", error.error_description);
+        assert_eq!("client_id is required", error.type_error().error.message);
     }
 
     #[test]
@@ -160,7 +160,7 @@ mod client_new_tests {
 
         let expected_error = "token_endpoint_auth_signing_alg_values_supported must be configured on the issuer if token_endpoint_auth_signing_alg is not defined on a client";
 
-        assert_eq!(client_error.error_description, expected_error);
+        assert_eq!(expected_error, client_error.type_error().error.message);
     }
 
     #[test]
@@ -185,7 +185,7 @@ mod client_new_tests {
 
         let expected_error = "introspection_endpoint_auth_signing_alg_values_supported must be configured on the issuer if introspection_endpoint_auth_signing_alg is not defined on a client";
 
-        assert_eq!(client_error.error_description, expected_error);
+        assert_eq!(expected_error, client_error.type_error().error.message);
     }
 
     #[test]
@@ -210,7 +210,7 @@ mod client_new_tests {
 
         let expected_error = "revocation_endpoint_auth_signing_alg_values_supported must be configured on the issuer if revocation_endpoint_auth_signing_alg is not defined on a client";
 
-        assert_eq!(client_error.error_description, expected_error);
+        assert_eq!(expected_error, client_error.type_error().error.message);
     }
 
     #[test]
@@ -249,8 +249,8 @@ mod client_new_tests {
 
         let client = issuer.client(client_metadata, None, None, None).unwrap();
 
-        assert_eq!(client.get_redirect_uri().unwrap(), redirect_uri());
-        assert_eq!(client.get_redirect_uris().unwrap(), vec![redirect_uri()]);
+        assert_eq!(redirect_uri(), client.get_redirect_uri().unwrap());
+        assert_eq!(vec![redirect_uri()], client.get_redirect_uris().unwrap());
     }
 
     #[test]
@@ -269,9 +269,10 @@ mod client_new_tests {
         let client_error = issuer
             .client(client_metadata, None, None, None)
             .unwrap_err();
+
         assert_eq!(
             "provide a redirect_uri or redirect_uris, not both".to_string(),
-            client_error.error_description
+            client_error.type_error().error.message
         );
     }
 
@@ -289,8 +290,8 @@ mod client_new_tests {
 
         let client = issuer.client(client_metadata, None, None, None).unwrap();
 
-        assert_eq!(client.get_response_type().unwrap(), response_type());
-        assert_eq!(client.get_response_types(), vec![response_type()]);
+        assert_eq!(response_type(), client.get_response_type().unwrap());
+        assert_eq!(vec![response_type()], client.get_response_types());
     }
 
     #[test]
@@ -309,9 +310,10 @@ mod client_new_tests {
         let client_error = issuer
             .client(client_metadata, None, None, None)
             .unwrap_err();
+
         assert_eq!(
             "provide a response_type or response_types, not both".to_string(),
-            client_error.error_description
+            client_error.type_error().error.message
         );
     }
 
@@ -429,16 +431,22 @@ mod client_new_tests {
             let client_error_async =
                 get_async_client_discovery(&client_registration_uri).unwrap_err();
 
-            assert_eq!("OPError", client_error.name);
-            assert_eq!("OPError", client_error_async.name);
+            assert!(client_error.is_op_error());
+            assert!(client_error_async.is_op_error());
 
-            assert_eq!("server_error", client_error.error);
-            assert_eq!("server_error", client_error_async.error);
+            let err = client_error.op_error().error;
+            let err_async = client_error_async.op_error().error;
 
-            assert_eq!("bad things are happening", client_error.error_description);
+            assert_eq!("server_error", err.error);
+            assert_eq!("server_error", err_async.error);
+
             assert_eq!(
-                "bad things are happening",
-                client_error_async.error_description
+                Some("bad things are happening".to_string()),
+                err.error_description
+            );
+            assert_eq!(
+                Some("bad things are happening".to_string()),
+                err_async.error_description
             );
         }
 
@@ -467,16 +475,22 @@ mod client_new_tests {
             let client_error_async =
                 get_async_client_discovery(&client_registration_uri).unwrap_err();
 
-            assert_eq!("OPError", client_error.name);
-            assert_eq!("OPError", client_error_async.name);
+            assert!(client_error.is_op_error());
+            assert!(client_error_async.is_op_error());
 
-            assert_eq!("invalid_token", client_error.error);
-            assert_eq!("invalid_token", client_error_async.error);
+            let err = client_error.op_error().error;
+            let err_async = client_error_async.op_error().error;
 
-            assert_eq!("bad things are happening", client_error.error_description);
+            assert_eq!("invalid_token", err.error);
+            assert_eq!("invalid_token", err_async.error);
+
             assert_eq!(
-                "bad things are happening",
-                client_error_async.error_description
+                Some("bad things are happening".to_string()),
+                err.error_description
+            );
+            assert_eq!(
+                Some("bad things are happening".to_string()),
+                err_async.error_description
             );
         }
 
@@ -503,19 +517,22 @@ mod client_new_tests {
             let client_error_async =
                 get_async_client_discovery(&client_registration_uri).unwrap_err();
 
-            assert_eq!("OPError", client_error.name);
-            assert_eq!("OPError", client_error_async.name);
+            assert!(client_error.is_op_error());
+            assert!(client_error_async.is_op_error());
 
-            assert!(client_error.response.is_some());
-            assert!(client_error_async.response.is_some());
+            let err = client_error.op_error();
+            let err_async = client_error_async.op_error();
+
+            assert!(err.response.is_some());
+            assert!(err_async.response.is_some());
 
             assert_eq!(
-                "expected 200 OK, got: 500 Internal Server Error",
-                client_error.error_description
+                Some("expected 200 OK, got: 500 Internal Server Error".to_string()),
+                err.error.error_description
             );
             assert_eq!(
-                "expected 200 OK, got: 500 Internal Server Error",
-                client_error_async.error_description
+                Some("expected 200 OK, got: 500 Internal Server Error".to_string()),
+                err_async.error.error_description
             );
         }
 
@@ -542,14 +559,14 @@ mod client_new_tests {
             let client_error_async =
                 get_async_client_discovery(&client_registration_uri).unwrap_err();
 
-            assert_eq!(client_error.name, "TypeError");
-            assert_eq!(client_error_async.name, "TypeError");
+            assert!(client_error.is_type_error());
+            assert!(client_error_async.is_type_error());
 
-            assert_eq!(client_error.error, "parse_error");
-            assert_eq!(client_error_async.error, "parse_error");
+            let err = client_error.type_error().error;
+            let err_async = client_error_async.type_error().error;
 
-            assert_eq!(client_error.error_description, "unexpected body type");
-            assert_eq!(client_error_async.error_description, "unexpected body type");
+            assert_eq!("unexpected body type", err.message);
+            assert_eq!("unexpected body type", err_async.message);
         }
 
         #[test]
@@ -578,13 +595,13 @@ mod client_new_tests {
 
                 assert_eq!(
                     "jwks must only contain private keys",
-                    client_error_async.error_description
+                    client_error_async.error().error.message
                 );
             });
 
             assert_eq!(
                 "jwks must only contain private keys",
-                client_error.error_description
+                client_error.error().error.message
             );
         }
 
@@ -613,13 +630,13 @@ mod client_new_tests {
 
                 assert_eq!(
                     "jwks must only contain private keys",
-                    client_error_async.error_description
+                    client_error_async.error().error.message
                 );
             });
 
             assert_eq!(
                 "jwks must only contain private keys",
-                client_error.error_description
+                client_error.error().error.message
             );
         }
 
@@ -641,7 +658,7 @@ mod client_new_tests {
 
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.method(GET)
-                        .header_exists("testHeader")
+                        .header("testHeader", "testHeaderValue")
                         .path("/client/identifier");
                     then.status(200)
                         .header("content-type", "application/json")
@@ -684,7 +701,7 @@ mod client_new_tests {
 
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.method(GET)
-                        .header_exists("testHeader")
+                        .header("testHeader", "testHeaderValue")
                         .path("/client/identifier");
                     then.status(200)
                         .header("content-type", "application/json")
@@ -759,13 +776,13 @@ mod client_new_tests {
 
                 assert_eq!(
                     "registration_endpoint must be configured on the issuer",
-                    client_error_async.error_description
+                    client_error_async.type_error().error.message
                 );
             });
 
             assert_eq!(
                 "registration_endpoint must be configured on the issuer",
-                client_error.error_description
+                client_error.type_error().error.message
             );
         }
 
@@ -870,21 +887,28 @@ mod client_new_tests {
                         .await
                         .unwrap_err();
 
-                assert_eq!("OPError", client_error_async.name);
+                assert!(client_error_async.is_op_error());
 
-                assert_eq!("server_error", client_error_async.error);
+                let err_async = client_error_async.op_error().error;
+
+                assert_eq!("server_error", err_async.error);
 
                 assert_eq!(
-                    "bad things are happening",
-                    client_error_async.error_description
+                    Some("bad things are happening".to_string()),
+                    err_async.error_description
                 );
             });
 
-            assert_eq!("OPError", client_error.name);
+            assert!(client_error.is_op_error());
 
-            assert_eq!("server_error", client_error.error);
+            let err = client_error.op_error().error;
 
-            assert_eq!("bad things are happening", client_error.error_description);
+            assert_eq!("server_error", err.error);
+
+            assert_eq!(
+                Some("bad things are happening".to_string()),
+                err.error_description
+            );
         }
 
         #[test]
@@ -923,21 +947,28 @@ mod client_new_tests {
                         .await
                         .unwrap_err();
 
-                assert_eq!("OPError", client_error_async.name);
+                assert!(client_error_async.is_op_error());
 
-                assert_eq!("invalid_token", client_error_async.error);
+                let err_async = client_error_async.op_error().error;
+
+                assert_eq!("invalid_token", err_async.error);
 
                 assert_eq!(
-                    "bad things are happening",
-                    client_error_async.error_description
+                    Some("bad things are happening".to_string()),
+                    err_async.error_description
                 );
             });
 
-            assert_eq!("OPError", client_error.name);
+            assert!(client_error.is_op_error());
 
-            assert_eq!("invalid_token", client_error.error);
+            let err = client_error.op_error().error;
 
-            assert_eq!("bad things are happening", client_error.error_description);
+            assert_eq!("invalid_token", err.error);
+
+            assert_eq!(
+                Some("bad things are happening".to_string()),
+                err.error_description
+            );
         }
 
         #[test]
@@ -974,23 +1005,27 @@ mod client_new_tests {
                         .await
                         .unwrap_err();
 
-                assert_eq!("OPError", client_error_async.name);
+                assert!(client_error_async.is_op_error());
 
-                assert!(client_error_async.response.is_some());
+                let err_async = client_error_async.op_error();
+
+                assert!(err_async.response.is_some());
 
                 assert_eq!(
-                    "expected 201 Created, got: 500 Internal Server Error",
-                    client_error_async.error_description
+                    Some("expected 201 Created, got: 500 Internal Server Error".to_string()),
+                    err_async.error.error_description
                 );
             });
 
-            assert_eq!("OPError", client_error.name);
+            assert!(client_error.is_op_error());
 
-            assert!(client_error.response.is_some());
+            let err = client_error.op_error();
+
+            assert!(err.response.is_some());
 
             assert_eq!(
-                "expected 201 Created, got: 500 Internal Server Error",
-                client_error.error_description
+                Some("expected 201 Created, got: 500 Internal Server Error".to_string()),
+                err.error.error_description
             );
         }
 
@@ -1027,18 +1062,18 @@ mod client_new_tests {
                         .await
                         .unwrap_err();
 
-                assert_eq!(client_error_async.name, "TypeError");
+                assert!(client_error_async.is_type_error());
 
-                assert_eq!(client_error_async.error, "parse_error");
+                let err_async = client_error_async.type_error().error;
 
-                assert_eq!(client_error_async.error_description, "unexpected body type");
+                assert_eq!("unexpected body type", err_async.message);
             });
 
-            assert_eq!(client_error.name, "TypeError");
+            assert!(client_error.is_type_error());
 
-            assert_eq!(client_error.error, "parse_error");
+            let err = client_error.type_error().error;
 
-            assert_eq!(client_error.error_description, "unexpected body type");
+            assert_eq!("unexpected body type", err.message);
         }
 
         #[cfg(test)]
@@ -1310,13 +1345,13 @@ mod client_new_tests {
 
                     assert_eq!(
                         "jwks must only contain private keys",
-                        client_error_async.error_description
+                        client_error_async.error().error.message
                     );
                 });
 
                 assert_eq!(
                     "jwks must only contain private keys",
-                    client_error.error_description
+                    client_error.error().error.message
                 );
             }
 
@@ -1360,13 +1395,13 @@ mod client_new_tests {
 
                     assert_eq!(
                         "jwks must only contain private keys",
-                        client_error_async.error_description
+                        client_error_async.error().error.message
                     );
                 });
 
                 assert_eq!(
                     "jwks must only contain private keys",
-                    client_error.error_description
+                    client_error.error().error.message
                 );
             }
         }
