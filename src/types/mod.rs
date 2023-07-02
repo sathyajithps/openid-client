@@ -15,6 +15,6 @@ pub use client_registration_options::ClientRegistrationOptions;
 pub use errors::{
     Error, ErrorWithResponse, OidcClientError, RPError, StandardBodyError, TypeError,
 };
-pub use http::{Request, RequestInterceptor, RequestOptions, Response};
+pub use http::{Interceptor, Lookup, Request, RequestInterceptor, RequestOptions, Response};
 pub use issuer_metadata::{IssuerMetadata, MtlsEndpoints};
 pub(crate) use webfinger::WebFingerResponse;

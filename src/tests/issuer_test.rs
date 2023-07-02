@@ -1,28 +1,27 @@
 #[cfg(test)]
 mod issuer_discovery_tests {
     use crate::issuer::Issuer;
-    use crate::tests::{get_url_with_count, set_mock_domain};
+    use crate::tests::test_interceptors::get_default_test_interceptor;
     use crate::types::OidcClientError;
     pub use httpmock::Method::GET;
     pub use httpmock::MockServer;
 
-    pub fn get_async_issuer_discovery(issuer: &str) -> Result<Issuer, OidcClientError> {
+    pub fn get_async_issuer_discovery(issuer: &str, port: u16) -> Result<Issuer, OidcClientError> {
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
         let result: Result<Issuer, OidcClientError> = async_runtime.block_on(async {
-            let iss = Issuer::discover_async(issuer, None).await;
+            let iss = Issuer::discover_async(issuer, get_default_test_interceptor(port)).await;
             return iss;
         });
         result
     }
 
-    pub fn get_default_expected_discovery_document(domain: &str) -> String {
-        format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", domain)
+    pub fn get_default_expected_discovery_document() -> String {
+        "{\"authorization_endpoint\":\"https://op.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://op.example.com\",\"jwks_uri\":\"https://op.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://op.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://op.example.com/oauth2/v3/userinfo\"}".to_string()
     }
 
     #[cfg(test)]
     mod custom_well_known {
-        use crate::tests::{get_url_with_count, set_mock_domain};
 
         use super::*;
 
@@ -30,64 +29,59 @@ mod issuer_discovery_tests {
         fn accepts_and_assigns_the_discovered_metadata() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET).path("/.well-known/custom-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(get_default_expected_discovery_document(&auth_server_domain));
+                    .body(get_default_expected_discovery_document());
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let issuer_discovery_url = "https://op.example.com/.well-known/custom-configuration";
 
-            let issuer_discovery_url = format!(
-                "https://{}/.well-known/custom-configuration",
-                auth_server_domain
-            );
+            let issuer = Issuer::discover(
+                &issuer_discovery_url,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
+            let async_issuer =
+                get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
-            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-            let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
-
-            assert_eq!(format!("https://{0}", &auth_server_domain), issuer.issuer);
-            assert_eq!(
-                format!("https://{0}", &auth_server_domain),
-                async_issuer.issuer,
-            );
+            assert_eq!("https://op.example.com", issuer.issuer);
+            assert_eq!("https://op.example.com", async_issuer.issuer,);
 
             assert_eq!(
-                format!("https://{0}/oauth2/v3/certs", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/certs",
                 issuer.jwks_uri.unwrap(),
             );
             assert_eq!(
-                format!("https://{0}/oauth2/v3/certs", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/certs",
                 async_issuer.jwks_uri.unwrap(),
             );
 
             assert_eq!(
-                format!("https://{0}/oauth2/v4/token", &auth_server_domain),
+                "https://op.example.com/oauth2/v4/token",
                 issuer.token_endpoint.unwrap(),
             );
             assert_eq!(
-                format!("https://{0}/oauth2/v4/token", &auth_server_domain),
+                "https://op.example.com/oauth2/v4/token",
                 async_issuer.token_endpoint.unwrap(),
             );
 
             assert_eq!(
-                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/userinfo",
                 issuer.userinfo_endpoint.unwrap(),
             );
             assert_eq!(
-                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/userinfo",
                 async_issuer.userinfo_endpoint.unwrap(),
             );
 
             assert_eq!(
-                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain),
+                "https://op.example.com/o/oauth2/v2/auth",
                 issuer.authorization_endpoint.unwrap(),
             );
             assert_eq!(
-                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain),
+                "https://op.example.com/o/oauth2/v2/auth",
                 async_issuer.authorization_endpoint.unwrap(),
             );
         }
@@ -95,7 +89,6 @@ mod issuer_discovery_tests {
 
     #[cfg(test)]
     mod well_known {
-        use crate::tests::{get_url_with_count, set_mock_domain};
 
         use super::*;
 
@@ -103,64 +96,59 @@ mod issuer_discovery_tests {
         fn accepts_and_assigns_the_discovered_metadata() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET).path("/.well-known/openid-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(get_default_expected_discovery_document(&auth_server_domain));
+                    .body(get_default_expected_discovery_document());
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let issuer_discovery_url = "https://op.example.com/.well-known/openid-configuration";
 
-            let issuer_discovery_url = format!(
-                "https://{}/.well-known/openid-configuration",
-                auth_server_domain
-            );
+            let issuer = Issuer::discover(
+                &issuer_discovery_url,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
+            let async_issuer =
+                get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
-            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-            let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
-
-            assert_eq!(format!("https://{0}", &auth_server_domain), issuer.issuer);
-            assert_eq!(
-                format!("https://{0}", &auth_server_domain),
-                async_issuer.issuer,
-            );
+            assert_eq!("https://op.example.com", issuer.issuer);
+            assert_eq!("https://op.example.com", async_issuer.issuer,);
 
             assert_eq!(
-                format!("https://{0}/oauth2/v3/certs", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/certs",
                 issuer.jwks_uri.unwrap(),
             );
             assert_eq!(
-                format!("https://{0}/oauth2/v3/certs", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/certs",
                 async_issuer.jwks_uri.unwrap(),
             );
 
             assert_eq!(
-                format!("https://{0}/oauth2/v4/token", &auth_server_domain),
+                "https://op.example.com/oauth2/v4/token",
                 issuer.token_endpoint.unwrap(),
             );
             assert_eq!(
-                format!("https://{0}/oauth2/v4/token", &auth_server_domain),
+                "https://op.example.com/oauth2/v4/token",
                 async_issuer.token_endpoint.unwrap(),
             );
 
             assert_eq!(
-                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/userinfo",
                 issuer.userinfo_endpoint.unwrap(),
             );
             assert_eq!(
-                format!("https://{0}/oauth2/v3/userinfo", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/userinfo",
                 async_issuer.userinfo_endpoint.unwrap(),
             );
 
             assert_eq!(
-                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain),
+                "https://op.example.com/o/oauth2/v2/auth",
                 issuer.authorization_endpoint.unwrap(),
             );
             assert_eq!(
-                format!("https://{0}/o/oauth2/v2/auth", &auth_server_domain),
+                "https://op.example.com/o/oauth2/v2/auth",
                 async_issuer.authorization_endpoint.unwrap(),
             );
         }
@@ -169,10 +157,7 @@ mod issuer_discovery_tests {
         fn can_be_discovered_by_omitting_well_known() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
-            let expected_discovery_document =
-                format!("{{\"issuer\":\"https://{}\"}}", &auth_server_domain);
+            let expected_discovery_document = "{\"issuer\":\"https://op.example.com\"}";
 
             let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET).path("/.well-known/openid-configuration");
@@ -181,12 +166,15 @@ mod issuer_discovery_tests {
                     .body(expected_discovery_document);
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let issuer_discovery_url = "https://op.example.com";
 
-            let issuer_discovery_url = format!("https://{}", auth_server_domain);
-
-            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-            let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
+            let issuer = Issuer::discover(
+                &issuer_discovery_url,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
+            let async_issuer =
+                get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
             assert_eq!(issuer_discovery_url, issuer.issuer);
             assert_eq!(issuer_discovery_url, async_issuer.issuer);
@@ -196,10 +184,7 @@ mod issuer_discovery_tests {
         fn discovers_issuers_with_path_components_with_trailing_slash() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
-            let expected_discovery_document =
-                format!("{{\"issuer\":\"https://{}/oidc\"}}", &auth_server_domain);
+            let expected_discovery_document = "{\"issuer\":\"https://op.example.com/oidc\"}";
 
             let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
@@ -209,31 +194,25 @@ mod issuer_discovery_tests {
                     .body(expected_discovery_document);
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let issuer_discovery_url = "https://op.example.com/oidc/";
 
-            let issuer_discovery_url = format!("https://{}/oidc/", auth_server_domain);
+            let issuer = Issuer::discover(
+                &issuer_discovery_url,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
+            let async_issuer =
+                get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
-            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-            let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
-
-            assert_eq!(
-                format!("https://{}/oidc", auth_server_domain),
-                issuer.issuer,
-            );
-            assert_eq!(
-                format!("https://{}/oidc", auth_server_domain),
-                async_issuer.issuer,
-            );
+            assert_eq!("https://op.example.com/oidc", issuer.issuer,);
+            assert_eq!("https://op.example.com/oidc", async_issuer.issuer,);
         }
 
         #[test]
         fn discovers_issuers_with_path_components_without_trailing_slash() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
-            let expected_discovery_document =
-                format!("{{\"issuer\":\"https://{}/oidc\"}}", &auth_server_domain);
+            let expected_discovery_document = "{\"issuer\":\"https://op.example.com/oidc\"}";
 
             let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
@@ -243,31 +222,25 @@ mod issuer_discovery_tests {
                     .body(&expected_discovery_document);
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let issuer_discovery_url = "https://op.example.com/oidc";
 
-            let issuer_discovery_url = format!("https://{}/oidc", auth_server_domain);
+            let issuer = Issuer::discover(
+                &issuer_discovery_url,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
+            let async_issuer =
+                get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
-            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-            let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
-
-            assert_eq!(
-                format!("https://{}/oidc", auth_server_domain),
-                issuer.issuer,
-            );
-            assert_eq!(
-                format!("https://{}/oidc", auth_server_domain),
-                async_issuer.issuer,
-            );
+            assert_eq!("https://op.example.com/oidc", issuer.issuer,);
+            assert_eq!("https://op.example.com/oidc", async_issuer.issuer,);
         }
 
         #[test]
         fn discovering_issuers_with_well_known_uri_including_path_and_query() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
-            let expected_discovery_document =
-                format!("{{\"issuer\":\"https://{}/oidc\"}}", &auth_server_domain);
+            let expected_discovery_document = "{\"issuer\":\"https://op.example.com/oidc\"}";
 
             let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
@@ -277,29 +250,23 @@ mod issuer_discovery_tests {
                     .body(&expected_discovery_document);
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let issuer_discovery_url =
+                "https://op.example.com/oidc/.well-known/openid-configuration?foo=bar";
 
-            let issuer_discovery_url = format!(
-                "https://{}/oidc/.well-known/openid-configuration?foo=bar",
-                auth_server_domain
-            );
+            let issuer = Issuer::discover(
+                &issuer_discovery_url,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
+            let async_issuer =
+                get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
-            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-            let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
-
-            assert_eq!(
-                format!("https://{}/oidc", auth_server_domain),
-                issuer.issuer,
-            );
-            assert_eq!(
-                format!("https://{}/oidc", auth_server_domain),
-                async_issuer.issuer,
-            );
+            assert_eq!("https://op.example.com/oidc", issuer.issuer,);
+            assert_eq!("https://op.example.com/oidc", async_issuer.issuer,);
         }
     }
 
     mod well_known_oauth_authorization_server {
-        use crate::tests::set_mock_domain;
 
         use super::*;
 
@@ -307,65 +274,61 @@ mod issuer_discovery_tests {
         fn accepts_and_assigns_the_discovered_metadata() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
                     .path("/.well-known/oauth-authorization-server");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(get_default_expected_discovery_document(&auth_server_domain));
+                    .body(get_default_expected_discovery_document());
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let issuer_discovery_url =
+                "https://op.example.com/.well-known/oauth-authorization-server";
 
-            let issuer_discovery_url = format!(
-                "https://{}/.well-known/oauth-authorization-server",
-                auth_server_domain
-            );
+            let issuer = Issuer::discover(
+                &issuer_discovery_url,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
+            let async_issuer =
+                get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
-            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-            let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
-
-            assert_eq!(format!("https://{}", &auth_server_domain), issuer.issuer);
-            assert_eq!(
-                format!("https://{}", &auth_server_domain),
-                async_issuer.issuer,
-            );
+            assert_eq!("https://op.example.com", issuer.issuer);
+            assert_eq!("https://op.example.com", async_issuer.issuer,);
 
             assert_eq!(
-                format!("https://{}/oauth2/v3/certs", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/certs",
                 issuer.jwks_uri.unwrap(),
             );
             assert_eq!(
-                format!("https://{}/oauth2/v3/certs", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/certs",
                 async_issuer.jwks_uri.unwrap(),
             );
 
             assert_eq!(
-                format!("https://{}/oauth2/v4/token", &auth_server_domain),
+                "https://op.example.com/oauth2/v4/token",
                 issuer.token_endpoint.unwrap(),
             );
             assert_eq!(
-                format!("https://{}/oauth2/v4/token", &auth_server_domain),
+                "https://op.example.com/oauth2/v4/token",
                 async_issuer.token_endpoint.unwrap(),
             );
 
             assert_eq!(
-                format!("https://{}/oauth2/v3/userinfo", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/userinfo",
                 issuer.userinfo_endpoint.unwrap(),
             );
             assert_eq!(
-                format!("https://{}/oauth2/v3/userinfo", &auth_server_domain),
+                "https://op.example.com/oauth2/v3/userinfo",
                 async_issuer.userinfo_endpoint.unwrap(),
             );
 
             assert_eq!(
-                format!("https://{}/o/oauth2/v2/auth", &auth_server_domain),
+                "https://op.example.com/o/oauth2/v2/auth",
                 issuer.authorization_endpoint.unwrap(),
             );
             assert_eq!(
-                format!("https://{}/o/oauth2/v2/auth", &auth_server_domain),
+                "https://op.example.com/o/oauth2/v2/auth",
                 async_issuer.authorization_endpoint.unwrap(),
             );
         }
@@ -374,10 +337,7 @@ mod issuer_discovery_tests {
         fn discovering_issuers_with_well_known_uri_including_path_and_query() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
-            let expected_discovery_document =
-                format!("{{\"issuer\":\"https://{}/oauth2\"}}", &auth_server_domain);
+            let expected_discovery_document = "{\"issuer\":\"https://op.example.com/oauth2\"}";
 
             let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
@@ -387,24 +347,19 @@ mod issuer_discovery_tests {
                     .body(&expected_discovery_document);
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let issuer_discovery_url =
+                "https://op.example.com/.well-known/oauth-authorization-server/oauth2?foo=bar";
 
-            let issuer_discovery_url = format!(
-                "https://{}/.well-known/oauth-authorization-server/oauth2?foo=bar",
-                auth_server_domain
-            );
+            let issuer = Issuer::discover(
+                &issuer_discovery_url,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
+            let async_issuer =
+                get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
-            let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-            let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
-
-            assert_eq!(
-                format!("https://{}/oauth2", &auth_server_domain),
-                issuer.issuer,
-            );
-            assert_eq!(
-                format!("https://{}/oauth2", &auth_server_domain),
-                async_issuer.issuer,
-            );
+            assert_eq!("https://op.example.com/oauth2", issuer.issuer,);
+            assert_eq!("https://op.example.com/oauth2", async_issuer.issuer,);
         }
     }
 
@@ -412,24 +367,22 @@ mod issuer_discovery_tests {
     fn assigns_discovery_1_0_defaults_1_of_2() {
         let mock_http_server = MockServer::start();
 
-        let auth_server_domain = get_url_with_count("op.example<>.com");
-
         let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET).path("/.well-known/openid-configuration");
             then.status(200)
                 .header("content-type", "application/json")
-                .body(get_default_expected_discovery_document(&auth_server_domain));
+                .body(get_default_expected_discovery_document());
         });
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+        let issuer_discovery_url = "https://op.example.com/.well-known/openid-configuration";
 
-        let issuer_discovery_url = format!(
-            "https://{}/.well-known/openid-configuration",
-            auth_server_domain
-        );
-
-        let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-        let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
+        let issuer = Issuer::discover(
+            &issuer_discovery_url,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap();
+        let async_issuer =
+            get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
         assert_eq!(false, issuer.claims_parameter_supported.unwrap());
         assert_eq!(false, async_issuer.claims_parameter_supported.unwrap());
@@ -484,21 +437,22 @@ mod issuer_discovery_tests {
     fn assigns_discovery_1_0_defaults_2_of_2() {
         let mock_http_server = MockServer::start();
 
-        let auth_server_domain = get_url_with_count("op.example<>.com");
-
         let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET).path("/.well-known/openid-configuration");
             then.status(200)
                 .header("content-type", "application/json")
-                .body(get_default_expected_discovery_document(&auth_server_domain));
+                .body(get_default_expected_discovery_document());
         });
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+        let issuer_discovery_url = "https://op.example.com";
 
-        let issuer_discovery_url = format!("https://{}", auth_server_domain);
-
-        let issuer = Issuer::discover(&issuer_discovery_url, None).unwrap();
-        let async_issuer = get_async_issuer_discovery(&issuer_discovery_url).unwrap();
+        let issuer = Issuer::discover(
+            &issuer_discovery_url,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap();
+        let async_issuer =
+            get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap();
 
         assert_eq!(false, issuer.claims_parameter_supported.unwrap());
         assert_eq!(false, async_issuer.claims_parameter_supported.unwrap());
@@ -560,14 +514,15 @@ mod issuer_discovery_tests {
             );
         });
 
-        let auth_server_domain = get_url_with_count("op.example<>.com");
+        let issuer_discovery_url = "https://op.example.com";
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer_discovery_url = format!("https://{}", auth_server_domain);
-
-        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(
+            &issuer_discovery_url,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap_err();
 
         assert!(error.is_op_error());
         assert!(error_async.is_op_error());
@@ -592,7 +547,7 @@ mod issuer_discovery_tests {
     fn is_rejected_with_error_when_no_absolute_url_is_provided() {
         let error = Issuer::discover("op.example.com/.well-known/foobar", None).unwrap_err();
         let error_async =
-            get_async_issuer_discovery("op.example.com/.well-known/foobar").unwrap_err();
+            get_async_issuer_discovery("op.example.com/.well-known/foobar", 0).unwrap_err();
 
         assert!(error.is_type_error());
         assert!(error_async.is_type_error());
@@ -617,14 +572,15 @@ mod issuer_discovery_tests {
                 .body("{\"error\": {},\"error_description\":\"bad things are happening\"}");
         });
 
-        let auth_server_domain = get_url_with_count("op.example<>.com");
+        let issuer_discovery_url = "https://op.example.com";
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer_discovery_url = format!("https://{}", auth_server_domain);
-
-        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(
+            &issuer_discovery_url,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap_err();
 
         assert!(error.is_op_error());
         assert!(error_async.is_op_error());
@@ -654,14 +610,15 @@ mod issuer_discovery_tests {
             then.status(500);
         });
 
-        let auth_server_domain = get_url_with_count("op.example<>.com");
+        let issuer_discovery_url = "https://op.example.com";
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer_discovery_url = format!("https://{}", auth_server_domain);
-
-        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(
+            &issuer_discovery_url,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap_err();
 
         assert!(error.is_op_error());
         assert!(error_async.is_op_error());
@@ -694,14 +651,15 @@ mod issuer_discovery_tests {
             then.status(200).body("{\"notavalid\"}");
         });
 
-        let auth_server_domain = get_url_with_count("op.example<>.com");
+        let issuer_discovery_url = "https://op.example.com";
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer_discovery_url = format!("https://{}", auth_server_domain);
-
-        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(
+            &issuer_discovery_url,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap_err();
 
         assert!(error.is_type_error());
         assert!(error_async.is_type_error());
@@ -725,14 +683,15 @@ mod issuer_discovery_tests {
             then.status(200);
         });
 
-        let auth_server_domain = get_url_with_count("op.example<>.com");
+        let issuer_discovery_url = "https://op.example.com";
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer_discovery_url = format!("https://{}", auth_server_domain);
-
-        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(
+            &issuer_discovery_url,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap_err();
 
         assert!(error.is_op_error());
         assert!(error_async.is_op_error());
@@ -762,14 +721,15 @@ mod issuer_discovery_tests {
             then.status(301);
         });
 
-        let auth_server_domain = get_url_with_count("op.example<>.com");
+        let issuer_discovery_url = "https://op.example.com";
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer_discovery_url = format!("https://{}", auth_server_domain);
-
-        let error = Issuer::discover(&issuer_discovery_url, None).unwrap_err();
-        let error_async = get_async_issuer_discovery(&issuer_discovery_url).unwrap_err();
+        let error = Issuer::discover(
+            &issuer_discovery_url,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_issuer_discovery(&issuer_discovery_url, mock_http_server.port()).unwrap_err();
 
         assert!(error.is_op_error());
         assert!(error_async.is_op_error());
@@ -792,11 +752,8 @@ mod issuer_discovery_tests {
 
     #[cfg(test)]
     mod http_options {
-        use std::time::Duration;
 
-        use reqwest::header::{HeaderMap, HeaderValue};
-
-        use crate::{tests::get_url_with_count, types::RequestOptions};
+        use crate::tests::test_interceptors::TestInterceptor;
 
         use super::*;
 
@@ -804,35 +761,22 @@ mod issuer_discovery_tests {
         fn allows_for_http_options_to_be_defined_for_issuer_discover_calls() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
                     .header("testHeader", "testHeaderValue")
                     .path("/.well-known/custom-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(get_default_expected_discovery_document(&auth_server_domain));
+                    .body(get_default_expected_discovery_document());
             });
 
-            let interceptor = |_request: &crate::types::Request| {
-                let mut headers = HeaderMap::new();
-                headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
-
-                RequestOptions {
-                    headers,
-                    timeout: Duration::from_millis(3500),
-                }
-            };
-
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
             let _ = Issuer::discover(
-                &format!(
-                    "https://{}/.well-known/custom-configuration",
-                    auth_server_domain
-                ),
-                Some(Box::new(interceptor)),
+                "https://op.example.com/.well-known/custom-configuration",
+                Some(Box::new(TestInterceptor {
+                    test_header: Some("testHeader".to_string()),
+                    test_header_value: Some("testHeaderValue".to_string()),
+                    test_server_port: Some(mock_http_server.port()),
+                })),
             );
 
             auth_mock_server.assert_hits(1);
@@ -842,38 +786,25 @@ mod issuer_discovery_tests {
         fn allows_for_http_options_to_be_defined_for_issuer_discover_calls_async() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
                     .header("testHeader", "testHeaderValue")
                     .path("/.well-known/custom-configuration");
                 then.status(200)
                     .header("content-type", "application/json")
-                    .body(get_default_expected_discovery_document(&auth_server_domain));
+                    .body(get_default_expected_discovery_document());
             });
-
-            let interceptor = |_request: &crate::types::Request| {
-                let mut headers = HeaderMap::new();
-                headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
-
-                RequestOptions {
-                    headers,
-                    timeout: Duration::from_millis(3500),
-                }
-            };
-
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
 
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let _ = async_runtime.block_on(async {
                 Issuer::discover_async(
-                    &format!(
-                        "https://{}/.well-known/custom-configuration",
-                        auth_server_domain
-                    ),
-                    Some(Box::new(interceptor)),
+                    "https://op.example.com/.well-known/custom-configuration",
+                    Some(Box::new(TestInterceptor {
+                        test_header: Some("testHeader".to_string()),
+                        test_header_value: Some("testHeaderValue".to_string()),
+                        test_server_port: Some(mock_http_server.port()),
+                    })),
                 )
                 .await
             });
@@ -890,14 +821,17 @@ mod issuer_webfinger_tests {
     use httpmock::MockServer;
 
     use crate::issuer::Issuer;
-    use crate::tests::{get_url_with_count, set_mock_domain};
+    use crate::tests::test_interceptors::get_default_test_interceptor;
     use crate::types::OidcClientError;
 
-    pub fn get_async_webfinger_discovery(input: &str) -> Result<Issuer, OidcClientError> {
+    pub fn get_async_webfinger_discovery(
+        input: &str,
+        port: u16,
+    ) -> Result<Issuer, OidcClientError> {
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
         let result: Result<Issuer, OidcClientError> = async_runtime.block_on(async {
-            let iss = Issuer::webfinger_async(input, None).await;
+            let iss = Issuer::webfinger_async(input, get_default_test_interceptor(port)).await;
             return iss;
         });
         result
@@ -907,14 +841,10 @@ mod issuer_webfinger_tests {
     fn can_discover_using_the_email_syntax() {
         let mock_http_server = MockServer::start();
 
-        let auth_server_domain = get_url_with_count("opemail.example<>.com");
+        let webfinger_response_body = "{\"subject\":\"https://opemail.example.com/joe\",\"links\":[{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://opemail.example.com\"}]}";
+        let discovery_document_response_body = "{\"authorization_endpoint\":\"https://opemail.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://opemail.example.com\",\"jwks_uri\":\"https://opemail.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://opemail.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://opemail.example.com/oauth2/v3/userinfo\"}";
 
-        let webfinger_response_body = format!("{{\"subject\":\"https://{0}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", auth_server_domain);
-        let discovery_document_response_body = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", auth_server_domain);
-
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let resource = format!("joe@{}", auth_server_domain);
+        let resource = "joe@opemail.example.com";
 
         let webfinger_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET)
@@ -928,9 +858,12 @@ mod issuer_webfinger_tests {
             then.status(200).body(discovery_document_response_body);
         });
 
-        let _ = Issuer::webfinger(&resource, None);
+        let _ = Issuer::webfinger(
+            &resource,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
 
-        let _ = get_async_webfinger_discovery(&resource);
+        let _ = get_async_webfinger_discovery(&resource, mock_http_server.port());
 
         webfinger_mock_server.assert_hits(2);
         issuer_discovery_mock_server.assert_hits(2);
@@ -939,15 +872,8 @@ mod issuer_webfinger_tests {
     #[test]
     fn verifies_the_webfinger_responds_with_an_issuer() {
         let mock_http_server = MockServer::start();
-
-        let auth_server_domain = get_url_with_count("opemail.example<>.com");
-
-        let webfinger_response_body = format!(
-            "{{\"subject\":\"https://{0}/joe\",\"links\":[]}}",
-            auth_server_domain
-        );
-
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+        let webfinger_response_body =
+            "{\"subject\":\"https://opemail.example.com/joe\",\"links\":[]}";
 
         let _webfinger_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET)
@@ -956,10 +882,15 @@ mod issuer_webfinger_tests {
             then.status(200).body(webfinger_response_body);
         });
 
-        let resource = format!("joe@{}", auth_server_domain);
+        let resource = "joe@opemail.example.com";
 
-        let error = Issuer::webfinger(&resource, None).unwrap_err();
-        let error_async = get_async_webfinger_discovery(&resource).unwrap_err();
+        let error = Issuer::webfinger(
+            &resource,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_webfinger_discovery(&resource, mock_http_server.port()).unwrap_err();
 
         assert_eq!(
             "no issuer found in webfinger response",
@@ -975,35 +906,30 @@ mod issuer_webfinger_tests {
     fn verifies_the_webfinger_responds_with_an_issuer_which_is_a_valid_issuer_value_1_of_2() {
         let mock_http_server = MockServer::start();
 
-        let auth_server_domain = get_url_with_count("opemail.example<>.com");
-
-        let webfinger_response_body = format!("{{\"subject\":\"https://{0}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", auth_server_domain);
-
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+        let webfinger_response_body = "{\"subject\":\"https://opemail.example.com/joe\",\"links\":[{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://opemail.example.com\"}]}";
 
         let _webfinger_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET).path("/.well-known/webfinger");
             then.status(200).body(webfinger_response_body);
         });
 
-        let resource = format!("joe@{}", auth_server_domain);
+        let resource = "joe@opemail.example.com";
 
-        let error = Issuer::webfinger(&resource, None).unwrap_err();
-        let error_async = get_async_webfinger_discovery(&resource).unwrap_err();
+        let error = Issuer::webfinger(
+            &resource,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_webfinger_discovery(&resource, mock_http_server.port()).unwrap_err();
 
         assert_eq!(
-            Some(format!(
-                "invalid issuer location https://{}",
-                auth_server_domain
-            )),
+            Some("invalid issuer location https://opemail.example.com".to_string()),
             error.op_error().error.error_description,
         );
 
         assert_eq!(
-            Some(format!(
-                "invalid issuer location https://{}",
-                auth_server_domain
-            )),
+            Some("invalid issuer location https://opemail.example.com".to_string()),
             error_async.op_error().error.error_description,
         );
     }
@@ -1012,21 +938,22 @@ mod issuer_webfinger_tests {
     fn verifies_the_webfinger_responds_with_an_issuer_which_is_a_valid_issuer_value_2_of_2() {
         let mock_http_server = MockServer::start();
 
-        let auth_server_domain = get_url_with_count("opemail.example<>.com");
-
-        let webfinger_response_body = format!("{{\"subject\":\"https://{}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"1\"}}]}}", auth_server_domain);
-
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+        let webfinger_response_body = "{\"subject\":\"https://opemail.example.com/joe\",\"links\":[{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"1\"}]}";
 
         let _webfinger = mock_http_server.mock(|when, then| {
             when.method(GET).path("/.well-known/webfinger");
             then.status(200).body(webfinger_response_body);
         });
 
-        let resource = format!("joe@{}", auth_server_domain);
+        let resource = "joe@opemail.example.com";
 
-        let error = Issuer::webfinger(&resource, None).unwrap_err();
-        let error_async = get_async_webfinger_discovery(&resource).unwrap_err();
+        let error = Issuer::webfinger(
+            &resource,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_webfinger_discovery(&resource, mock_http_server.port()).unwrap_err();
 
         assert_eq!(
             Some("invalid issuer location 1".to_string()),
@@ -1051,7 +978,7 @@ mod issuer_webfinger_tests {
 
     //     let resource = format!("joe@{}", auth_server_domain);
 
-    //     set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+    //
 
     //     let webfinger_mock_server = mock_http_server.mock(|when, then| {
     //         when.method(GET).path("/.well-known/webfinger");
@@ -1074,12 +1001,8 @@ mod issuer_webfinger_tests {
     fn validates_the_discovered_issuer_is_the_same_as_from_webfinger() {
         let mock_http_server = MockServer::start();
 
-        let auth_server_domain = get_url_with_count("opemail.example<>.com");
-
-        let webfinger_response_body = format!("{{\"subject\":\"https://{0}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", auth_server_domain);
-        let discovery_document_response_body = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://another.issuer.com\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", auth_server_domain);
-
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+        let webfinger_response_body ="{\"subject\":\"https://opemail.example.com/joe\",\"links\":[{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://opemail.example.com\"}]}";
+        let discovery_document_response_body = "{\"authorization_endpoint\":\"https://opemail.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://another.issuer.com\",\"jwks_uri\":\"https://opemail.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://opemail.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://opemail.example.com/oauth2/v3/userinfo\"}";
 
         let webfinger_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET).path("/.well-known/webfinger");
@@ -1091,23 +1014,26 @@ mod issuer_webfinger_tests {
             then.status(200).body(discovery_document_response_body);
         });
 
-        let resource = format!("joe@{}", auth_server_domain);
+        let resource = "joe@opemail.example.com";
 
-        let error = Issuer::webfinger(&resource, None).unwrap_err();
-        let error_async = get_async_webfinger_discovery(&resource).unwrap_err();
+        let error = Issuer::webfinger(
+            &resource,
+            get_default_test_interceptor(mock_http_server.port()),
+        )
+        .unwrap_err();
+        let error_async =
+            get_async_webfinger_discovery(&resource, mock_http_server.port()).unwrap_err();
 
         assert_eq!(
-            Some(format!(
-                "discovered issuer mismatch, expected https://{}, got: https://another.issuer.com",
-                auth_server_domain
-            )),
+            Some(
+                "discovered issuer mismatch, expected https://opemail.example.com, got: https://another.issuer.com".to_string(),
+            ),
             error.op_error().error.error_description,
         );
         assert_eq!(
-            Some(format!(
-                "discovered issuer mismatch, expected https://{}, got: https://another.issuer.com",
-                auth_server_domain
-            )),
+            Some(
+                "discovered issuer mismatch, expected https://opemail.example.com, got: https://another.issuer.com".to_string(),
+            ),
             error_async.op_error().error.error_description,
         );
 
@@ -1119,19 +1045,15 @@ mod issuer_webfinger_tests {
     fn can_discover_using_the_url_syntax() {
         let mock_http_server = MockServer::start();
 
-        let auth_server_domain = get_url_with_count("opurl.example<>.com");
+        let webfinger_response_body = "{\"subject\":\"https://opurl.example.com/joe\",\"links\":[{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://opurl.example.com\"}]}";
+        let discovery_document_response_body = "{\"authorization_endpoint\":\"https://opurl.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://opurl.example.com\",\"jwks_uri\":\"https://opurl.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://opurl.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://opurl.example.com/oauth2/v3/userinfo\"}";
 
-        let webfinger_response_body = format!("{{\"subject\":\"https://{0}/joe\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", auth_server_domain);
-        let discovery_document_response_body = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", auth_server_domain);
-
-        let webfinger_url = format!("https://{}/joe", auth_server_domain);
-
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+        let webfinger_url = "https://opurl.example.com/joe";
 
         let webfinger_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET)
                 .path("/.well-known/webfinger")
-                .query_param("resource", &webfinger_url);
+                .query_param("resource", webfinger_url);
             then.status(200).body(webfinger_response_body);
         });
 
@@ -1140,8 +1062,12 @@ mod issuer_webfinger_tests {
             then.status(200).body(discovery_document_response_body);
         });
 
-        let issuer_result = Issuer::webfinger(&webfinger_url, None);
-        let async_issuer_result = get_async_webfinger_discovery(&webfinger_url);
+        let issuer_result = Issuer::webfinger(
+            &webfinger_url,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
+        let async_issuer_result =
+            get_async_webfinger_discovery(&webfinger_url, mock_http_server.port());
 
         assert!(issuer_result.is_ok());
         assert!(async_issuer_result.is_ok());
@@ -1154,17 +1080,10 @@ mod issuer_webfinger_tests {
     fn can_discover_using_the_hostname_and_port_syntax() {
         let mock_http_server = MockServer::start();
 
-        let auth_server_domain = get_url_with_count("ophp.example<>.com");
+        let auth_server_domain_with_port = "ophp.example.com:8080";
 
-        let auth_server_domain_with_port = format!("{}:8080", auth_server_domain);
-
-        let webfinger_response_body = format!("{{\"subject\":\"https://{0}:8080\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{0}\"}}]}}", auth_server_domain);
-        let discovery_document_response_body = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", auth_server_domain);
-
-        // for webfinger
-        set_mock_domain(&auth_server_domain_with_port, mock_http_server.port());
-        // for oidc discovery
-        set_mock_domain(&auth_server_domain, mock_http_server.port());
+        let webfinger_response_body = "{\"subject\":\"https://ophp.example.com:8080\",\"links\":[{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://ophp.example.com\"}]}";
+        let discovery_document_response_body = "{\"authorization_endpoint\":\"https://ophp.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://ophp.example.com\",\"jwks_uri\":\"https://ophp.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://ophp.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://ophp.example.com/oauth2/v3/userinfo\"}";
 
         let webfinger_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET).path("/.well-known/webfinger").query_param(
@@ -1179,8 +1098,12 @@ mod issuer_webfinger_tests {
             then.status(200).body(discovery_document_response_body);
         });
 
-        let issuer_result = Issuer::webfinger(&auth_server_domain_with_port, None);
-        let async_issuer_result = get_async_webfinger_discovery(&auth_server_domain_with_port);
+        let issuer_result = Issuer::webfinger(
+            &auth_server_domain_with_port,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
+        let async_issuer_result =
+            get_async_webfinger_discovery(&auth_server_domain_with_port, mock_http_server.port());
 
         assert!(issuer_result.is_ok());
         assert!(async_issuer_result.is_ok());
@@ -1193,18 +1116,15 @@ mod issuer_webfinger_tests {
     fn can_discover_using_the_acct_syntax() {
         let mock_http_server = MockServer::start();
 
-        let auth_server_domain = get_url_with_count("opacct.example<>.com");
-        let resource = format!("acct:juliet%40capulet.example@{}", auth_server_domain);
+        let resource = "acct:juliet%40capulet.example@opacct.example.com";
 
-        let webfinger_response_body = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}", resource, auth_server_domain);
-        let discovery_document_response_body = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", auth_server_domain);
-
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+        let webfinger_response_body = "{\"subject\":\"acct:juliet%40capulet.example@opacct.example.com\",\"links\":[{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://opacct.example.com\"}]}";
+        let discovery_document_response_body = "{\"authorization_endpoint\":\"https://opacct.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://opacct.example.com\",\"jwks_uri\":\"https://opacct.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://opacct.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://opacct.example.com/oauth2/v3/userinfo\"}";
 
         let webfinger_mock_server = mock_http_server.mock(|when, then| {
             when.method(GET)
                 .path("/.well-known/webfinger")
-                .query_param("resource", &resource);
+                .query_param("resource", resource);
             then.status(200).body(webfinger_response_body);
         });
 
@@ -1213,8 +1133,11 @@ mod issuer_webfinger_tests {
             then.status(200).body(discovery_document_response_body);
         });
 
-        let issuer_result = Issuer::webfinger(&resource, None);
-        let async_issuer_result = get_async_webfinger_discovery(&resource);
+        let issuer_result = Issuer::webfinger(
+            &resource,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
+        let async_issuer_result = get_async_webfinger_discovery(&resource, mock_http_server.port());
 
         assert!(issuer_result.is_ok());
         assert!(async_issuer_result.is_ok());
@@ -1225,35 +1148,27 @@ mod issuer_webfinger_tests {
 
     #[cfg(test)]
     mod http_options {
-        use std::time::Duration;
 
         use httpmock::{Method::GET, MockServer};
-        use reqwest::header::{HeaderMap, HeaderValue};
 
         use crate::{
-            issuer::Issuer,
-            tests::{get_url_with_count, set_mock_domain},
-            types::{OidcClientError, RequestOptions},
+            issuer::Issuer, tests::test_interceptors::TestInterceptor, types::OidcClientError,
         };
 
         #[test]
         fn allows_for_http_options_to_be_defined_for_issuer_webfinger_calls() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
+            let resource = "acct:juliet@op.example.com";
 
-            let resource = format!("acct:juliet@{}", auth_server_domain);
-
-            let webfinger_response_body = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}", resource, auth_server_domain);
-            let discovery_document_response_body = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", auth_server_domain);
-
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let webfinger_response_body = "{\"subject\":\"acct:juliet@op.example.com\",\"links\":[{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://op.example.com\"}]}";
+            let discovery_document_response_body = "{\"authorization_endpoint\":\"https://op.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://op.example.com\",\"jwks_uri\":\"https://op.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://op.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://op.example.com/oauth2/v3/userinfo\"}";
 
             let webfinger_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
                     .path("/.well-known/webfinger")
                     .header("custom", "foo")
-                    .query_param("resource", &resource);
+                    .query_param("resource", resource);
                 then.status(200).body(webfinger_response_body);
             });
 
@@ -1264,16 +1179,14 @@ mod issuer_webfinger_tests {
                 then.status(200).body(discovery_document_response_body);
             });
 
-            let interceptor = |_request: &crate::types::Request| {
-                let mut headers = HeaderMap::new();
-                headers.append("custom", HeaderValue::from_static("foo"));
-                RequestOptions {
-                    headers,
-                    timeout: Duration::from_millis(3500),
-                }
-            };
-
-            let issuer_result = Issuer::webfinger(&resource, Some(Box::new(interceptor)));
+            let issuer_result = Issuer::webfinger(
+                &resource,
+                Some(Box::new(TestInterceptor {
+                    test_header: Some("custom".to_string()),
+                    test_header_value: Some("foo".to_string()),
+                    test_server_port: Some(mock_http_server.port()),
+                })),
+            );
 
             webfinger_mock_server.assert();
             issuer_discovery_mock_server.assert();
@@ -1284,19 +1197,16 @@ mod issuer_webfinger_tests {
         fn allows_for_http_options_to_be_defined_for_issuer_webfinger_calls_async() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-            let resource = format!("acct:juliet@{}", auth_server_domain);
+            let resource = "acct:juliet@op.example.com";
 
-            let webfinger_response_body = format!("{{\"subject\":\"{0}\",\"links\":[{{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://{1}\"}}]}}", resource, auth_server_domain);
-            let discovery_document_response_body = format!("{{\"authorization_endpoint\":\"https://{0}/o/oauth2/v2/auth\",\"issuer\":\"https://{0}\",\"jwks_uri\":\"https://{0}/oauth2/v3/certs\",\"token_endpoint\":\"https://{0}/oauth2/v4/token\",\"userinfo_endpoint\":\"https://{0}/oauth2/v3/userinfo\"}}", auth_server_domain);
-
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let webfinger_response_body = "{\"subject\":\"acct:juliet@op.example.com\",\"links\":[{\"rel\":\"http://openid.net/specs/connect/1.0/issuer\",\"href\":\"https://op.example.com\"}]}";
+            let discovery_document_response_body = "{\"authorization_endpoint\":\"https://op.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://op.example.com\",\"jwks_uri\":\"https://op.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://op.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://op.example.com/oauth2/v3/userinfo\"}";
 
             let webfinger_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
                     .path("/.well-known/webfinger")
                     .header("custom", "foo")
-                    .query_param("resource", &resource);
+                    .query_param("resource", resource);
                 then.status(200).body(webfinger_response_body);
             });
 
@@ -1307,19 +1217,18 @@ mod issuer_webfinger_tests {
                 then.status(200).body(discovery_document_response_body);
             });
 
-            let interceptor = |_request: &crate::types::Request| {
-                let mut headers = HeaderMap::new();
-                headers.append("custom", HeaderValue::from_static("foo"));
-                RequestOptions {
-                    headers,
-                    timeout: Duration::from_millis(3500),
-                }
-            };
-
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let issuer_result: Result<Issuer, OidcClientError> = async_runtime.block_on(async {
-                Issuer::webfinger_async(&resource, Some(Box::new(interceptor))).await
+                Issuer::webfinger_async(
+                    &resource,
+                    Some(Box::new(TestInterceptor {
+                        test_header: Some("custom".to_string()),
+                        test_header_value: Some("foo".to_string()),
+                        test_server_port: Some(mock_http_server.port()),
+                    })),
+                )
+                .await
             });
 
             webfinger_mock_server.assert();
@@ -1452,7 +1361,7 @@ mod issuer_new {
 
 #[cfg(test)]
 mod issuer_instance {
-    use crate::tests::{get_url_with_count, set_mock_domain};
+    use crate::tests::test_interceptors::get_default_test_interceptor;
     use crate::{issuer::Issuer, types::IssuerMetadata};
     use httpmock::Method::GET;
     use httpmock::MockServer;
@@ -1494,8 +1403,6 @@ mod issuer_instance {
 
     #[test]
     fn does_not_refetch_immediately() {
-        let auth_server_domain = get_url_with_count("op.example<>.com");
-
         let mock_http_server = MockServer::start();
 
         let jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -1507,10 +1414,8 @@ mod issuer_instance {
                 .body(get_default_jwks());
         });
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer = format!("https://{}", auth_server_domain);
-        let jwks_uri = format!("https://{}/jwks", auth_server_domain);
+        let issuer = "https://op.example.com".to_string();
+        let jwks_uri = "https://op.example.com/jwks".to_string();
 
         let metadata = IssuerMetadata {
             issuer,
@@ -1518,7 +1423,10 @@ mod issuer_instance {
             ..IssuerMetadata::default()
         };
 
-        let mut issuer = Issuer::new(metadata, None);
+        let mut issuer = Issuer::new(
+            metadata,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
 
         assert!(issuer.get_keystore(true).is_ok());
 
@@ -1529,8 +1437,6 @@ mod issuer_instance {
 
     #[test]
     fn does_not_refetch_immediately_async() {
-        let auth_server_domain = get_url_with_count("op.example<>.com");
-
         let mock_http_server = MockServer::start();
 
         let jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -1542,10 +1448,8 @@ mod issuer_instance {
                 .body(get_default_jwks());
         });
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer = format!("https://{}", auth_server_domain);
-        let jwks_uri = format!("https://{}/jwks", auth_server_domain);
+        let issuer = "https://op.example.com".to_string();
+        let jwks_uri = "https://op.example.com/jwks".to_string();
 
         let metadata = IssuerMetadata {
             issuer,
@@ -1553,7 +1457,10 @@ mod issuer_instance {
             ..IssuerMetadata::default()
         };
 
-        let mut issuer = Issuer::new(metadata, None);
+        let mut issuer = Issuer::new(
+            metadata,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
 
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
         async_runtime.block_on(async {
@@ -1567,8 +1474,6 @@ mod issuer_instance {
 
     #[test]
     fn refetches_if_asked_to() {
-        let auth_server_domain = get_url_with_count("op.example<>.com");
-
         let mock_http_server = MockServer::start();
 
         let jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -1580,10 +1485,8 @@ mod issuer_instance {
                 .body(get_default_jwks());
         });
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer = format!("https://{}", auth_server_domain);
-        let jwks_uri = format!("https://{}/jwks", auth_server_domain);
+        let issuer = "https://op.example.com".to_string();
+        let jwks_uri = "https://op.example.com/jwks".to_string();
 
         let metadata = IssuerMetadata {
             issuer,
@@ -1591,7 +1494,10 @@ mod issuer_instance {
             ..IssuerMetadata::default()
         };
 
-        let mut issuer = Issuer::new(metadata, None);
+        let mut issuer = Issuer::new(
+            metadata,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
 
         assert!(issuer.get_keystore(true).is_ok());
         assert!(issuer.get_keystore(true).is_ok());
@@ -1601,8 +1507,6 @@ mod issuer_instance {
 
     #[test]
     fn refetches_if_asked_to_async() {
-        let auth_server_domain = get_url_with_count("op.example<>.com");
-
         let mock_http_server = MockServer::start();
 
         let jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -1614,10 +1518,8 @@ mod issuer_instance {
                 .body(get_default_jwks());
         });
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer = format!("https://{}", auth_server_domain);
-        let jwks_uri = format!("https://{}/jwks", auth_server_domain);
+        let issuer = "https://op.example.com".to_string();
+        let jwks_uri = "https://op.example.com/jwks".to_string();
 
         let metadata = IssuerMetadata {
             issuer,
@@ -1625,7 +1527,10 @@ mod issuer_instance {
             ..IssuerMetadata::default()
         };
 
-        let mut issuer = Issuer::new(metadata, None);
+        let mut issuer = Issuer::new(
+            metadata,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
 
         let async_runtime = tokio::runtime::Runtime::new().unwrap();
         async_runtime.block_on(async {
@@ -1638,8 +1543,6 @@ mod issuer_instance {
 
     #[test]
     fn rejects_when_no_matching_key_is_found() {
-        let auth_server_domain = get_url_with_count("op.example<>.com");
-
         let mock_http_server = MockServer::start();
 
         let _jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -1651,10 +1554,8 @@ mod issuer_instance {
                 .body(get_default_jwks());
         });
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer = format!("https://{}", auth_server_domain);
-        let jwks_uri = format!("https://{}/jwks", auth_server_domain);
+        let issuer = "https://op.example.com".to_string();
+        let jwks_uri = "https://op.example.com/jwks".to_string();
 
         let metadata = IssuerMetadata {
             issuer,
@@ -1662,7 +1563,10 @@ mod issuer_instance {
             ..IssuerMetadata::default()
         };
 
-        let mut issuer = Issuer::new(metadata, None);
+        let mut issuer = Issuer::new(
+            metadata,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
 
         let jwk_result = issuer.get_jwk(
             Some("RS256".to_string()),
@@ -1698,8 +1602,6 @@ mod issuer_instance {
 
     #[test]
     fn requires_a_kid_when_multiple_matches_are_found() {
-        let auth_server_domain = get_url_with_count("op.example<>.com");
-
         let mock_http_server = MockServer::start();
 
         let _jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -1712,10 +1614,8 @@ mod issuer_instance {
                 .body("{\"keys\":[{\"e\":\"AQAB\",\"n\":\"5RnVQ2VT79TaW_Louj5ib7_dVJ1vX5ebaVeifBjNDlUp3KsrHm5sq1KWzPVz-XE6m4GBGXnVxMc5pmN7pQcqGe2rzw_jTAOIQzjYZ2UPTvl8HSjPCf9VwJleHiy4195YgnOcAF-PVASLKNKnoHjgn4b2gXpikMnztvdTFZrQAAlEVwslbW0Z17imHQsYzDXDYVzwpxjiRl4tWretNXhJS2Bk1NZoctW5kY6otkeMZ8VLpCUfbBzrhhLh5b_7Q0JKQjGX94f8j5tpVz_CXkpwQUXyymfBH9B-FY5s7LDZRKCEneSnCwSFce_nVzPqcO5J4SwsVF6FhwVQMvCC0QmNGw\",\"kty\":\"RSA\"},{\"e\":\"AQAB\",\"n\":\"3ANc8Uhup5_tnZfJuR4jQIwzobzEegcPGySt_EVzdF8ft2L4RoOE8wWq2fff9tRtrzNcKjSTgpw6cDMXSEa2Mx07FUvuyvjXSzlUG_fEPGIhyEJXqD5NZ89CrgHy55kizSuvgxcpQLkvSddBXVYnccWRGXfCurj7BkY1ycxvm55LAkPkaEtSWmnX8gWX6289SeKx-3rD0Xl20lhoe0_f4nChWibn-2egKBfrq-d1nXnsyxOcDhOZHS9nC4N4UeiZyQ6ervyGDg1fxzi98gxe4qb14J3vogX3KUdyG0YuC4D1SgUtEnmrVbbQl9y3fYBKZy7ysk48j9CdWjA9KYoWUQ\",\"kty\":\"RSA\"}]}");
         });
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer = format!("https://{}", auth_server_domain);
-        let jwks_uri = format!("https://{}/jwks", auth_server_domain);
+        let issuer = "https://op.example.com".to_string();
+        let jwks_uri = "https://op.example.com/jwks".to_string();
 
         let metadata = IssuerMetadata {
             issuer,
@@ -1723,7 +1623,10 @@ mod issuer_instance {
             ..IssuerMetadata::default()
         };
 
-        let mut issuer = Issuer::new(metadata, None);
+        let mut issuer = Issuer::new(
+            metadata,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
 
         let jwk_result = issuer.get_jwk(Some("RS256".to_string()), Some("sig".to_string()), None);
 
@@ -1751,8 +1654,6 @@ mod issuer_instance {
 
     #[test]
     fn multiple_keys_can_match_jwt_header() {
-        let auth_server_domain = get_url_with_count("op.example<>.com");
-
         let mock_http_server = MockServer::start();
 
         let _jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -1765,10 +1666,8 @@ mod issuer_instance {
                 .body("{\"keys\":[{\"e\":\"AQAB\",\"n\":\"5RnVQ2VT79TaW_Louj5ib7_dVJ1vX5ebaVeifBjNDlUp3KsrHm5sq1KWzPVz-XE6m4GBGXnVxMc5pmN7pQcqGe2rzw_jTAOIQzjYZ2UPTvl8HSjPCf9VwJleHiy4195YgnOcAF-PVASLKNKnoHjgn4b2gXpikMnztvdTFZrQAAlEVwslbW0Z17imHQsYzDXDYVzwpxjiRl4tWretNXhJS2Bk1NZoctW5kY6otkeMZ8VLpCUfbBzrhhLh5b_7Q0JKQjGX94f8j5tpVz_CXkpwQUXyymfBH9B-FY5s7LDZRKCEneSnCwSFce_nVzPqcO5J4SwsVF6FhwVQMvCC0QmNGw\",\"kty\":\"RSA\",\"kid\":\"0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A\"},{\"e\":\"AQAB\",\"n\":\"3ANc8Uhup5_tnZfJuR4jQIwzobzEegcPGySt_EVzdF8ft2L4RoOE8wWq2fff9tRtrzNcKjSTgpw6cDMXSEa2Mx07FUvuyvjXSzlUG_fEPGIhyEJXqD5NZ89CrgHy55kizSuvgxcpQLkvSddBXVYnccWRGXfCurj7BkY1ycxvm55LAkPkaEtSWmnX8gWX6289SeKx-3rD0Xl20lhoe0_f4nChWibn-2egKBfrq-d1nXnsyxOcDhOZHS9nC4N4UeiZyQ6ervyGDg1fxzi98gxe4qb14J3vogX3KUdyG0YuC4D1SgUtEnmrVbbQl9y3fYBKZy7ysk48j9CdWjA9KYoWUQ\",\"kty\":\"RSA\",\"kid\":\"0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A\"}]}");
         });
 
-        set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-        let issuer = format!("https://{}", auth_server_domain);
-        let jwks_uri = format!("https://{}/jwks", auth_server_domain);
+        let issuer = "https://op.example.com".to_string();
+        let jwks_uri = "https://op.example.com/jwks".to_string();
 
         let metadata = IssuerMetadata {
             issuer,
@@ -1776,7 +1675,10 @@ mod issuer_instance {
             ..IssuerMetadata::default()
         };
 
-        let mut issuer = Issuer::new(metadata, None);
+        let mut issuer = Issuer::new(
+            metadata,
+            get_default_test_interceptor(mock_http_server.port()),
+        );
 
         let jwk_result = issuer.get_jwk(
             Some("RS256".to_string()),
@@ -1810,11 +1712,8 @@ mod issuer_instance {
 
     #[cfg(test)]
     mod http_options {
-        use std::time::Duration;
 
-        use reqwest::header::{HeaderMap, HeaderValue};
-
-        use crate::{tests::get_url_with_count, types::RequestOptions};
+        use crate::tests::test_interceptors::TestInterceptor;
 
         use super::*;
 
@@ -1822,9 +1721,8 @@ mod issuer_instance {
         fn allows_for_http_options_to_be_defined_for_issuer_keystore_calls() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-            let issuer = format!("https://{}", auth_server_domain);
-            let jwks_uri = format!("https://{}/jwks", auth_server_domain);
+            let issuer = "https://op.example.com".to_string();
+            let jwks_uri = "https://op.example.com/jwks".to_string();
 
             let jwks_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
@@ -1836,24 +1734,13 @@ mod issuer_instance {
                     .body(get_default_jwks());
             });
 
-            let interceptor = |_request: &crate::types::Request| {
-                let mut headers = HeaderMap::new();
-                headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
-
-                RequestOptions {
-                    headers,
-                    timeout: Duration::from_millis(3500),
-                }
-            };
-
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
             let _ = Issuer::discover(
-                &format!(
-                    "https://{}/.well-known/custom-configuration",
-                    auth_server_domain
-                ),
-                Some(Box::new(interceptor)),
+                "https://op.example.com/.well-known/custom-configuration",
+                Some(Box::new(TestInterceptor {
+                    test_header: Some("testHeader".to_string()),
+                    test_header_value: Some("testHeaderValue".to_string()),
+                    test_server_port: Some(mock_http_server.port()),
+                })),
             );
 
             let metadata = IssuerMetadata {
@@ -1862,7 +1749,14 @@ mod issuer_instance {
                 ..IssuerMetadata::default()
             };
 
-            let mut issuer = Issuer::new(metadata, Some(Box::new(interceptor)));
+            let mut issuer = Issuer::new(
+                metadata,
+                Some(Box::new(TestInterceptor {
+                    test_header: Some("testHeader".to_string()),
+                    test_header_value: Some("testHeaderValue".to_string()),
+                    test_server_port: Some(mock_http_server.port()),
+                })),
+            );
 
             let _ = issuer.get_keystore(false);
 
@@ -1873,9 +1767,8 @@ mod issuer_instance {
         fn allows_for_http_options_to_be_defined_for_issuer_keystore_calls_async() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-            let issuer = format!("https://{}", auth_server_domain);
-            let jwks_uri = format!("https://{}/jwks", auth_server_domain);
+            let issuer = "https://op.example.com".to_string();
+            let jwks_uri = "https://op.example.com/jwks".to_string();
 
             let jwks_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET)
@@ -1887,24 +1780,13 @@ mod issuer_instance {
                     .body(get_default_jwks());
             });
 
-            let interceptor = |_request: &crate::types::Request| {
-                let mut headers = HeaderMap::new();
-                headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
-
-                RequestOptions {
-                    headers,
-                    timeout: Duration::from_millis(3500),
-                }
-            };
-
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
             let _ = Issuer::discover(
-                &format!(
-                    "https://{}/.well-known/custom-configuration",
-                    auth_server_domain
-                ),
-                Some(Box::new(interceptor)),
+                "https://op.example.com/.well-known/custom-configuration",
+                Some(Box::new(TestInterceptor {
+                    test_header: Some("testHeader".to_string()),
+                    test_header_value: Some("testHeaderValue".to_string()),
+                    test_server_port: Some(mock_http_server.port()),
+                })),
             );
 
             let metadata = IssuerMetadata {
@@ -1913,7 +1795,14 @@ mod issuer_instance {
                 ..IssuerMetadata::default()
             };
 
-            let mut issuer = Issuer::new(metadata, Some(Box::new(interceptor)));
+            let mut issuer = Issuer::new(
+                metadata,
+                Some(Box::new(TestInterceptor {
+                    test_header: Some("testHeader".to_string()),
+                    test_header_value: Some("testHeaderValue".to_string()),
+                    test_server_port: Some(mock_http_server.port()),
+                })),
+            );
 
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 

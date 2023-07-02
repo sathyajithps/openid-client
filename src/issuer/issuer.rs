@@ -1,10 +1,9 @@
 use core::fmt::Debug;
 use std::collections::HashMap;
-use std::fmt::Formatter;
 
 use crate::client::Client;
 use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
-use crate::http::{default_request_interceptor, request, request_async};
+use crate::http::{request, request_async};
 use crate::jwks::Jwks;
 use crate::types::{
     ClientMetadata, ClientOptions, IssuerMetadata, OidcClientError, Request, RequestInterceptor,
@@ -14,6 +13,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
 
 /// Holds all the discovered values from the OIDC Issuer
+#[derive(Debug)]
 pub struct Issuer {
     /// Discovered issuer uri.
     pub(crate) issuer: String,
@@ -60,7 +60,7 @@ pub struct Issuer {
     /// Client registration endpoint
     pub(crate) registration_endpoint: Option<String>,
     /// Request interceptor used for every request
-    pub(crate) request_interceptor: RequestInterceptor,
+    pub(crate) request_interceptor: Option<RequestInterceptor>,
 }
 
 impl Default for Issuer {
@@ -84,7 +84,7 @@ impl Default for Issuer {
             jwks_uri: None,
             userinfo_endpoint: None,
             revocation_endpoint: None,
-            request_interceptor: Box::new(default_request_interceptor),
+            request_interceptor: None,
             revocation_endpoint_auth_methods_supported: None,
             introspection_endpoint_auth_signing_alg_values_supported: None,
             revocation_endpoint_auth_signing_alg_values_supported: None,
@@ -190,18 +190,40 @@ impl Issuer {
     ///         ..IssuerMetadata::default()
     ///     };
     ///
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         if request.url == "https://auth.example.com/certs" {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(10000),
-    ///         }
-    ///     };
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
     ///
     ///     let issuer = Issuer::new(metadata, Some(Box::new(interceptor)));
     ///
@@ -237,11 +259,6 @@ impl Issuer {
                     .clone(),
                 Some(v) => Some(v),
             };
-
-        let interceptor = match interceptor {
-            Some(i) => i,
-            None => Box::new(default_request_interceptor),
-        };
 
         Self {
             issuer: metadata.issuer,
@@ -305,18 +322,41 @@ impl Issuer {
     /// ### *Example: with interceptor*
     ///
     /// ```rust
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
     ///
-    ///         if request.url == "https://auth.example.com/.well-known/openid-configuration" {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(10000),
-    ///         }
-    ///     };
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
+    ///
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
     ///
     ///     // The discovery request will send header foo: bar in the request headers
     ///
@@ -328,9 +368,8 @@ impl Issuer {
     /// ```
     pub fn discover(
         issuer: &str,
-        interceptor: Option<RequestInterceptor>,
+        mut interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
-        let mut interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
         let req = Self::build_discover_request(issuer)?;
 
         let res = request(req, &mut interceptor)?;
@@ -374,18 +413,41 @@ impl Issuer {
     /// ### *Example: with interceptor*
     ///
     /// ```rust
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
     ///
-    ///         if request.url == "https://auth.example.com/.well-known/openid-configuration" {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(10000),
-    ///         }
-    ///     };
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
+    ///
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
     ///
     ///     // The discovery request will send header foo: bar in the request headers
     ///
@@ -399,10 +461,8 @@ impl Issuer {
     /// ```
     pub async fn discover_async(
         issuer: &str,
-        interceptor: Option<RequestInterceptor>,
+        mut interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
-        let mut interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
-
         let req = Self::build_discover_request(issuer)?;
 
         let res = request_async(req, &mut interceptor).await?;
@@ -443,7 +503,7 @@ impl Issuer {
     /// This is a private function that is used to process the discover response.
     fn process_discover_response(
         response: Response,
-        interceptor: RequestInterceptor,
+        interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
         let issuer_metadata =
             match convert_json_to::<IssuerMetadata>(response.body.as_ref().unwrap()) {
@@ -492,35 +552,56 @@ impl Issuer {
     /// ```rust
     ///     // This interceptor will insert a header foo: bar for the discovery request made
     ///     // internally after webfinger request
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
     ///
-    ///         if request.url == "https://auth.example.com/.well-known/openid-configuration" {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(10000),
-    ///         }
-    ///     };
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
+    ///
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
     ///
     ///     let _issuer = Issuer::webfinger("joe@auth.example.com", Some(Box::new(interceptor))).unwrap();
     /// ```
     ///
     pub fn webfinger(
         input: &str,
-        interceptor: Option<RequestInterceptor>,
+        mut interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
-        let mut interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
-
         let req = Self::build_webfinger_request(input)?;
 
         let res = request(req, &mut interceptor)?;
 
         let expected_issuer = Self::process_webfinger_response(res)?;
 
-        let issuer_result = Issuer::discover(&expected_issuer, Some(interceptor));
+        let issuer_result = Issuer::discover(&expected_issuer, interceptor);
 
         Self::process_webfinger_issuer_result(issuer_result, expected_issuer)
     }
@@ -563,18 +644,41 @@ impl Issuer {
     /// ```rust
     ///     // This interceptor will insert a header foo: bar for the discovery request made
     ///     // internally after webfinger request
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
     ///
-    ///         if request.url == "https://auth.example.com/.well-known/openid-configuration" {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(10000),
-    ///         }
-    ///     };
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
+    ///
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
     ///
     ///     let _issuer = Issuer::webfinger_async("joe@auth.example.com", Some(Box::new(interceptor)))
     ///         .await
@@ -582,17 +686,15 @@ impl Issuer {
     /// ```
     pub async fn webfinger_async(
         input: &str,
-        interceptor: Option<RequestInterceptor>,
+        mut interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
-        let mut interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
-
         let req = Self::build_webfinger_request(input)?;
 
         let res = request_async(req, &mut interceptor).await?;
 
         let expected_issuer = Self::process_webfinger_response(res)?;
 
-        let issuer_result = Issuer::discover_async(&expected_issuer, Some(interceptor)).await;
+        let issuer_result = Issuer::discover_async(&expected_issuer, interceptor).await;
 
         Self::process_webfinger_issuer_result(issuer_result, expected_issuer)
     }
@@ -760,12 +862,8 @@ impl Issuer {
     /// - `jwks` - The client jwks with private keys.
     /// - `client_options` - Client options.
     ///
-    /// - Note: The request interceptor from the issuer is not carried over to the client.
-    ///         If no `interceptor` is provided with the method, a client with default request interceptor
-    ///         is created. The reason for not taking the interceptor from the `issuer` is to
-    ///         avoid the confusion of which request interceptor a [Client] is being created with
-    ///         when you are trying to create a [Client] from the `issuer` that you get back from
-    ///         the [`Client::get_issuer()`].
+    /// Note: If the [Issuer] already have a request interceptor and none was passed in through `interceptor`,
+    ///       the interceptor from the [Issuer] is used.
     ///
     /// ### *Example:*
     ///
@@ -799,23 +897,54 @@ impl Issuer {
     ///         .unwrap();
     /// ```
     ///
-    /// ### *Example: with interceptor*
+    /// ### *Example: with all params*
     ///
     /// ```rust
     ///     let issuer = Issuer::discover("https://auth.example.com", None).unwrap();
     ///
     ///     // Adds a foo: bar header for all urls that contains `userinfo`
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
     ///
-    ///         if request.url.contains("userinfo") {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(3500),
-    ///         }
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
+    ///
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
+    ///
+    ///     let jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///
+    ///     let jwks = Jwks::from(vec![jwk]);
+    ///
+    ///     let client_options = ClientOptions {
+    ///         additional_authorized_parties: Some(vec!["authParty".to_string()]),
     ///     };
     ///
     ///     let client_metadata = ClientMetadata {
@@ -824,7 +953,11 @@ impl Issuer {
     ///     };
     ///
     ///     let _client = issuer
-    ///         .client(client_metadata, Some(Box::new(interceptor)), None, None)
+    ///         .client(
+    ///         client_metadata,
+    ///         Some(Box::new(interceptor)),
+    ///         Some(jwks),
+    ///         Some(client_options))
     ///         .unwrap();
     /// ```
     pub fn client(
@@ -834,18 +967,28 @@ impl Issuer {
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
     ) -> Result<Client, OidcClientError> {
-        let interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
+        let request_interceptor = match (interceptor, &self.request_interceptor) {
+            (None, Some(i)) => Some(i.clone_box()),
+            (Some(i), None) | (Some(i), Some(_)) => Some(i),
+            _ => None,
+        };
 
         Client::jwks_only_private_keys_validation(jwks.as_ref())?;
 
-        Client::from_internal(metadata, Some(self), interceptor, jwks, client_options)
+        Client::from_internal(
+            metadata,
+            Some(self),
+            request_interceptor,
+            jwks,
+            client_options,
+        )
     }
 }
 
-impl Issuer {
-    /// # Internal Documentation
-    /// Creates a new [Issuer] with [`default_request_interceptor()`]
-    pub(crate) fn clone_with_default_interceptor(&self) -> Self {
+impl Clone for Issuer {
+    fn clone(&self) -> Self {
+        let request_interceptor = self.request_interceptor.as_ref().map(|i| i.clone_box());
+
         Self {
             issuer: self.issuer.clone(),
             authorization_endpoint: self.authorization_endpoint.clone(),
@@ -877,7 +1020,7 @@ impl Issuer {
                 .clone(),
             other_fields: self.other_fields.clone(),
             jwks: self.jwks.clone(),
-            request_interceptor: Box::new(default_request_interceptor),
+            request_interceptor,
             registration_endpoint: self.registration_endpoint.clone(),
         }
     }
@@ -1006,60 +1149,10 @@ impl Issuer {
     pub fn get_registration_endpoint(&self) -> Option<String> {
         self.registration_endpoint.clone()
     }
-}
 
-impl Debug for Issuer {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Issuer")
-            .field("issuer", &self.issuer)
-            .field("authorization_endpoint", &self.authorization_endpoint)
-            .field("token_endpoint", &self.token_endpoint)
-            .field("jwks_uri", &self.jwks_uri)
-            .field("userinfo_endpoint", &self.userinfo_endpoint)
-            .field("revocation_endpoint", &self.revocation_endpoint)
-            .field(
-                "claims_parameter_supported",
-                &self.claims_parameter_supported,
-            )
-            .field("grant_types_supported", &self.grant_types_supported)
-            .field(
-                "request_parameter_supported",
-                &self.request_parameter_supported,
-            )
-            .field(
-                "request_uri_parameter_supported",
-                &self.request_uri_parameter_supported,
-            )
-            .field(
-                "require_request_uri_registration",
-                &self.require_request_uri_registration,
-            )
-            .field("response_modes_supported", &self.response_modes_supported)
-            .field("claim_types_supported", &self.claim_types_supported)
-            .field(
-                "token_endpoint_auth_methods_supported",
-                &self.token_endpoint_auth_methods_supported,
-            )
-            .field(
-                "introspection_endpoint_auth_methods_supported",
-                &self.introspection_endpoint_auth_methods_supported,
-            )
-            .field(
-                "introspection_endpoint_auth_signing_alg_values_supported",
-                &self.introspection_endpoint_auth_signing_alg_values_supported,
-            )
-            .field(
-                "revocation_endpoint_auth_methods_supported",
-                &self.revocation_endpoint_auth_methods_supported,
-            )
-            .field(
-                "revocation_endpoint_auth_signing_alg_values_supported",
-                &self.revocation_endpoint_auth_signing_alg_values_supported,
-            )
-            .field("other_fields", &self.other_fields)
-            .field("jwks", &self.jwks)
-            .field("request_options", &"fn(&RequestOptions) -> RequestOptions")
-            .finish()
+    /// Sets an [RequestInterceptor]
+    pub fn set_request_interceptor(&mut self, interceptor: RequestInterceptor) {
+        self.request_interceptor = Some(interceptor);
     }
 }
 

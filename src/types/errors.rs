@@ -94,7 +94,7 @@ impl OidcClientError {
     }
 
     /// Returns the [`ErrorWithResponse<Error>`]
-    /// *Note: panics if called on the wront enum*
+    /// *Note: panics if called on the wrong enum*
     pub fn error(self) -> ErrorWithResponse<Error> {
         if let OidcClientError::Error(error, response) = self {
             return ErrorWithResponse { error, response };
@@ -103,7 +103,7 @@ impl OidcClientError {
     }
 
     /// Returns the [`ErrorWithResponse<TypeError>`]
-    /// *Note: panics if called on the wront enum*
+    /// *Note: panics if called on the wrong enum*
     pub fn type_error(self) -> ErrorWithResponse<TypeError> {
         if let OidcClientError::TypeError(error, response) = self {
             return ErrorWithResponse { error, response };
@@ -112,7 +112,7 @@ impl OidcClientError {
     }
 
     /// Returns the [`ErrorWithResponse<RPError>`]
-    /// *Note: panics if called on the wront enum*
+    /// *Note: panics if called on the wrong enum*
     pub fn rp_error(self) -> ErrorWithResponse<RPError> {
         if let OidcClientError::RPError(error, response) = self {
             return ErrorWithResponse { error, response };
@@ -121,7 +121,7 @@ impl OidcClientError {
     }
 
     /// Returns the [`ErrorWithResponse<StandardBodyError>`]
-    /// *Note: panics if called on the wront enum*
+    /// *Note: panics if called on the wrong enum*
     pub fn op_error(self) -> ErrorWithResponse<StandardBodyError> {
         if let OidcClientError::OPError(error, response) = self {
             return ErrorWithResponse { error, response };

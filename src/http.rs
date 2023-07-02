@@ -1,21 +1,34 @@
+use std::time::Duration;
+
 use crate::{
     helpers::{convert_json_to, parse_www_authenticate_error},
-    tests::process_url,
     types::{
-        OidcClientError, Request, RequestInterceptor, RequestOptions, Response, StandardBodyError,
+        Lookup, OidcClientError, Request, RequestInterceptor, RequestOptions, Response,
+        StandardBodyError,
     },
 };
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::Value;
-use std::time::Duration;
+use url::Url;
 
 pub fn request(
     request: Request,
-    interceptor: &mut RequestInterceptor,
+    interceptor: &mut Option<RequestInterceptor>,
 ) -> Result<Response, OidcClientError> {
-    let (options, url) = pre_request(&request, interceptor);
+    let (mut url, options) = pre_request(&request, interceptor);
 
-    let client = reqwest::blocking::Client::new();
+    let mut client_builder = reqwest::blocking::ClientBuilder::new();
+
+    if let Some(l) = options.lookup {
+        lookup_resolve(l, &mut url)?;
+    }
+
+    if options.danger_accept_invalid_certs {
+        client_builder = client_builder.danger_accept_invalid_certs(true);
+    }
+
+    let client = client_builder.build().map_err(client_build_error)?;
+
     let mut req = client
         .request(request.method.clone(), url)
         .headers(combine_and_create_new_header_map(
@@ -28,12 +41,7 @@ pub fn request(
     if let Some(json_body) = &request.json {
         match serde_json::to_string(json_body) {
             Ok(serialized) => req = req.body(serialized),
-            _ => {
-                return Err(OidcClientError::new_error(
-                    "error while serializing body to string",
-                    None,
-                ))
-            }
+            _ => return Err(invalid_json_body()),
         }
     }
 
@@ -47,11 +55,22 @@ pub fn request(
 
 pub async fn request_async(
     request: Request,
-    interceptor: &mut RequestInterceptor,
+    interceptor: &mut Option<RequestInterceptor>,
 ) -> Result<Response, OidcClientError> {
-    let (options, url) = pre_request(&request, interceptor);
+    let (mut url, options) = pre_request(&request, interceptor);
 
-    let client = reqwest::Client::new();
+    let mut client_builder = reqwest::ClientBuilder::new();
+
+    if let Some(l) = options.lookup {
+        lookup_resolve(l, &mut url)?;
+    }
+
+    if options.danger_accept_invalid_certs {
+        client_builder = client_builder.danger_accept_invalid_certs(true);
+    }
+
+    let client = client_builder.build().map_err(client_build_error)?;
+
     let mut req = client
         .request(request.method.clone(), url)
         .headers(combine_and_create_new_header_map(
@@ -64,12 +83,7 @@ pub async fn request_async(
     if let Some(json_body) = &request.json {
         match serde_json::to_string(json_body) {
             Ok(serialized) => req = req.body(serialized),
-            _ => {
-                return Err(OidcClientError::new_error(
-                    "error while serializing body to string",
-                    None,
-                ))
-            }
+            _ => return Err(invalid_json_body()),
         }
     }
 
@@ -81,30 +95,77 @@ pub async fn request_async(
     process_response(response, &request)
 }
 
-/// The Default [RequestInterceptor] that is Used if no interceptor
-/// is passed to the methods that accepts the interceptor
-pub fn default_request_interceptor(_request: &Request) -> RequestOptions {
-    let mut headers = HeaderMap::new();
-    headers.append(
-        "User-Agent",
-        HeaderValue::from_static(
-            "openid-client/0.0.15-dev (https://github.com/sathyajithps/openid-client)",
-        ),
-    );
-    RequestOptions {
-        headers,
-        timeout: Duration::from_millis(5000),
+fn lookup_resolve(mut l: Box<dyn Lookup>, url: &mut Url) -> Result<(), OidcClientError> {
+    let lookedup_url = l.lookup(url);
+
+    if let Some(host) = lookedup_url.host_str() {
+        if lookedup_url.scheme() != "https" && lookedup_url.scheme() != "http" {
+            return Err(OidcClientError::new_type_error(
+                "Interceptor Lookup Error: only http or https is supported as a scheme.",
+                None,
+            ));
+        }
+
+        url.set_scheme(lookedup_url.scheme()).map_err(|_| {
+            OidcClientError::new_error("Interceptor Lookup Error: error when changing scheme", None)
+        })?;
+
+        url.set_host(Some(host)).map_err(|_| {
+            OidcClientError::new_error("Interceptor Lookup Error: error when setting host", None)
+        })?;
+
+        if let Some(port) = lookedup_url.port() {
+            url.set_port(Some(port)).map_err(|_| {
+                OidcClientError::new_error(
+                    "Interceptor Lookup Error: error when setting port",
+                    None,
+                )
+            })?;
+        }
+    } else {
+        return Err(OidcClientError::new_type_error(
+            "Interceptor Lookup Error: no host found.",
+            None,
+        ));
     }
+
+    Ok(())
+}
+
+#[inline]
+fn invalid_json_body() -> OidcClientError {
+    OidcClientError::new_error("error while serializing body to string", None)
+}
+
+#[inline]
+fn client_build_error(_: reqwest::Error) -> OidcClientError {
+    OidcClientError::new_error("error when building reqwest client", None)
 }
 
 fn pre_request(
     request: &Request,
-    interceptor: &mut RequestInterceptor,
-) -> (RequestOptions, String) {
-    let options = interceptor(request);
+    interceptor: &mut Option<RequestInterceptor>,
+) -> (Url, RequestOptions) {
+    let url = Url::parse(&request.url).unwrap();
 
-    let url = process_url(&request.url);
-    (options, url)
+    let options = match interceptor {
+        Some(i) => i.intercept(request),
+        None => {
+            let mut headers = HeaderMap::new();
+            headers.append(
+                "User-Agent",
+                HeaderValue::from_static(
+                    "openid-client/0.0.18-dev (https://github.com/sathyajithps/openid-client)",
+                ),
+            );
+            RequestOptions {
+                headers,
+                timeout: Duration::from_secs(5),
+                ..Default::default()
+            }
+        }
+    };
+    (url, options)
 }
 
 fn process_response(response: Response, request: &Request) -> Result<Response, OidcClientError> {
