@@ -7,7 +7,7 @@ use reqwest::{
 
 use crate::{
     helpers::{convert_json_to, validate_url},
-    http::{default_request_interceptor, request, request_async},
+    http::{request, request_async},
     issuer::Issuer,
     jwks::Jwks,
     types::{
@@ -17,106 +17,107 @@ use crate::{
 };
 
 /// # Client instance
+#[derive(Debug)]
 pub struct Client {
     /// Client Id
-    pub client_id: String,
+    pub(crate) client_id: String,
     /// Client secret
-    pub client_secret: Option<String>,
+    pub(crate) client_secret: Option<String>,
     /// [Registration Access Token](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub registration_access_token: Option<String>,
+    pub(crate) registration_access_token: Option<String>,
     /// [Registration Client Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub registration_client_uri: Option<String>,
+    pub(crate) registration_client_uri: Option<String>,
     /// [Client Id Issued At](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub client_id_issued_at: Option<i64>,
+    pub(crate) client_id_issued_at: Option<i64>,
     /// [Secret Expiry](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     /// Epoch Seconds
-    pub client_secret_expires_at: Option<i64>,
+    pub(crate) client_secret_expires_at: Option<i64>,
     /// [Authentication method](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     /// used by the client for authenticating with the OP
-    pub token_endpoint_auth_method: String,
+    pub(crate) token_endpoint_auth_method: String,
     /// [Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     /// used for signing the JWT used to authenticate
     /// the client at the token endpoint.
-    pub token_endpoint_auth_signing_alg: Option<String>,
+    pub(crate) token_endpoint_auth_signing_alg: Option<String>,
     /// [Authentication method](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
     /// used by the client for introspection endpoint
-    pub introspection_endpoint_auth_method: Option<String>,
+    pub(crate) introspection_endpoint_auth_method: Option<String>,
     /// [Algorithm](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
     /// used for signing the JWT used to authenticate
     /// the client at the introspection endpoint.
-    pub introspection_endpoint_auth_signing_alg: Option<String>,
+    pub(crate) introspection_endpoint_auth_signing_alg: Option<String>,
     /// [Authentication method](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
     /// used by the client for revocation endpoint
-    pub revocation_endpoint_auth_method: Option<String>,
+    pub(crate) revocation_endpoint_auth_method: Option<String>,
     /// [Algorithm](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
     /// used for signing the JWT used to authenticate
     /// the client at the revocation endpoint.
-    pub revocation_endpoint_auth_signing_alg: Option<String>,
+    pub(crate) revocation_endpoint_auth_signing_alg: Option<String>,
     /// The [redirect uri](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep)
     /// where response will be sent
-    pub redirect_uri: Option<String>,
+    pub(crate) redirect_uri: Option<String>,
     /// A list of acceptable [redirect uris](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep)
-    pub redirect_uris: Option<Vec<String>>,
+    pub(crate) redirect_uris: Option<Vec<String>>,
     /// [Response type](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep) supported by the client.
-    pub response_type: Option<String>,
+    pub(crate) response_type: Option<String>,
     /// List of [Response type](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep) supported by the client
-    pub response_types: Vec<String>,
+    pub(crate) response_types: Vec<String>,
     /// [Grant Types](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub grant_types: Vec<String>,
+    pub(crate) grant_types: Vec<String>,
     /// [Application Type](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub application_type: Option<String>,
+    pub(crate) application_type: Option<String>,
     /// [Contacts](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub contacts: Option<Vec<String>>,
+    pub(crate) contacts: Option<Vec<String>>,
     /// [Client Name](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub client_name: Option<String>,
+    pub(crate) client_name: Option<String>,
     /// [Logo Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub logo_uri: Option<String>,
+    pub(crate) logo_uri: Option<String>,
     /// [Client Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub client_uri: Option<String>,
+    pub(crate) client_uri: Option<String>,
     /// [Policy Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub policy_uri: Option<String>,
+    pub(crate) policy_uri: Option<String>,
     /// [Tos Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub tos_uri: Option<String>,
+    pub(crate) tos_uri: Option<String>,
     /// [Jwks Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub jwks_uri: Option<String>,
+    pub(crate) jwks_uri: Option<String>,
     /// [JWKS](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub jwks: Option<Jwks>,
+    pub(crate) jwks: Option<Jwks>,
     /// [Sector Identifier Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub sector_identifier_uri: Option<String>,
+    pub(crate) sector_identifier_uri: Option<String>,
     /// [Subject Type](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub subject_type: Option<String>,
+    pub(crate) subject_type: Option<String>,
     /// [Id Token Signed Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub id_token_signed_response_alg: String,
+    pub(crate) id_token_signed_response_alg: String,
     /// [Id Token Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub id_token_encrypted_response_alg: Option<String>,
+    pub(crate) id_token_encrypted_response_alg: Option<String>,
     /// [Id Token Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub id_token_encrypted_response_enc: Option<String>,
+    pub(crate) id_token_encrypted_response_enc: Option<String>,
     /// [Userinfo Signed Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub userinfo_signed_response_alg: Option<String>,
+    pub(crate) userinfo_signed_response_alg: Option<String>,
     /// [Userinfo Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub userinfo_encrypted_response_alg: Option<String>,
+    pub(crate) userinfo_encrypted_response_alg: Option<String>,
     /// [Userinfo Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub userinfo_encrypted_response_enc: Option<String>,
+    pub(crate) userinfo_encrypted_response_enc: Option<String>,
     /// [Request Object Signing Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub request_object_signing_alg: Option<String>,
+    pub(crate) request_object_signing_alg: Option<String>,
     /// [Request Object Encryption Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub request_object_encryption_alg: Option<String>,
+    pub(crate) request_object_encryption_alg: Option<String>,
     /// [Request Object Encryption Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub request_object_encryption_enc: Option<String>,
+    pub(crate) request_object_encryption_enc: Option<String>,
     /// [Default Max Age](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub default_max_age: Option<i64>,
+    pub(crate) default_max_age: Option<i64>,
     /// [Require Auth Time](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub require_auth_time: Option<bool>,
+    pub(crate) require_auth_time: Option<bool>,
     /// [Default Acr Values](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub default_acr_values: Option<Vec<String>>,
+    pub(crate) default_acr_values: Option<Vec<String>>,
     /// [Initiate Login Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub initiate_login_uri: Option<String>,
+    pub(crate) initiate_login_uri: Option<String>,
     /// [Request Uris](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub request_uris: Option<String>,
+    pub(crate) request_uris: Option<String>,
     /// Extra key values
-    pub other_fields: HashMap<String, serde_json::Value>,
+    pub(crate) other_fields: HashMap<String, serde_json::Value>,
     pub(crate) private_jwks: Option<Jwks>,
-    pub(crate) request_interceptor: RequestInterceptor,
+    pub(crate) request_interceptor: Option<RequestInterceptor>,
     pub(crate) issuer: Option<Issuer>,
     pub(crate) client_options: Option<ClientOptions>,
 }
@@ -167,7 +168,7 @@ impl Client {
             initiate_login_uri: None,
             request_uris: None,
             private_jwks: None,
-            request_interceptor: Box::new(default_request_interceptor),
+            request_interceptor: None,
             issuer: None,
             other_fields: HashMap::new(),
             client_options: None,
@@ -177,19 +178,14 @@ impl Client {
     /// # Internal documentation
     /// This method is used to create an instance of [Client] by:
     ///     - [`Issuer::client()`]
-    ///     - [`Client::new_with_interceptor()`]
     ///     - [`Client::from_uri_async()`],
     ///     - [`Client::from_uri()`]
-    ///     - [`Client::from_uri_with_interceptor()`]
-    ///     - [`Client::from_uri_with_interceptor_async()`]
     ///     - [`Client::register()`]
     ///     - [`Client::register_async()`]
-    ///
-    /// The `issuer` will be cloned using [`Issuer::clone_with_default_interceptor()`] method
     pub(crate) fn from_internal(
         metadata: ClientMetadata,
         issuer: Option<&Issuer>,
-        interceptor: RequestInterceptor,
+        interceptor: Option<RequestInterceptor>,
         jwks: Option<Jwks>,
         options: Option<ClientOptions>,
     ) -> Result<Self, OidcClientError> {
@@ -334,10 +330,12 @@ impl Client {
                 "revocation",
             )?;
 
-            client.issuer = Some(iss.clone_with_default_interceptor());
+            client.issuer = Some(iss.clone());
         }
 
-        client.set_request_interceptor(interceptor);
+        if let Some(i) = interceptor {
+            client.set_request_interceptor(i);
+        }
 
         if jwks.is_some() {
             client.private_jwks = jwks;
@@ -410,18 +408,40 @@ impl Client {
     ///         additional_authorized_parties: Some(vec!["authParty".to_string()]),
     ///     };
     ///
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         if request.url.contains("userinfor") || request.url.contains("token") {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(10000),
-    ///         }
-    ///     };
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
     ///
     ///     let issuer = Issuer::discover("https://auth.example.com", Some(Box::new(interceptor))).unwrap();
     ///
@@ -442,10 +462,8 @@ impl Client {
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
         issuer: Option<&Issuer>,
-        interceptor: Option<RequestInterceptor>,
+        mut interceptor: Option<RequestInterceptor>,
     ) -> Result<Self, OidcClientError> {
-        let mut request_interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
-
         Self::jwks_only_private_keys_validation(jwks.as_ref())?;
 
         let req = Self::build_from_uri_request(
@@ -453,9 +471,9 @@ impl Client {
             registration_access_token.as_ref(),
         )?;
 
-        let res = request(req, &mut request_interceptor)?;
+        let res = request(req, &mut interceptor)?;
 
-        Self::process_from_uri_response(res, issuer, request_interceptor, jwks, client_options)
+        Self::process_from_uri_response(res, issuer, interceptor, jwks, client_options)
     }
 
     /// # Creates a client from the [Client Read Endpoint](https://openid.net/specs/openid-connect-registration-1_0.html#ReadRequest)
@@ -496,18 +514,40 @@ impl Client {
     ///         additional_authorized_parties: Some(vec!["authParty".to_string()]),
     ///     };
     ///
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         if request.url.contains("userinfor") || request.url.contains("token") {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(10000),
-    ///         }
-    ///     };
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
     ///
     ///     let issuer = Issuer::discover_async("https://auth.example.com", Some(Box::new(interceptor)))
     ///         .await
@@ -530,10 +570,8 @@ impl Client {
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
         issuer: Option<&Issuer>,
-        interceptor: Option<RequestInterceptor>,
+        mut interceptor: Option<RequestInterceptor>,
     ) -> Result<Self, OidcClientError> {
-        let mut request_interceptor = interceptor.unwrap_or(Box::new(default_request_interceptor));
-
         Self::jwks_only_private_keys_validation(jwks.as_ref())?;
 
         let req = Self::build_from_uri_request(
@@ -541,9 +579,9 @@ impl Client {
             registration_access_token.as_ref(),
         )?;
 
-        let res = request_async(req, &mut request_interceptor).await?;
+        let res = request_async(req, &mut interceptor).await?;
 
-        Self::process_from_uri_response(res, issuer, request_interceptor, jwks, client_options)
+        Self::process_from_uri_response(res, issuer, interceptor, jwks, client_options)
     }
 }
 
@@ -575,20 +613,48 @@ impl Client {
     /// ### *Example: with all params*
     ///
     /// ```rust
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
     ///
-    ///         if request.url.contains("token") {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(10000),
-    ///         }
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
+    ///
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor1 = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
+    ///
+    ///     let interceptor2 = CustomInterceptor {
+    ///         some_header: "foo".to_string(),
+    ///         some_header_value: "bar".to_string(),
     ///     };
     ///
-    ///     let issuer = Issuer::discover("https://auth.example.com", Some(Box::new(interceptor))).unwrap();
+    ///     let issuer = Issuer::discover("https://auth.example.com", Some(Box::new(interceptor1))).unwrap();
     ///
     ///     let metadata = ClientMetadata {
     ///         client_id: Some("identifier".to_string()),
@@ -607,7 +673,7 @@ impl Client {
     ///         &issuer,
     ///         metadata,
     ///         Some(registration_options),
-    ///         Some(Box::new(interceptor)),
+    ///         Some(Box::new(interceptor2)),
     ///     )
     ///     .unwrap();
     /// ```
@@ -616,7 +682,7 @@ impl Client {
         issuer: &Issuer,
         mut client_metadata: ClientMetadata,
         register_options: Option<ClientRegistrationOptions>,
-        interceptor: Option<RequestInterceptor>,
+        mut interceptor: Option<RequestInterceptor>,
     ) -> Result<Self, OidcClientError> {
         let (initial_access_token, jwks, client_options, registration_endpoint) =
             Self::registration_config_validation(issuer, &mut client_metadata, register_options)?;
@@ -627,12 +693,9 @@ impl Client {
             initial_access_token,
         )?;
 
-        let mut request_interceptor: RequestInterceptor =
-            interceptor.unwrap_or(Box::new(default_request_interceptor));
+        let response = request(req, &mut interceptor)?;
 
-        let response = request(req, &mut request_interceptor)?;
-
-        Self::process_register_response(response, issuer, request_interceptor, jwks, client_options)
+        Self::process_register_response(response, issuer, interceptor, jwks, client_options)
     }
 
     /// # Dynamic Client Registration
@@ -665,20 +728,48 @@ impl Client {
     /// ### *Example: with all params*
     ///
     /// ```rust
-    ///     let interceptor = |request: &Request| {
-    ///         let mut headers = HeaderMap::new();
     ///
-    ///         if request.url.contains("token") {
-    ///             headers.append("foo", HeaderValue::from_static("bar"));
-    ///         }
+    ///    #[derive(Debug, Clone)]
+    ///    pub(crate) struct CustomInterceptor {
+    ///        pub some_header: String,
+    ///        pub some_header_value: String,
+    ///    }
     ///
-    ///         RequestOptions {
-    ///             headers,
-    ///             timeout: Duration::from_millis(10000),
-    ///         }
+    ///    impl Interceptor for CustomInterceptor {
+    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+    ///            let mut headers: HeaderMap = HeaderMap::new();
+    ///
+    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+    ///
+    ///            headers.append(header, header_value);
+    ///
+    ///            RequestOptions {
+    ///                headers,
+    ///                timeout: Duration::from_millis(5000),
+    ///                ..Default::default()
+    ///            }
+    ///        }
+    ///
+    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
+    ///            Box::new(CustomInterceptor {
+    ///                some_header: self.some_header.clone(),
+    ///                some_header_value: self.some_header_value.clone(),
+    ///            })
+    ///        }
+    ///    }
+    ///
+    ///    let interceptor1 = CustomInterceptor {
+    ///        some_header: "foo".to_string(),
+    ///        some_header_value: "bar".to_string(),
+    ///    };
+    ///
+    ///     let interceptor2 = CustomInterceptor {
+    ///         some_header: "foo".to_string(),
+    ///         some_header_value: "bar".to_string(),
     ///     };
     ///
-    ///     let issuer = Issuer::discover_async("https://auth.example.com", Some(Box::new(interceptor)))
+    ///     let issuer = Issuer::discover_async("https://auth.example.com", Some(Box::new(interceptor1)))
     ///         .await
     ///         .unwrap();
     ///
@@ -699,7 +790,7 @@ impl Client {
     ///         &issuer,
     ///         metadata,
     ///         Some(registration_options),
-    ///         Some(Box::new(interceptor)),
+    ///         Some(Box::new(interceptor2)),
     ///     )
     ///     .await
     ///     .unwrap();
@@ -709,7 +800,7 @@ impl Client {
         issuer: &Issuer,
         mut client_metadata: ClientMetadata,
         register_options: Option<ClientRegistrationOptions>,
-        interceptor: Option<RequestInterceptor>,
+        mut interceptor: Option<RequestInterceptor>,
     ) -> Result<Self, OidcClientError> {
         let (initial_access_token, jwks, client_options, registration_endpoint) =
             Self::registration_config_validation(issuer, &mut client_metadata, register_options)?;
@@ -720,12 +811,9 @@ impl Client {
             initial_access_token,
         )?;
 
-        let mut request_interceptor: RequestInterceptor =
-            interceptor.unwrap_or(Box::new(default_request_interceptor));
+        let response = request_async(req, &mut interceptor).await?;
 
-        let response = request_async(req, &mut request_interceptor).await?;
-
-        Self::process_register_response(response, issuer, request_interceptor, jwks, client_options)
+        Self::process_register_response(response, issuer, interceptor, jwks, client_options)
     }
 }
 
@@ -785,7 +873,7 @@ impl Client {
     fn process_from_uri_response(
         response: Response,
         issuer: Option<&Issuer>,
-        interceptor: RequestInterceptor,
+        interceptor: Option<RequestInterceptor>,
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
     ) -> Result<Self, OidcClientError> {
@@ -895,7 +983,7 @@ impl Client {
     fn process_register_response(
         response: Response,
         issuer: &Issuer,
-        interceptor: RequestInterceptor,
+        interceptor: Option<RequestInterceptor>,
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
     ) -> Result<Self, OidcClientError> {
@@ -1153,57 +1241,9 @@ impl Client {
         self.client_options.clone()
     }
 
-    pub(crate) fn set_request_interceptor(&mut self, interceptor: RequestInterceptor) {
-        self.request_interceptor = interceptor;
-    }
-}
-
-impl std::fmt::Debug for Client {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Client")
-            .field("client_id", &self.client_id)
-            .field("client_secret", &self.client_secret)
-            .field("grant_types", &self.grant_types)
-            .field(
-                "id_token_signed_response_alg",
-                &self.id_token_signed_response_alg,
-            )
-            .field("response_types", &self.response_types)
-            .field(
-                "token_endpoint_auth_method",
-                &self.token_endpoint_auth_method,
-            )
-            .field(
-                "token_endpoint_auth_signing_alg",
-                &self.token_endpoint_auth_signing_alg,
-            )
-            .field(
-                "introspection_endpoint_auth_method",
-                &self.introspection_endpoint_auth_method,
-            )
-            .field(
-                "introspection_endpoint_auth_signing_alg",
-                &self.introspection_endpoint_auth_signing_alg,
-            )
-            .field(
-                "revocation_endpoint_auth_method",
-                &self.revocation_endpoint_auth_method,
-            )
-            .field(
-                "revocation_endpoint_auth_signing_alg",
-                &self.revocation_endpoint_auth_signing_alg,
-            )
-            .field("redirect_uri", &self.redirect_uri)
-            .field("redirect_uris", &self.redirect_uris)
-            .field("response_type", &self.response_type)
-            .field(
-                "request_interceptor",
-                &"fn(&RequestOptions) -> RequestOptions",
-            )
-            .field("jwks", &self.jwks)
-            .field("other_fields", &self.other_fields)
-            .field("issuer", &self.issuer)
-            .finish()
+    /// Sets a new [RequestInterceptor] on the client
+    pub fn set_request_interceptor(&mut self, interceptor: RequestInterceptor) {
+        self.request_interceptor = Some(interceptor);
     }
 }
 

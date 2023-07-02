@@ -1,13 +1,7 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, fmt::Debug, time::Duration};
 
 use reqwest::{header::HeaderMap, Method, StatusCode};
-
-// TODO: enrich request options with agent, ca, cert, crl, headers, key, lookup, passphrase, pfx, timeout. (refer panva doc)
-
-/// # Request Interceptor
-/// `RequestInterceptor` is the alias for the closure that will be executed
-///  every time a request is being made.
-pub type RequestInterceptor = Box<dyn FnMut(&Request) -> RequestOptions>;
+use url::Url;
 
 /// # Request
 /// Request is an internal struct used to create various OIDC requests.
@@ -31,6 +25,8 @@ pub struct Request {
     pub json: Option<serde_json::Value>,
     /// Expected response type
     pub response_type: Option<String>,
+    /// Specifies if the request is MTLS and needs client certificate
+    pub mtls: bool,
 }
 
 impl Default for Request {
@@ -45,6 +41,7 @@ impl Default for Request {
             search_params: HashMap::new(),
             json: None,
             response_type: None,
+            mtls: false,
         }
     }
 }
@@ -116,21 +113,92 @@ impl Response {
     }
 }
 
+/// # Request Interceptor
+/// Type is a [Box]'ed [Interceptor] trait type.
+pub type RequestInterceptor = Box<dyn Interceptor>;
+
+/// # Lookup
+/// Intention with this lookup is primarily for testing by
+/// redirecting all requests to `localhost (127.0.0.1)` in combination with
+/// the port of mock server.
+///
+/// *The url host, port and scheme will be swapped when building the request. No functionality is affected.*
+///
+/// ### *Example: *
+///
+/// ```
+///     #[derive(Debug)]
+///     struct CustomLookup;
+///
+///     impl Lookup for CustomLookup {
+///          fn lookup(&mut self, _url: &Url) -> Url {
+///              Url::parse("http://your-test-url:1234").unwrap()
+///          }
+///     }
+///
+///     RequestOptions {
+///         lookup: Some(Box::new(CustomLookup{})),
+///         ..Default::default()
+///     }
+/// ```
+pub trait Lookup: Debug {
+    /// The url with path (no query params) of the request url is passed as the `url`
+    /// parameter in return expects a [Url] back.
+    ///
+    /// - The Scheme and host is required from the returned [Url]. Returns
+    ///   an error otherwise. Port is optional
+    ///
+    /// - The entire url is just passed for reference.
+    ///   Only the host:port will be replaced. Not the path.
+    ///
+    /// ### *Example:*
+    ///
+    /// ```
+    ///     fn lookup(&mut self, _url: &Url) -> Url {
+    ///         Url::parse("http://your-test-url:1234").unwrap()
+    ///     }
+    /// ```
+    fn lookup(&mut self, url: &Url) -> Url;
+}
+
+/// # Interceptor
+pub trait Interceptor: Debug {
+    /// This method which is called before making a request
+    fn intercept(&mut self, req: &Request) -> RequestOptions;
+
+    /// Clones the [Interceptor]
+    fn clone_box(&self) -> Box<dyn Interceptor>;
+}
+
 /// # RequestOptions
-/// This struct is the return type of the request interceptor that can be passed to various methods
-/// such as:
-/// 1. [`crate::issuer::Issuer::webfinger_async()`]
-/// 2. [`crate::issuer::Issuer::webfinger()`]
-/// 3. [`crate::issuer::Issuer::discover_async()`]
-/// 4. [`crate::issuer::Issuer::discover()`]
-/// 5. [`crate::client::Client::from_uri()`]
-/// 6. [`crate::client::Client::from_uri_async()`]
-/// 7. [`crate::client::Client::register()`]
-/// 8. [`crate::client::Client::register_async()`]
-#[derive(Debug)]
+/// This struct is the return type of the [`Interceptor::intercept()`]
+#[derive(Default, Debug)]
 pub struct RequestOptions {
-    /// Headers that are tobe appended with the request that is going to be made
+    /// ### Headers that are to be appended with the request that is going to be made
     pub headers: HeaderMap,
-    /// Request timeout
+    /// ### Request timeout
     pub timeout: Duration,
+    /// ### Client public certificate in pem format.
+    /// The `client_crt` is ignored if `client_key` is not present
+    pub client_crt: Option<String>,
+    /// ### Client private certificate in pem format.
+    /// The `client_key` is ignored if `client_crt` is not present
+    pub client_key: Option<String>,
+    /// ### Client certificate in pkcs 12 format `.p12` or `.pfx`
+    /// Make sure to pass `client_pkcs_12_passphrase` if the
+    /// certificate is protected.
+    pub client_pkcs_12: Option<String>,
+    /// Passphrase for pkcs_12 certificate
+    pub client_pkcs_12_passphrase: Option<String>,
+    /// ### Server certificate in pem format
+    /// Useful when testing out with a self signed certificate and
+    /// cannot switch on the `danger_accept_invalid_certs` property
+    pub server_crt: Option<String>,
+    /// ### Lookup
+    /// [Lookup] trait allows you to resolve any url to a custom [Url].
+    pub lookup: Option<Box<dyn Lookup>>,
+    /// ### Accept invalid server certificates
+    /// Accepts self signed or unverified or expired certificates.
+    /// Use with caution.
+    pub danger_accept_invalid_certs: bool,
 }

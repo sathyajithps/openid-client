@@ -118,7 +118,10 @@ fn internal_get_jwk(
     Ok(matched_keys)
 }
 
-fn fetch_jwks(interceptor: &mut RequestInterceptor, url: &str) -> Result<Jwks, OidcClientError> {
+fn fetch_jwks(
+    interceptor: &mut Option<RequestInterceptor>,
+    url: &str,
+) -> Result<Jwks, OidcClientError> {
     let req = make_get_jwks_uri_request(url);
 
     let res = request(req, interceptor)?;
@@ -126,7 +129,7 @@ fn fetch_jwks(interceptor: &mut RequestInterceptor, url: &str) -> Result<Jwks, O
 }
 
 async fn fetch_jwks_async(
-    interceptor: &mut RequestInterceptor,
+    interceptor: &mut Option<RequestInterceptor>,
     url: &str,
 ) -> Result<Jwks, OidcClientError> {
     let req = make_get_jwks_uri_request(url);

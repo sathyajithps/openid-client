@@ -48,4 +48,5 @@ pub mod re_exports {
     pub use josekit::jwk;
     pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
     pub use serde_json::{json, Value};
+    pub use url;
 }

@@ -354,11 +354,8 @@ mod client_new_tests {
         use httpmock::{Method::GET, MockServer};
 
         use crate::{
-            client::Client,
-            helpers::convert_json_to,
-            jwks::Jwks,
-            tests::{get_url_with_count, set_mock_domain},
-            types::OidcClientError,
+            client::Client, helpers::convert_json_to, jwks::Jwks,
+            tests::test_interceptors::get_default_test_interceptor, types::OidcClientError,
         };
 
         pub fn get_default_expected_client_read_response() -> String {
@@ -367,11 +364,20 @@ mod client_new_tests {
 
         pub fn get_async_client_discovery(
             client_registration_uri: &str,
+            port: u16,
         ) -> Result<Client, OidcClientError> {
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let result: Result<Client, OidcClientError> = async_runtime.block_on(async {
-                Client::from_uri_async(client_registration_uri, None, None, None, None, None).await
+                Client::from_uri_async(
+                    client_registration_uri,
+                    None,
+                    None,
+                    None,
+                    None,
+                    get_default_test_interceptor(port),
+                )
+                .await
             });
             result
         }
@@ -380,8 +386,6 @@ mod client_new_tests {
         fn accepts_and_assigns_discovered_metadata() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET).path("/client/identifier");
                 then.status(200)
@@ -389,15 +393,21 @@ mod client_new_tests {
                     .body(get_default_expected_client_read_response());
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let client_registration_uri = "https://op.example.com/client/identifier";
 
-            let client_registration_uri =
-                format!("https://{}/client/identifier", auth_server_domain);
+            let client = Client::from_uri(
+                &client_registration_uri,
+                None,
+                None,
+                None,
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
 
-            let client =
-                Client::from_uri(&client_registration_uri, None, None, None, None, None).unwrap();
-
-            let client_async = get_async_client_discovery(&client_registration_uri).unwrap();
+            let client_async =
+                get_async_client_discovery(&client_registration_uri, mock_http_server.port())
+                    .unwrap();
 
             assert_eq!("identifier", client.get_client_id());
             assert_eq!("identifier", client_async.get_client_id());
@@ -410,8 +420,6 @@ mod client_new_tests {
         fn is_rejected_with_op_error_upon_oidc_error() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET).path("/client/identifier");
                 then.status(500).body(
@@ -419,17 +427,21 @@ mod client_new_tests {
             );
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let client_registration_uri = "https://op.example.com/client/identifier";
 
-            let client_registration_uri =
-                format!("https://{}/client/identifier", auth_server_domain);
-
-            let client_error =
-                Client::from_uri(&client_registration_uri, None, None, None, None, None)
-                    .unwrap_err();
+            let client_error = Client::from_uri(
+                &client_registration_uri,
+                None,
+                None,
+                None,
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap_err();
 
             let client_error_async =
-                get_async_client_discovery(&client_registration_uri).unwrap_err();
+                get_async_client_discovery(&client_registration_uri, mock_http_server.port())
+                    .unwrap_err();
 
             assert!(client_error.is_op_error());
             assert!(client_error_async.is_op_error());
@@ -454,8 +466,6 @@ mod client_new_tests {
         fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET).path("/client/identifier");
                 then.status(401)
@@ -463,17 +473,21 @@ mod client_new_tests {
                     .header("WWW-Authenticate", "Bearer error=\"invalid_token\", error_description=\"bad things are happening\"");
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let client_registration_uri = "https://op.example.com/client/identifier";
 
-            let client_registration_uri =
-                format!("https://{}/client/identifier", auth_server_domain);
-
-            let client_error =
-                Client::from_uri(&client_registration_uri, None, None, None, None, None)
-                    .unwrap_err();
+            let client_error = Client::from_uri(
+                &client_registration_uri,
+                None,
+                None,
+                None,
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap_err();
 
             let client_error_async =
-                get_async_client_discovery(&client_registration_uri).unwrap_err();
+                get_async_client_discovery(&client_registration_uri, mock_http_server.port())
+                    .unwrap_err();
 
             assert!(client_error.is_op_error());
             assert!(client_error_async.is_op_error());
@@ -498,24 +512,26 @@ mod client_new_tests {
         fn is_rejected_with_when_non_200_is_returned() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET).path("/client/identifier");
                 then.status(500).body("Internal Server Error");
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let client_registration_uri = "https://op.example.com/client/identifier";
 
-            let client_registration_uri =
-                format!("https://{}/client/identifier", auth_server_domain);
-
-            let client_error =
-                Client::from_uri(&client_registration_uri, None, None, None, None, None)
-                    .unwrap_err();
+            let client_error = Client::from_uri(
+                &client_registration_uri,
+                None,
+                None,
+                None,
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap_err();
 
             let client_error_async =
-                get_async_client_discovery(&client_registration_uri).unwrap_err();
+                get_async_client_discovery(&client_registration_uri, mock_http_server.port())
+                    .unwrap_err();
 
             assert!(client_error.is_op_error());
             assert!(client_error_async.is_op_error());
@@ -540,24 +556,26 @@ mod client_new_tests {
         fn is_rejected_with_json_parse_error_upon_invalid_response() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(GET).path("/client/identifier");
                 then.status(200).body("{\"notavalid\"}");
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
+            let client_registration_uri = "https://op.example.com/client/identifier";
 
-            let client_registration_uri =
-                format!("https://{}/client/identifier", auth_server_domain);
-
-            let client_error =
-                Client::from_uri(&client_registration_uri, None, None, None, None, None)
-                    .unwrap_err();
+            let client_error = Client::from_uri(
+                &client_registration_uri,
+                None,
+                None,
+                None,
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap_err();
 
             let client_error_async =
-                get_async_client_discovery(&client_registration_uri).unwrap_err();
+                get_async_client_discovery(&client_registration_uri, mock_http_server.port())
+                    .unwrap_err();
 
             assert!(client_error.is_type_error());
             assert!(client_error_async.is_type_error());
@@ -642,19 +660,14 @@ mod client_new_tests {
 
         #[cfg(test)]
         mod http_options {
-            use std::time::Duration;
 
-            use reqwest::header::{HeaderMap, HeaderValue};
-
-            use crate::{tests::get_url_with_count, types::RequestOptions};
+            use crate::tests::test_interceptors::TestInterceptor;
 
             use super::*;
 
             #[test]
             fn allows_for_http_options_to_be_defined_for_issuer_discover_calls() {
                 let mock_http_server = MockServer::start();
-
-                let auth_server_domain = get_url_with_count("op.example<>.com");
 
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.method(GET)
@@ -665,20 +678,7 @@ mod client_new_tests {
                         .body(get_default_expected_client_read_response());
                 });
 
-                let interceptor = |_request: &crate::types::Request| {
-                    let mut headers = HeaderMap::new();
-                    headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
-
-                    RequestOptions {
-                        headers,
-                        timeout: Duration::from_millis(3500),
-                    }
-                };
-
-                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-                let client_registration_uri =
-                    format!("https://{}/client/identifier", auth_server_domain);
+                let client_registration_uri = "https://op.example.com/client/identifier";
 
                 let _ = Client::from_uri(
                     &client_registration_uri,
@@ -686,7 +686,11 @@ mod client_new_tests {
                     None,
                     None,
                     None,
-                    Some(Box::new(interceptor)),
+                    Some(Box::new(TestInterceptor {
+                        test_header: Some("testHeader".to_string()),
+                        test_header_value: Some("testHeaderValue".to_string()),
+                        test_server_port: Some(mock_http_server.port()),
+                    })),
                 )
                 .unwrap();
 
@@ -697,8 +701,6 @@ mod client_new_tests {
             fn allows_for_http_options_to_be_defined_for_issuer_discover_calls_async() {
                 let mock_http_server = MockServer::start();
 
-                let auth_server_domain = get_url_with_count("op.example<>.com");
-
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.method(GET)
                         .header("testHeader", "testHeaderValue")
@@ -708,20 +710,7 @@ mod client_new_tests {
                         .body(get_default_expected_client_read_response());
                 });
 
-                let interceptor = |_request: &crate::types::Request| {
-                    let mut headers = HeaderMap::new();
-                    headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
-
-                    RequestOptions {
-                        headers,
-                        timeout: Duration::from_millis(3500),
-                    }
-                };
-
-                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-                let client_registration_uri =
-                    format!("https://{}/client/identifier", auth_server_domain);
+                let client_registration_uri = "https://op.example.com/client/identifier";
 
                 let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
@@ -732,7 +721,11 @@ mod client_new_tests {
                         None,
                         None,
                         None,
-                        Some(Box::new(interceptor)),
+                        Some(Box::new(TestInterceptor {
+                            test_header: Some("testHeader".to_string()),
+                            test_header_value: Some("testHeaderValue".to_string()),
+                            test_server_port: Some(mock_http_server.port()),
+                        })),
                     )
                     .await
                     .unwrap();
@@ -749,7 +742,7 @@ mod client_new_tests {
         use crate::{
             client::Client,
             issuer::Issuer,
-            tests::{get_url_with_count, set_mock_domain},
+            tests::test_interceptors::get_default_test_interceptor,
             types::{ClientMetadata, IssuerMetadata},
         };
 
@@ -790,8 +783,6 @@ mod client_new_tests {
         fn accepts_and_assigns_the_registered_metadata() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(POST)
                     .matches(|req: &HttpMockRequest| {
@@ -819,27 +810,37 @@ mod client_new_tests {
                     .body(get_default_expected_client_read_response());
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-            let registration_endpoint =
-                format!("https://{}/client/registration", auth_server_domain);
+            let registration_endpoint = "https://op.example.com/client/registration".to_string();
 
             let issuer_metadata = IssuerMetadata {
                 registration_endpoint: Some(registration_endpoint),
                 ..IssuerMetadata::default()
             };
 
-            let issuer = Issuer::new(issuer_metadata, None);
+            let issuer = Issuer::new(
+                issuer_metadata,
+                get_default_test_interceptor(mock_http_server.port()),
+            );
 
-            let client = Client::register(&issuer, ClientMetadata::default(), None, None).unwrap();
+            let client = Client::register(
+                &issuer,
+                ClientMetadata::default(),
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap();
 
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let _ = async_runtime.block_on(async {
-                let client_async =
-                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
-                        .await
-                        .unwrap();
+                let client_async = Client::register_async(
+                    &issuer,
+                    ClientMetadata::default(),
+                    None,
+                    get_default_test_interceptor(mock_http_server.port()),
+                )
+                .await
+                .unwrap();
 
                 assert_eq!("identifier", client_async.get_client_id());
 
@@ -855,8 +856,6 @@ mod client_new_tests {
         fn is_rejected_with_op_error_upon_oidc_error() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(POST).path("/client/registration");
                 then.status(500).body(
@@ -864,28 +863,37 @@ mod client_new_tests {
             );
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-            let registration_endpoint =
-                format!("https://{}/client/registration", auth_server_domain);
+            let registration_endpoint = "https://op.example.com/client/registration".to_string();
 
             let issuer_metadata = IssuerMetadata {
                 registration_endpoint: Some(registration_endpoint),
                 ..IssuerMetadata::default()
             };
 
-            let issuer = Issuer::new(issuer_metadata, None);
+            let issuer = Issuer::new(
+                issuer_metadata,
+                get_default_test_interceptor(mock_http_server.port()),
+            );
 
-            let client_error =
-                Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
+            let client_error = Client::register(
+                &issuer,
+                ClientMetadata::default(),
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap_err();
 
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let _ = async_runtime.block_on(async {
-                let client_error_async =
-                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
-                        .await
-                        .unwrap_err();
+                let client_error_async = Client::register_async(
+                    &issuer,
+                    ClientMetadata::default(),
+                    None,
+                    get_default_test_interceptor(mock_http_server.port()),
+                )
+                .await
+                .unwrap_err();
 
                 assert!(client_error_async.is_op_error());
 
@@ -915,8 +923,6 @@ mod client_new_tests {
         fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(POST).path("/client/registration");
                 then.status(401)
@@ -924,28 +930,37 @@ mod client_new_tests {
                     .header("WWW-Authenticate", "Bearer error=\"invalid_token\", error_description=\"bad things are happening\"");
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-            let registration_endpoint =
-                format!("https://{}/client/registration", auth_server_domain);
+            let registration_endpoint = "https://op.example.com/client/registration".to_string();
 
             let issuer_metadata = IssuerMetadata {
                 registration_endpoint: Some(registration_endpoint),
                 ..IssuerMetadata::default()
             };
 
-            let issuer = Issuer::new(issuer_metadata, None);
+            let issuer = Issuer::new(
+                issuer_metadata,
+                get_default_test_interceptor(mock_http_server.port()),
+            );
 
-            let client_error =
-                Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
+            let client_error = Client::register(
+                &issuer,
+                ClientMetadata::default(),
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap_err();
 
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let _ = async_runtime.block_on(async {
-                let client_error_async =
-                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
-                        .await
-                        .unwrap_err();
+                let client_error_async = Client::register_async(
+                    &issuer,
+                    ClientMetadata::default(),
+                    None,
+                    get_default_test_interceptor(mock_http_server.port()),
+                )
+                .await
+                .unwrap_err();
 
                 assert!(client_error_async.is_op_error());
 
@@ -975,35 +990,42 @@ mod client_new_tests {
         fn is_rejected_with_when_non_200_is_returned() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(POST).path("/client/registration");
                 then.status(500).body("Internal Server Error");
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-            let registration_endpoint =
-                format!("https://{}/client/registration", auth_server_domain);
+            let registration_endpoint = "https://op.example.com/client/registration".to_string();
 
             let issuer_metadata = IssuerMetadata {
                 registration_endpoint: Some(registration_endpoint),
                 ..IssuerMetadata::default()
             };
 
-            let issuer = Issuer::new(issuer_metadata, None);
+            let issuer = Issuer::new(
+                issuer_metadata,
+                get_default_test_interceptor(mock_http_server.port()),
+            );
 
-            let client_error =
-                Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
+            let client_error = Client::register(
+                &issuer,
+                ClientMetadata::default(),
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap_err();
 
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let _ = async_runtime.block_on(async {
-                let client_error_async =
-                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
-                        .await
-                        .unwrap_err();
+                let client_error_async = Client::register_async(
+                    &issuer,
+                    ClientMetadata::default(),
+                    None,
+                    get_default_test_interceptor(mock_http_server.port()),
+                )
+                .await
+                .unwrap_err();
 
                 assert!(client_error_async.is_op_error());
 
@@ -1033,34 +1055,42 @@ mod client_new_tests {
         fn is_rejected_with_json_parse_error_upon_invalid_response() {
             let mock_http_server = MockServer::start();
 
-            let auth_server_domain = get_url_with_count("op.example<>.com");
-
             let _auth_mock_server = mock_http_server.mock(|when, then| {
                 when.method(POST).path("/client/registration");
                 then.status(201).body("{\"notavalid\"}");
             });
 
-            set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-            let registration_endpoint =
-                format!("https://{}/client/registration", auth_server_domain);
+            let registration_endpoint = "https://op.example.com/client/registration".to_string();
 
             let issuer_metadata = IssuerMetadata {
                 registration_endpoint: Some(registration_endpoint),
                 ..IssuerMetadata::default()
             };
 
-            let issuer = Issuer::new(issuer_metadata, None);
+            let issuer = Issuer::new(
+                issuer_metadata,
+                get_default_test_interceptor(mock_http_server.port()),
+            );
 
-            let client_error =
-                Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
+            let client_error = Client::register(
+                &issuer,
+                ClientMetadata::default(),
+                None,
+                get_default_test_interceptor(mock_http_server.port()),
+            )
+            .unwrap_err();
 
             let async_runtime = tokio::runtime::Runtime::new().unwrap();
 
             let _ = async_runtime.block_on(async {
-                let client_error_async =
-                    Client::register_async(&issuer, ClientMetadata::default(), None, None)
-                        .await
-                        .unwrap_err();
+                let client_error_async = Client::register_async(
+                    &issuer,
+                    ClientMetadata::default(),
+                    None,
+                    get_default_test_interceptor(mock_http_server.port()),
+                )
+                .await
+                .unwrap_err();
 
                 assert!(client_error_async.is_type_error());
 
@@ -1085,7 +1115,7 @@ mod client_new_tests {
                 helpers::convert_json_to,
                 issuer::Issuer,
                 jwks::Jwks,
-                tests::{get_url_with_count, set_mock_domain},
+                tests::test_interceptors::get_default_test_interceptor,
                 types::{ClientMetadata, ClientRegistrationOptions, IssuerMetadata},
             };
 
@@ -1100,8 +1130,6 @@ mod client_new_tests {
             #[test]
             fn enriches_the_registration_with_jwks_if_not_provided_or_jwks_uri() {
                 let mock_http_server = MockServer::start();
-
-                let auth_server_domain = get_url_with_count("op.example<>.com");
 
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.matches(|req: &HttpMockRequest| {
@@ -1123,17 +1151,18 @@ mod client_new_tests {
                         .body(get_default_expected_client_register_response());
                 });
 
-                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
                 let registration_endpoint =
-                    format!("https://{}/client/registration", auth_server_domain);
+                    "https://op.example.com/client/registration".to_string();
 
                 let issuer_metadata = IssuerMetadata {
                     registration_endpoint: Some(registration_endpoint),
                     ..IssuerMetadata::default()
                 };
 
-                let issuer = Issuer::new(issuer_metadata, None);
+                let issuer = Issuer::new(
+                    issuer_metadata,
+                    get_default_test_interceptor(mock_http_server.port()),
+                );
 
                 let register_options = ClientRegistrationOptions {
                     jwks: Some(convert_json_to::<Jwks>(&get_default_jwks_string()).unwrap()),
@@ -1144,7 +1173,7 @@ mod client_new_tests {
                     &issuer,
                     ClientMetadata::default(),
                     Some(register_options.clone()),
-                    None,
+                    get_default_test_interceptor(mock_http_server.port()),
                 )
                 .unwrap();
 
@@ -1155,7 +1184,7 @@ mod client_new_tests {
                         &issuer,
                         ClientMetadata::default(),
                         Some(register_options.clone()),
-                        None,
+                        get_default_test_interceptor(mock_http_server.port()),
                     )
                     .await
                     .unwrap();
@@ -1166,8 +1195,6 @@ mod client_new_tests {
             #[test]
             fn ignores_the_keystore_during_registration_if_jwks_is_provided() {
                 let mock_http_server = MockServer::start();
-
-                let auth_server_domain = get_url_with_count("op.example<>.com");
 
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.matches(|req: &HttpMockRequest| {
@@ -1187,16 +1214,18 @@ mod client_new_tests {
                         .body(get_default_expected_client_register_response());
                 });
 
-                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
                 let registration_endpoint =
-                    format!("https://{}/client/registration", auth_server_domain);
+                    "https://op.example.com/client/registration".to_string();
 
                 let issuer_metadata = IssuerMetadata {
                     registration_endpoint: Some(registration_endpoint),
                     ..IssuerMetadata::default()
                 };
 
-                let issuer = Issuer::new(issuer_metadata, None);
+                let issuer = Issuer::new(
+                    issuer_metadata,
+                    get_default_test_interceptor(mock_http_server.port()),
+                );
 
                 let register_options = ClientRegistrationOptions {
                     jwks: Some(convert_json_to::<Jwks>(&get_default_jwks_string()).unwrap()),
@@ -1212,7 +1241,7 @@ mod client_new_tests {
                     &issuer,
                     client_metadata.clone(),
                     Some(register_options.clone()),
-                    None,
+                    get_default_test_interceptor(mock_http_server.port()),
                 )
                 .unwrap();
 
@@ -1223,7 +1252,7 @@ mod client_new_tests {
                         &issuer,
                         client_metadata,
                         Some(register_options),
-                        None,
+                        get_default_test_interceptor(mock_http_server.port()),
                     )
                     .await
                     .unwrap();
@@ -1234,8 +1263,6 @@ mod client_new_tests {
             #[test]
             fn ignores_the_keystore_during_registration_if_jwks_uri_is_provided() {
                 let mock_http_server = MockServer::start();
-
-                let auth_server_domain = get_url_with_count("op.example<>.com");
 
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.matches(|req: &HttpMockRequest| {
@@ -1261,16 +1288,18 @@ mod client_new_tests {
                         .body(get_default_expected_client_register_response());
                 });
 
-                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
                 let registration_endpoint =
-                    format!("https://{}/client/registration", auth_server_domain);
+                    "https://op.example.com/client/registration".to_string();
 
                 let issuer_metadata = IssuerMetadata {
                     registration_endpoint: Some(registration_endpoint),
                     ..IssuerMetadata::default()
                 };
 
-                let issuer = Issuer::new(issuer_metadata, None);
+                let issuer = Issuer::new(
+                    issuer_metadata,
+                    get_default_test_interceptor(mock_http_server.port()),
+                );
 
                 let register_options = ClientRegistrationOptions {
                     jwks: Some(convert_json_to::<Jwks>(&get_default_jwks_string()).unwrap()),
@@ -1286,7 +1315,7 @@ mod client_new_tests {
                     &issuer,
                     client_metadata.clone(),
                     Some(register_options.clone()),
-                    None,
+                    get_default_test_interceptor(mock_http_server.port()),
                 )
                 .unwrap();
 
@@ -1297,7 +1326,7 @@ mod client_new_tests {
                         &issuer,
                         client_metadata,
                         Some(register_options),
-                        None,
+                        get_default_test_interceptor(mock_http_server.port()),
                     )
                     .await
                     .unwrap();
@@ -1307,7 +1336,8 @@ mod client_new_tests {
 
             #[test]
             fn does_not_accept_oct_keys() {
-                let registration_endpoint = "https://op.example.com/client/registration";
+                let registration_endpoint =
+                    "https://op.example.com/client/registration".to_string();
 
                 let issuer_metadata = IssuerMetadata {
                     registration_endpoint: Some(registration_endpoint.to_string()),
@@ -1357,7 +1387,8 @@ mod client_new_tests {
 
             #[test]
             fn does_not_accept_public_keys() {
-                let registration_endpoint = "https://op.example.com/client/registration";
+                let registration_endpoint =
+                    "https://op.example.com/client/registration".to_string();
 
                 let issuer_metadata = IssuerMetadata {
                     registration_endpoint: Some(registration_endpoint.to_string()),
@@ -1413,7 +1444,7 @@ mod client_new_tests {
             use crate::{
                 client::Client,
                 issuer::Issuer,
-                tests::{get_url_with_count, set_mock_domain},
+                tests::test_interceptors::get_default_test_interceptor,
                 types::{ClientMetadata, ClientRegistrationOptions, IssuerMetadata},
             };
 
@@ -1425,8 +1456,6 @@ mod client_new_tests {
             fn uses_the_initial_access_token_in_a_bearer_authorization_scheme() {
                 let mock_http_server = MockServer::start();
 
-                let auth_server_domain = get_url_with_count("op.example<>.com");
-
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.method(POST)
                         .path("/client/registration")
@@ -1435,16 +1464,18 @@ mod client_new_tests {
                         .body(get_default_expected_client_register_response());
                 });
 
-                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
                 let registration_endpoint =
-                    format!("https://{}/client/registration", auth_server_domain);
+                    "https://op.example.com/client/registration".to_string();
 
                 let issuer_metadata = IssuerMetadata {
                     registration_endpoint: Some(registration_endpoint),
                     ..IssuerMetadata::default()
                 };
 
-                let issuer = Issuer::new(issuer_metadata, None);
+                let issuer = Issuer::new(
+                    issuer_metadata,
+                    get_default_test_interceptor(mock_http_server.port()),
+                );
 
                 let register_options = ClientRegistrationOptions {
                     initial_access_token: Some("foobar".to_string()),
@@ -1455,7 +1486,7 @@ mod client_new_tests {
                     &issuer,
                     ClientMetadata::default(),
                     Some(register_options.clone()),
-                    None,
+                    get_default_test_interceptor(mock_http_server.port()),
                 )
                 .unwrap();
 
@@ -1466,7 +1497,7 @@ mod client_new_tests {
                         &issuer,
                         ClientMetadata::default(),
                         Some(register_options),
-                        None,
+                        get_default_test_interceptor(mock_http_server.port()),
                     )
                     .await
                     .unwrap();
@@ -1478,13 +1509,9 @@ mod client_new_tests {
 
         #[cfg(test)]
         mod http_options {
-            use std::time::Duration;
-
-            use reqwest::header::{HeaderMap, HeaderValue};
 
             use crate::{
-                tests::get_url_with_count,
-                types::{ClientRegistrationOptions, RequestOptions},
+                tests::test_interceptors::TestInterceptor, types::ClientRegistrationOptions,
             };
 
             use super::*;
@@ -1497,8 +1524,6 @@ mod client_new_tests {
             fn allows_for_http_options_to_be_defined_for_issuer_discover_calls() {
                 let mock_http_server = MockServer::start();
 
-                let auth_server_domain = get_url_with_count("op.example<>.com");
-
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.method(POST)
                         .header("testHeader", "testHeaderValue")
@@ -1507,27 +1532,18 @@ mod client_new_tests {
                         .body(get_default_expected_client_register_response());
                 });
 
-                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-                let interceptor = |_request: &crate::types::Request| {
-                    let mut headers = HeaderMap::new();
-                    headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
-
-                    RequestOptions {
-                        headers,
-                        timeout: Duration::from_millis(3500),
-                    }
-                };
-
                 let registration_endpoint =
-                    format!("https://{}/client/registration", auth_server_domain);
+                    "https://op.example.com/client/registration".to_string();
 
                 let issuer_metadata = IssuerMetadata {
                     registration_endpoint: Some(registration_endpoint),
                     ..IssuerMetadata::default()
                 };
 
-                let issuer = Issuer::new(issuer_metadata, None);
+                let issuer = Issuer::new(
+                    issuer_metadata,
+                    get_default_test_interceptor(mock_http_server.port()),
+                );
 
                 let register_options = ClientRegistrationOptions {
                     initial_access_token: Some("foobar".to_string()),
@@ -1538,7 +1554,11 @@ mod client_new_tests {
                     &issuer,
                     ClientMetadata::default(),
                     Some(register_options),
-                    Some(Box::new(interceptor)),
+                    Some(Box::new(TestInterceptor {
+                        test_header: Some("testHeader".to_string()),
+                        test_header_value: Some("testHeaderValue".to_string()),
+                        test_server_port: Some(mock_http_server.port()),
+                    })),
                 )
                 .unwrap();
 
@@ -1549,8 +1569,6 @@ mod client_new_tests {
             fn allows_for_http_options_to_be_defined_for_issuer_discover_calls_async() {
                 let mock_http_server = MockServer::start();
 
-                let auth_server_domain = get_url_with_count("op.example<>.com");
-
                 let auth_mock_server = mock_http_server.mock(|when, then| {
                     when.method(POST)
                         .header("testHeader", "testHeaderValue")
@@ -1559,27 +1577,18 @@ mod client_new_tests {
                         .body(get_default_expected_client_register_response());
                 });
 
-                set_mock_domain(&auth_server_domain.to_string(), mock_http_server.port());
-
-                let interceptor = |_request: &crate::types::Request| {
-                    let mut headers = HeaderMap::new();
-                    headers.append("testHeader", HeaderValue::from_static("testHeaderValue"));
-
-                    RequestOptions {
-                        headers,
-                        timeout: Duration::from_millis(3500),
-                    }
-                };
-
                 let registration_endpoint =
-                    format!("https://{}/client/registration", auth_server_domain);
+                    "https://op.example.com/client/registration".to_string();
 
                 let issuer_metadata = IssuerMetadata {
                     registration_endpoint: Some(registration_endpoint),
                     ..IssuerMetadata::default()
                 };
 
-                let issuer = Issuer::new(issuer_metadata, None);
+                let issuer = Issuer::new(
+                    issuer_metadata,
+                    get_default_test_interceptor(mock_http_server.port()),
+                );
 
                 let register_options = ClientRegistrationOptions {
                     initial_access_token: Some("foobar".to_string()),
@@ -1593,7 +1602,11 @@ mod client_new_tests {
                         &issuer,
                         ClientMetadata::default(),
                         Some(register_options),
-                        Some(Box::new(interceptor)),
+                        Some(Box::new(TestInterceptor {
+                            test_header: Some("testHeader".to_string()),
+                            test_header_value: Some("testHeaderValue".to_string()),
+                            test_server_port: Some(mock_http_server.port()),
+                        })),
                     )
                     .await
                     .unwrap();
