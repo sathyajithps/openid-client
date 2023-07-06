@@ -1157,5 +1157,5 @@ impl Issuer {
 }
 
 #[cfg(test)]
-#[path = "../tests/issuer_test.rs"]
-mod issuer_test;
+#[path = "../tests/issuer/mod.rs"]
+mod issuer_tests;

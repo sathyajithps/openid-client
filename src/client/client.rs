@@ -1248,5 +1248,5 @@ impl Client {
 }
 
 #[cfg(test)]
-#[path = "../tests/client_test.rs"]
+#[path = "../tests/client/mod.rs"]
 mod client_test;
