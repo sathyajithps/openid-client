@@ -1,7 +1,6 @@
 # OpenID Client (Rust)
 
-This is a work in progress OpenId Client based on the excellent OpenId Client made
-by [panva](https://github.com/panva) : [openid-client](https://github.com/panva/node-openid-client).
+This is a work in progress OpenId Client.
 
 ## Documentation
 
