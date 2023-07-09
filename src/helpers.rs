@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use httpmock::Regex;
 use reqwest::{header::HeaderValue, Url};
 use serde::Deserialize;
@@ -116,4 +118,12 @@ pub(crate) fn parse_www_authenticate_error(
     }
 
     Ok(())
+}
+
+pub(crate) fn now() -> i64 {
+    let start = SystemTime::now();
+    start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs() as i64
 }

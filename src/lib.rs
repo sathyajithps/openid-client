@@ -41,6 +41,8 @@ mod http;
 pub mod issuer;
 pub mod jwks;
 mod tests;
+/// TokenSet Module
+pub mod tokenset;
 pub mod types;
 
 /// Re exports from the crate
