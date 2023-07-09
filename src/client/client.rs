@@ -115,6 +115,8 @@ pub struct Client {
     pub(crate) request_uris: Option<String>,
     /// [Client's intention to use mutual-TLS client certificate-bound access tokens](https://datatracker.ietf.org/doc/html/rfc8705#name-client-registration-metadata-2)
     pub tls_client_certificate_bound_access_tokens: Option<bool>,
+    /// Client's allowed redirect uris after a logout
+    pub post_logout_redirect_uris: Option<Vec<String>>,
     /// Extra key values
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
     pub(crate) private_jwks: Option<Jwks>,
@@ -172,6 +174,7 @@ impl Client {
             request_interceptor: None,
             issuer: None,
             tls_client_certificate_bound_access_tokens: None,
+            post_logout_redirect_uris: None,
             other_fields: HashMap::new(),
             client_options: None,
         }
@@ -238,6 +241,7 @@ impl Client {
             request_uris: metadata.request_uris,
             tls_client_certificate_bound_access_tokens: metadata
                 .tls_client_certificate_bound_access_tokens,
+            post_logout_redirect_uris: metadata.post_logout_redirect_uris,
             other_fields: metadata.other_fields,
             ..Client::default()
         };

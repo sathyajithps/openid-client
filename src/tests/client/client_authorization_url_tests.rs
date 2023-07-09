@@ -6,7 +6,13 @@ use crate::{
     types::{AuthorizationParameters, ClientMetadata, IssuerMetadata, ResourceParam},
 };
 
-use super::helpers::TestClients;
+use crate::client::Client;
+struct TestClients {
+    pub client: Client,
+    pub client_with_meta: Client,
+    pub client_with_multiple_metas: Client,
+    pub client_with_query: Client,
+}
 
 fn setup_clients() -> TestClients {
     let issuer_metadata = IssuerMetadata {

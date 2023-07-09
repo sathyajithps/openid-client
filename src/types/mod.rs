@@ -5,6 +5,7 @@ mod authorization_parameters;
 mod client_metadata;
 mod client_options;
 mod client_registration_options;
+mod end_session_parameters;
 mod errors;
 mod http;
 mod issuer_metadata;
@@ -16,6 +17,7 @@ pub use authorization_parameters::{
 pub use client_metadata::ClientMetadata;
 pub use client_options::ClientOptions;
 pub use client_registration_options::ClientRegistrationOptions;
+pub use end_session_parameters::EndSessionParameters;
 pub use errors::{
     Error, ErrorWithResponse, OidcClientError, RPError, StandardBodyError, TypeError,
 };
