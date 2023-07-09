@@ -53,6 +53,8 @@ pub struct Issuer {
     /// List of JWS signing algorithms supported by the revocation endpoint for the signature of the
     /// JWT that the client uses to authenticate.
     pub(crate) revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
+    /// [End session endpoint](https://openid.net/specs/openid-connect-rpinitiated-1_0.html#OPMetadata)
+    pub(crate) end_session_endpoint: Option<String>,
     /// Extra key values
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
     /// Jwk Key Set,
@@ -88,6 +90,7 @@ impl Default for Issuer {
             revocation_endpoint_auth_methods_supported: None,
             introspection_endpoint_auth_signing_alg_values_supported: None,
             revocation_endpoint_auth_signing_alg_values_supported: None,
+            end_session_endpoint: None,
             other_fields: Default::default(),
             jwks: None,
             registration_endpoint: None,
@@ -144,6 +147,7 @@ impl Issuer {
             introspection_endpoint_auth_signing_alg_values_supported,
             revocation_endpoint_auth_methods_supported,
             revocation_endpoint_auth_signing_alg_values_supported,
+            end_session_endpoint: metadata.end_session_endpoint,
             other_fields: metadata.other_fields,
             ..Issuer::default()
         }
@@ -283,6 +287,7 @@ impl Issuer {
             request_interceptor: interceptor,
             jwks: None,
             registration_endpoint: metadata.registration_endpoint,
+            end_session_endpoint: metadata.end_session_endpoint,
         }
     }
 }
@@ -1022,6 +1027,7 @@ impl Clone for Issuer {
             jwks: self.jwks.clone(),
             request_interceptor,
             registration_endpoint: self.registration_endpoint.clone(),
+            end_session_endpoint: self.end_session_endpoint.clone(),
         }
     }
 }

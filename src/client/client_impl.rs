@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use url::{form_urlencoded, Url};
 
-use crate::types::{AuthorizationParameters, OidcClientError, ResourceParam};
+use crate::types::{AuthorizationParameters, EndSessionParameters, OidcClientError, ResourceParam};
 
 use super::Client;
 
@@ -66,7 +66,7 @@ impl Client {
 
         if let Some(other) = params.other {
             for (k, v) in other {
-                query_params.insert(k, v);
+                query_params.entry(k).or_insert(v);
             }
         }
 
@@ -106,8 +106,8 @@ impl Client {
 
         let mut new_query_params = form_urlencoded::Serializer::new(String::new());
 
-        for (query, value) in query_params {
-            new_query_params.append_pair(&query, &value);
+        for (query, value) in &query_params {
+            new_query_params.append_pair(query, value);
         }
 
         if let Some(r) = &params.resource {
@@ -123,9 +123,107 @@ impl Client {
             };
         }
 
-        authorization_endpiont.set_query(Some(&new_query_params.finish()));
+        if !query_params.is_empty() {
+            authorization_endpiont.set_query(Some(&new_query_params.finish()));
+        }
 
         Ok(authorization_endpiont)
+    }
+
+    /// # End Session Url
+    /// Builds an endsession url with respect to the `params`
+    ///
+    /// - `params` - [EndSessionParameters] : Customize the endsession url
+    ///
+    /// ### *Example:*
+    ///  ```
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        end_session_endpoint: Some("https://auth.example.com/end".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let client = issuer.client(client_metadata, None, None, None).unwrap();
+    ///
+    ///    let url = client.end_session_url(EndSessionParameters::default()).unwrap();
+    /// ```
+    pub fn end_session_url(
+        &self,
+        mut params: EndSessionParameters,
+    ) -> Result<Url, OidcClientError> {
+        let mut end_session_endpoint = match &self.issuer {
+            Some(i) => match &i.end_session_endpoint {
+                Some(ae) => match Url::parse(ae) {
+                    Ok(u) => u,
+                    Err(_) => {
+                        return Err(OidcClientError::new_type_error(
+                            "end_session_endpoint is invalid url",
+                            None,
+                        ));
+                    }
+                },
+                None => {
+                    return Err(OidcClientError::new_type_error(
+                        "end_session_endpoint must be configured on the issuer",
+                        None,
+                    ))
+                }
+            },
+            None => return Err(OidcClientError::new_error("issuer is empty", None)),
+        };
+
+        if params.client_id.is_none() {
+            params.client_id = Some(self.client_id.clone());
+        }
+
+        let mut post_logout: Option<String> = None;
+
+        if let Some(plrus) = &self.post_logout_redirect_uris {
+            if plrus.len() == 1 {
+                if let Some(first) = plrus.get(0) {
+                    post_logout = Some(first.clone());
+                }
+            }
+        }
+
+        if let Some(plu) = params.post_logout_redirect_uri {
+            post_logout = Some(plu);
+        }
+
+        let mut query_params: HashMap<String, String> = end_session_endpoint
+            .query_pairs()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        if let Some(other) = params.other {
+            for (k, v) in other {
+                query_params.entry(k).or_insert_with(|| v.to_string());
+            }
+        }
+
+        insert_query(&mut query_params, "client_id", params.client_id);
+        insert_query(&mut query_params, "post_logout_redirect_uri", post_logout);
+        insert_query(&mut query_params, "id_token_hint", params.id_token_hint);
+        insert_query(&mut query_params, "logout_hint", params.logout_hint);
+        insert_query(&mut query_params, "state", params.state);
+
+        let mut new_query_params = form_urlencoded::Serializer::new(String::new());
+
+        for (query, value) in &query_params {
+            new_query_params.append_pair(query, value);
+        }
+
+        if !query_params.is_empty() {
+            end_session_endpoint.set_query(Some(&new_query_params.finish()));
+        }
+
+        Ok(end_session_endpoint)
     }
 
     fn authorization_params(&self, params: AuthorizationParameters) -> AuthorizationParameters {

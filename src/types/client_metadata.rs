@@ -144,9 +144,12 @@ pub struct ClientMetadata {
     /// [Request Uris](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_uris: Option<String>,
-    /// [Client's intention to use mutual-TLS client certificate-bound access tokens](https://datatracker.ietf.org/doc/html/rfc8705#name-client-registration-metadata-2)
+    /// Client's intention to use [mutual-TLS client certificate-bound access tokens](https://datatracker.ietf.org/doc/html/rfc8705#name-client-registration-metadata-2)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tls_client_certificate_bound_access_tokens: Option<bool>,
+    /// Client's allowed redirect uris after a logout
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_logout_redirect_uris: Option<Vec<String>>,
     /// Extra key values
     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
     pub other_fields: HashMap<String, serde_json::Value>,
