@@ -1,6 +1,6 @@
 [package]
 name = "openid-client"
-version = "0.0.19-dev"
+version = "0.0.20-dev"
 edition = "2021"
 license = "MIT"
 description = "Work In Progress OpenId Connect Client"
@@ -18,6 +18,7 @@ serde_json = "1.0.93"
 tokio = { version = "1.26.0", features = ["full"] }
 josekit = "0.8.3"
 assert-json-diff = "2.0.2"
+base64-url = "2.0.0"
 
 [lib]
 doctest = false
