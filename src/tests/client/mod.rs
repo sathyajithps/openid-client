@@ -13,4 +13,7 @@ mod client_authorization_url_tests;
 #[cfg(test)]
 mod client_end_session_url_tests;
 
+#[cfg(test)]
+mod client_authorization_post_tests;
+
 pub mod helpers;
