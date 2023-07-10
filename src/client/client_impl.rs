@@ -36,26 +36,7 @@ impl Client {
         &self,
         mut params: AuthorizationParameters,
     ) -> Result<Url, OidcClientError> {
-        let mut authorization_endpiont = match &self.issuer {
-            Some(i) => match &i.authorization_endpoint {
-                Some(ae) => match Url::parse(ae) {
-                    Ok(u) => u,
-                    Err(_) => {
-                        return Err(OidcClientError::new_type_error(
-                            "authorization_endpiont is invalid url",
-                            None,
-                        ));
-                    }
-                },
-                None => {
-                    return Err(OidcClientError::new_type_error(
-                        "authorization_endpiont must be configured on the issuer",
-                        None,
-                    ))
-                }
-            },
-            None => return Err(OidcClientError::new_error("issuer is empty", None)),
-        };
+        let mut authorization_endpiont = self.get_auth_endpoint()?;
 
         let mut query_params: HashMap<String, String> = authorization_endpiont
             .query_pairs()
@@ -226,6 +207,129 @@ impl Client {
         Ok(end_session_endpoint)
     }
 
+    /// # Authorization Post
+    /// Builds an authorization post page with respect to the `params`
+    ///
+    /// - `params` - [AuthorizationParameters] : Customize the authorization request
+    ///
+    /// ### *Example:*
+    ///  ```
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        authorization_endpoint: Some("https://auth.example.com/auth".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let client = issuer.client(client_metadata, None, None, None).unwrap();
+    ///
+    ///    let html = client.authorization_post(AuthorizationParameters::default()).unwrap();
+    /// ```
+    pub fn authorization_post(
+        &self,
+        mut params: AuthorizationParameters,
+    ) -> Result<String, OidcClientError> {
+        let authorization_endpiont = self.get_auth_endpoint()?;
+
+        let mut query_params: HashMap<String, String> = authorization_endpiont
+            .query_pairs()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        params = self.authorization_params(params);
+
+        if let Some(other) = params.other {
+            for (k, v) in other {
+                query_params.insert(k, v);
+            }
+        }
+
+        insert_query(&mut query_params, "client_id", params.client_id);
+        insert_query(&mut query_params, "acr_values", params.acr_values);
+        insert_query(&mut query_params, "audience", params.audience);
+        insert_query(&mut query_params, "claims_locales", params.claims_locales);
+        insert_query(
+            &mut query_params,
+            "code_challenge_method",
+            params.code_challenge_method,
+        );
+        insert_query(&mut query_params, "code_challenge", params.code_challenge);
+        insert_query(&mut query_params, "display", params.display);
+        insert_query(&mut query_params, "id_token_hint", params.id_token_hint);
+        insert_query(&mut query_params, "login_hint", params.login_hint);
+        insert_query(&mut query_params, "max_age", params.max_age);
+        insert_query(&mut query_params, "nonce", params.nonce);
+        insert_query(&mut query_params, "prompt", params.prompt);
+        insert_query(&mut query_params, "redirect_uri", params.redirect_uri);
+        insert_query(&mut query_params, "registration", params.registration);
+        insert_query(&mut query_params, "request_uri", params.request_uri);
+        insert_query(&mut query_params, "request", params.request);
+        insert_query(&mut query_params, "response_mode", params.response_mode);
+        insert_query(&mut query_params, "response_type", params.response_type);
+        insert_query(&mut query_params, "scope", params.scope);
+        insert_query(&mut query_params, "state", params.state);
+        insert_query(&mut query_params, "ui_locales", params.ui_locales);
+
+        if let Some(c) = &params.claims {
+            if let Ok(s) = serde_json::to_string(c) {
+                query_params.insert("claims".to_string(), s);
+            }
+        }
+
+        let mut html = r#"<!DOCTYPE html>
+        <head>
+        <title>Requesting Authorization</title>
+        </head>
+        <body onload="javascript:document.forms[0].submit()">
+        <form method="post" action=""#
+            .to_string()
+            + authorization_endpiont.as_ref()
+            + r#"">"#
+            + "\n";
+
+        for (name, value) in query_params {
+            html = html
+                + r#"<input type="hidden" name=""#
+                + &name
+                + r#"" value=""#
+                + &value
+                + r#""/>"#
+                + "\n";
+        }
+
+        if let Some(r) = &params.resource {
+            match r {
+                ResourceParam::String(string) => {
+                    html = html
+                        + r#"<input type="hidden" name="resource" value=""#
+                        + string
+                        + r#""/>"#
+                        + "\n";
+                }
+                ResourceParam::Array(array) => {
+                    for v in array {
+                        html = html
+                            + r#"<input type="hidden" name="resource" value=""#
+                            + v
+                            + r#""/>"#
+                            + "\n";
+                    }
+                }
+            };
+        }
+
+        html += r#"</form>
+        </body>
+        </html>"#;
+
+        Ok(html)
+    }
+
     fn authorization_params(&self, params: AuthorizationParameters) -> AuthorizationParameters {
         let mut new_params = AuthorizationParameters {
             client_id: Some(self.client_id.clone()),
@@ -243,6 +347,9 @@ impl Client {
         }
         if params.audience.is_some() {
             new_params.audience = params.audience;
+        }
+        if params.claims.is_some() {
+            new_params.claims = params.claims;
         }
         if params.claims_locales.is_some() {
             new_params.claims_locales = params.claims_locales;
@@ -328,6 +435,30 @@ impl Client {
             }
         }
         None
+    }
+
+    fn get_auth_endpoint(&self) -> Result<Url, OidcClientError> {
+        let authorization_endpiont = match &self.issuer {
+            Some(i) => match &i.authorization_endpoint {
+                Some(ae) => match Url::parse(ae) {
+                    Ok(u) => u,
+                    Err(_) => {
+                        return Err(OidcClientError::new_type_error(
+                            "authorization_endpiont is invalid url",
+                            None,
+                        ));
+                    }
+                },
+                None => {
+                    return Err(OidcClientError::new_type_error(
+                        "authorization_endpiont must be configured on the issuer",
+                        None,
+                    ))
+                }
+            },
+            None => return Err(OidcClientError::new_error("issuer is empty", None)),
+        };
+        Ok(authorization_endpiont)
     }
 }
 
