@@ -59,6 +59,8 @@ pub struct IssuerMetadata {
     pub request_object_signing_alg_values_supported: Option<Vec<String>>,
     /// Alternative endpoints that can be used by a client with mTLS to access. See [MtlsEndpoints]
     pub mtls_endpoint_aliases: Option<MtlsEndpoints>,
+    /// OP support of returning the OP id in auth response. [RFC](https://www.ietf.org/archive/id/draft-meyerzuselhausen-oauth-iss-auth-resp-02.html#name-providing-the-issuer-identi)
+    pub authorization_response_iss_parameter_supported: Option<bool>,
     /// Any extra data that was read from the discovery document
     #[serde(flatten)]
     pub other_fields: HashMap<String, serde_json::Value>,
@@ -86,6 +88,7 @@ impl Default for IssuerMetadata {
             revocation_endpoint_auth_signing_alg_values_supported: None,
             request_object_signing_alg_values_supported: None,
             mtls_endpoint_aliases: None,
+            authorization_response_iss_parameter_supported: None,
             other_fields: Default::default(),
         }
     }

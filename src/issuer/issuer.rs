@@ -61,6 +61,8 @@ pub struct Issuer {
     pub(crate) jwks: Option<Jwks>,
     /// Client registration endpoint
     pub(crate) registration_endpoint: Option<String>,
+    /// OP support of returning the OP id in auth response. [RFC](https://www.ietf.org/archive/id/draft-meyerzuselhausen-oauth-iss-auth-resp-02.html#name-providing-the-issuer-identi)
+    pub(crate) authorization_response_iss_parameter_supported: Option<bool>,
     /// Request interceptor used for every request
     pub(crate) request_interceptor: Option<RequestInterceptor>,
 }
@@ -93,6 +95,7 @@ impl Default for Issuer {
             end_session_endpoint: None,
             other_fields: Default::default(),
             jwks: None,
+            authorization_response_iss_parameter_supported: None,
             registration_endpoint: None,
         }
     }
@@ -288,6 +291,8 @@ impl Issuer {
             jwks: None,
             registration_endpoint: metadata.registration_endpoint,
             end_session_endpoint: metadata.end_session_endpoint,
+            authorization_response_iss_parameter_supported: metadata
+                .authorization_response_iss_parameter_supported,
         }
     }
 }
@@ -1028,6 +1033,9 @@ impl Clone for Issuer {
             request_interceptor,
             registration_endpoint: self.registration_endpoint.clone(),
             end_session_endpoint: self.end_session_endpoint.clone(),
+            authorization_response_iss_parameter_supported: self
+                .authorization_response_iss_parameter_supported
+                .clone(),
         }
     }
 }
