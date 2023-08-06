@@ -1,11 +1,17 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use httpmock::Regex;
+use lazy_static::lazy_static;
 use rand::Rng;
+use regex::Regex;
 use reqwest::{header::HeaderValue, Url};
 use serde::Deserialize;
 
 use crate::types::{OidcClientError, Response, StandardBodyError};
+
+lazy_static! {
+    static ref SCHEME_REGEX: Regex = Regex::new(r#"/(/|\\?)/g"#).unwrap();
+    static ref WWW_REGEX: Regex = Regex::new(r#"(\w+)=("[^"]*")"#).unwrap();
+}
 
 pub(crate) fn validate_url(url: &str) -> Result<Url, OidcClientError> {
     let url_result = Url::parse(url);
@@ -32,7 +38,7 @@ fn has_scheme(input: &str) -> bool {
         return true;
     }
 
-    let replaced_result = Regex::new(r#"/(/|\\?)/g"#).unwrap().replace(input, "#");
+    let replaced_result = SCHEME_REGEX.replace(input, "#");
 
     let mut authority = match replaced_result {
         std::borrow::Cow::Borrowed(b) => b.to_string(),
@@ -80,8 +86,6 @@ pub(crate) fn parse_www_authenticate_error(
     response: &Response,
 ) -> Result<(), OidcClientError> {
     if let Ok(header_value_str) = header_value.to_str() {
-        let regex = Regex::new(r#"(\w+)=("[^"]*")"#).unwrap();
-
         let mut oidc_error = StandardBodyError {
             error: "".to_string(),
             error_description: None,
@@ -90,7 +94,7 @@ pub(crate) fn parse_www_authenticate_error(
             state: None,
         };
 
-        for capture in regex.captures_iter(header_value_str) {
+        for capture in WWW_REGEX.captures_iter(header_value_str) {
             if let Some(key_match) = capture.get(1) {
                 let key_str = key_match.as_str();
                 if let Some(value_match) = capture.get(2) {

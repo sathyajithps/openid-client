@@ -2,7 +2,7 @@ use httpmock::{Method::GET, MockServer};
 
 use crate::{
     client::Client, helpers::convert_json_to, jwks::Jwks,
-    tests::test_interceptors::get_default_test_interceptor, types::OidcClientError,
+    tests::test_interceptors::get_default_test_interceptor,
 };
 
 pub fn get_default_expected_client_read_response() -> String {

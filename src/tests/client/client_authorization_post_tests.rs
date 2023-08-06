@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use httpmock::Regex;
+use lazy_static::lazy_static;
+use regex::Regex;
 
 use crate::{
     client::Client,
@@ -8,12 +9,14 @@ use crate::{
     types::{AuthorizationParameters, ClaimParam, ClaimParamValue, ClientMetadata, IssuerMetadata},
 };
 
-fn params_from_html(html: String) -> HashMap<String, String> {
-    let reg_exp = Regex::new(r#"name="(.+)" value="(.+)""#).unwrap();
+lazy_static! {
+    static ref ERR_REGEX: Regex = Regex::new(r#"name="(.+)" value="(.+)""#).unwrap();
+}
 
+fn params_from_html(html: String) -> HashMap<String, String> {
     let mut params: HashMap<String, String> = HashMap::new();
 
-    for capture in reg_exp.captures_iter(&html) {
+    for capture in ERR_REGEX.captures_iter(&html) {
         if let (Some(name), Some(value)) = (capture.get(1), capture.get(2)) {
             params.insert(name.as_str().to_string(), value.as_str().to_string());
         }
