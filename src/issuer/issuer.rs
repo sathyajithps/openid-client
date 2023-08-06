@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::client::Client;
 use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
-use crate::http::{request, request_async};
+use crate::http::request_async;
 use crate::jwks::Jwks;
 use crate::types::{
     ClientMetadata, ClientOptions, IssuerMetadata, MtlsEndpoints, OidcClientError, Request,
@@ -315,96 +315,6 @@ impl Issuer {
 impl Issuer {
     /// # Discover OIDC Issuer
     ///
-    /// *This is a blocking method. Checkout [`Issuer::discover_async()`] for async version.*
-    ///
-    /// Discover an OIDC Issuer using the issuer url.
-    ///
-    /// - `issuer` - The issuer url (absolute).
-    /// - `interceptor` - [RequestInterceptor]
-    ///
-    /// *Only an absolute urls are accepted, passing in `auth.example.com` will result in an error.*
-    ///
-    ///
-    /// ### *Example:*
-    ///
-    /// ```rust
-    ///     let _ = Issuer::discover("https://auth.example.com", None).unwrap();
-    /// ```
-    ///
-    /// ### *Example: with .well-known/openid-configuration*
-    ///
-    /// Urls with `.well-known/openid-configuration` can also be used to discover issuer.
-    ///
-    /// ```rust
-    ///     let _ = Issuer::discover(
-    ///         "https://auth.example.com/.well-known/openid-configuration",
-    ///         None,
-    ///     )
-    ///     .unwrap();
-    /// ```
-    ///
-    /// ### *Example: with interceptor*
-    ///
-    /// ```rust
-    ///
-    ///    #[derive(Debug, Clone)]
-    ///    pub(crate) struct CustomInterceptor {
-    ///        pub some_header: String,
-    ///        pub some_header_value: String,
-    ///    }
-    ///
-    ///    impl Interceptor for CustomInterceptor {
-    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
-    ///            let mut headers: HeaderMap = HeaderMap::new();
-    ///
-    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
-    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
-    ///
-    ///            headers.append(header, header_value);
-    ///
-    ///            RequestOptions {
-    ///                headers,
-    ///                timeout: Duration::from_millis(5000),
-    ///                ..Default::default()
-    ///            }
-    ///        }
-    ///
-    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
-    ///            Box::new(CustomInterceptor {
-    ///                some_header: self.some_header.clone(),
-    ///                some_header_value: self.some_header_value.clone(),
-    ///            })
-    ///        }
-    ///    }
-    ///
-    ///    let interceptor = CustomInterceptor {
-    ///        some_header: "foo".to_string(),
-    ///        some_header_value: "bar".to_string(),
-    ///    };
-    ///
-    ///     // The discovery request will send header foo: bar in the request headers
-    ///
-    ///     let _ = Issuer::discover(
-    ///         "https://auth.example.com/.well-known/openid-configuration",
-    ///         Some(Box::new(interceptor)),
-    ///     )
-    ///     .unwrap();
-    /// ```
-    pub fn discover(
-        issuer: &str,
-        mut interceptor: Option<RequestInterceptor>,
-    ) -> Result<Issuer, OidcClientError> {
-        let req = Self::build_discover_request(issuer)?;
-
-        let res = request(req, &mut interceptor)?;
-
-        Self::process_discover_response(res, interceptor)
-    }
-
-    /// # Discover OIDC Issuer
-    ///
-    /// *This is an async method. Checkout [`Issuer::discover()`] for blocking version.*
-    ///
     /// Discover an OIDC Issuer using the issuer url.
     ///
     /// - `issuer` - The issuer url (absolute).
@@ -487,15 +397,6 @@ impl Issuer {
         issuer: &str,
         mut interceptor: Option<RequestInterceptor>,
     ) -> Result<Issuer, OidcClientError> {
-        let req = Self::build_discover_request(issuer)?;
-
-        let res = request_async(req, &mut interceptor).await?;
-
-        Self::process_discover_response(res, interceptor)
-    }
-
-    /// This is a private function that is used to build the discover request.
-    fn build_discover_request(issuer: &str) -> Result<Request, OidcClientError> {
         let mut url = match validate_url(issuer) {
             Ok(parsed) => parsed,
             Err(err) => return Err(err),
@@ -517,32 +418,27 @@ impl Issuer {
         let mut headers = HeaderMap::new();
         headers.append("accept", HeaderValue::from_static("application/json"));
 
-        Ok(Request {
+        let req = Request {
             url: url.to_string(),
             headers,
             ..Request::default()
-        })
-    }
+        };
 
-    /// This is a private function that is used to process the discover response.
-    fn process_discover_response(
-        response: Response,
-        interceptor: Option<RequestInterceptor>,
-    ) -> Result<Issuer, OidcClientError> {
-        let issuer_metadata =
-            match convert_json_to::<IssuerMetadata>(response.body.as_ref().unwrap()) {
-                Ok(metadata) => metadata,
-                Err(_) => {
-                    return Err(OidcClientError::new_op_error(
-                        "invalid_issuer_metadata".to_string(),
-                        None,
-                        None,
-                        None,
-                        None,
-                        Some(response),
-                    ));
-                }
-            };
+        let res = request_async(req, &mut interceptor).await?;
+
+        let issuer_metadata = match convert_json_to::<IssuerMetadata>(res.body.as_ref().unwrap()) {
+            Ok(metadata) => metadata,
+            Err(_) => {
+                return Err(OidcClientError::new_op_error(
+                    "invalid_issuer_metadata".to_string(),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(res),
+                ));
+            }
+        };
 
         let mut issuer = Issuer::from(issuer_metadata);
         issuer.request_interceptor = interceptor;
@@ -554,85 +450,6 @@ impl Issuer {
 /// OIDC [Issuer Webfinger Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery)
 impl Issuer {
     /// # Webfinger OIDC Issuer Discovery
-    ///
-    /// *This is a blocking method. Checkout [`Issuer::webfinger_async()`] for async version.*
-    ///
-    /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
-    ///
-    /// - `input` - The resource.
-    /// - `interceptor` - [RequestInterceptor]
-    ///
-    /// ### *Example:*
-    ///
-    /// ```rust
-    ///     let _issuer_email = Issuer::webfinger("joe@auth.example.com", None).unwrap();
-    ///     let _issuer_url = Issuer::webfinger("https://auth.example.com/joe", None).unwrap();
-    ///     let _issuer_url_port = Issuer::webfinger("auth.example.com:3000/joe", None).unwrap();
-    ///     let _issuer_acct_email = Issuer::webfinger("acct:joe@auth.example.com", None).unwrap();
-    ///     let _issuer_acct_host = Issuer::webfinger("acct:auth.example.com", None).unwrap();
-    /// ```
-    /// ### *Example: with interceptor*
-    ///
-    /// ```rust
-    ///     // This interceptor will insert a header foo: bar for the discovery request made
-    ///     // internally after webfinger request
-    ///
-    ///    #[derive(Debug, Clone)]
-    ///    pub(crate) struct CustomInterceptor {
-    ///        pub some_header: String,
-    ///        pub some_header_value: String,
-    ///    }
-    ///
-    ///    impl Interceptor for CustomInterceptor {
-    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
-    ///            let mut headers: HeaderMap = HeaderMap::new();
-    ///
-    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
-    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
-    ///
-    ///            headers.append(header, header_value);
-    ///
-    ///            RequestOptions {
-    ///                headers,
-    ///                timeout: Duration::from_millis(5000),
-    ///                ..Default::default()
-    ///            }
-    ///        }
-    ///
-    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
-    ///            Box::new(CustomInterceptor {
-    ///                some_header: self.some_header.clone(),
-    ///                some_header_value: self.some_header_value.clone(),
-    ///            })
-    ///        }
-    ///    }
-    ///
-    ///    let interceptor = CustomInterceptor {
-    ///        some_header: "foo".to_string(),
-    ///        some_header_value: "bar".to_string(),
-    ///    };
-    ///
-    ///     let _issuer = Issuer::webfinger("joe@auth.example.com", Some(Box::new(interceptor))).unwrap();
-    /// ```
-    ///
-    pub fn webfinger(
-        input: &str,
-        mut interceptor: Option<RequestInterceptor>,
-    ) -> Result<Issuer, OidcClientError> {
-        let req = Self::build_webfinger_request(input)?;
-
-        let res = request(req, &mut interceptor)?;
-
-        let expected_issuer = Self::process_webfinger_response(res)?;
-
-        let issuer_result = Issuer::discover(&expected_issuer, interceptor);
-
-        Self::process_webfinger_issuer_result(issuer_result, expected_issuer)
-    }
-
-    /// # Webfinger OIDC Issuer Discovery
-    ///
-    /// *This is an async method. Checkout [`Issuer::webfinger()`] for blocking version.*
     ///
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///

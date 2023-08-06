@@ -15,11 +15,9 @@
 //! - [issuer::Issuer::new]
 //!
 //! ### OIDC Discovery
-//! - [issuer::Issuer::discover]
 //! - [issuer::Issuer::discover_async]
 //!
 //! ### Webfinger Discovery
-//! - [issuer::Issuer::webfinger]
 //! - [issuer::Issuer::webfinger_async]
 //!
 //! ### Client from Issuer
@@ -28,11 +26,9 @@
 //! ## Client
 //!
 //! ### Client Read
-//! - [client::Client::from_uri]
 //! - [client::Client::from_uri_async]
 //!
 //! ### Dynamic Client Registration
-//! - [client::Client::register]
 //! - [client::Client::register_async]
 
 pub mod client;
@@ -49,6 +45,6 @@ pub mod types;
 pub mod re_exports {
     pub use josekit::{self};
     pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-    pub use serde_json::{json, Value};
+    pub use serde_json::{self, json, Value};
     pub use url;
 }

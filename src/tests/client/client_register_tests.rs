@@ -11,28 +11,15 @@ pub fn get_default_expected_client_read_response() -> String {
     "{\"client_id\":\"identifier\",\"client_secret\":\"secure\"}".to_string()
 }
 
-#[test]
-fn asserts_the_issuer_has_a_registration_endpoint() {
+#[tokio::test]
+async fn asserts_the_issuer_has_a_registration_endpoint() {
     let issuer_metadata = IssuerMetadata::default();
 
     let issuer = Issuer::new(issuer_metadata, None);
 
-    let client_error =
-        Client::register(&issuer, ClientMetadata::default(), None, None).unwrap_err();
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let _ = async_runtime.block_on(async {
-        let client_error_async =
-            Client::register_async(&issuer, ClientMetadata::default(), None, None)
-                .await
-                .unwrap_err();
-
-        assert_eq!(
-            "registration_endpoint must be configured on the issuer",
-            client_error_async.type_error().error.message
-        );
-    });
+    let client_error = Client::register_async(&issuer, ClientMetadata::default(), None, None)
+        .await
+        .unwrap_err();
 
     assert_eq!(
         "registration_endpoint must be configured on the issuer",
@@ -40,8 +27,8 @@ fn asserts_the_issuer_has_a_registration_endpoint() {
     );
 }
 
-#[test]
-fn accepts_and_assigns_the_registered_metadata() {
+#[tokio::test]
+async fn accepts_and_assigns_the_registered_metadata() {
     let mock_http_server = MockServer::start();
 
     let _auth_mock_server = mock_http_server.mock(|when, then| {
@@ -82,38 +69,22 @@ fn accepts_and_assigns_the_registered_metadata() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let client = Client::register(
+    let client = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(mock_http_server.port()),
     )
+    .await
     .unwrap();
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let _ = async_runtime.block_on(async {
-        let client_async = Client::register_async(
-            &issuer,
-            ClientMetadata::default(),
-            None,
-            get_default_test_interceptor(mock_http_server.port()),
-        )
-        .await
-        .unwrap();
-
-        assert_eq!("identifier", client_async.get_client_id());
-
-        assert_eq!("secure", client_async.get_client_secret().unwrap());
-    });
 
     assert_eq!("identifier", client.get_client_id());
 
     assert_eq!("secure", client.get_client_secret().unwrap());
 }
 
-#[test]
-fn is_rejected_with_op_error_upon_oidc_error() {
+#[tokio::test]
+async fn is_rejected_with_op_error_upon_oidc_error() {
     let mock_http_server = MockServer::start();
 
     let _auth_mock_server = mock_http_server.mock(|when, then| {
@@ -135,37 +106,14 @@ fn is_rejected_with_op_error_upon_oidc_error() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let client_error = Client::register(
+    let client_error = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(mock_http_server.port()),
     )
+    .await
     .unwrap_err();
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let _ = async_runtime.block_on(async {
-        let client_error_async = Client::register_async(
-            &issuer,
-            ClientMetadata::default(),
-            None,
-            get_default_test_interceptor(mock_http_server.port()),
-        )
-        .await
-        .unwrap_err();
-
-        assert!(client_error_async.is_op_error());
-
-        let err_async = client_error_async.op_error().error;
-
-        assert_eq!("server_error", err_async.error);
-
-        assert_eq!(
-            Some("bad things are happening".to_string()),
-            err_async.error_description
-        );
-    });
 
     assert!(client_error.is_op_error());
 
@@ -179,8 +127,8 @@ fn is_rejected_with_op_error_upon_oidc_error() {
     );
 }
 
-#[test]
-fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() {
+#[tokio::test]
+async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() {
     let mock_http_server = MockServer::start();
 
     let _auth_mock_server = mock_http_server.mock(|when, then| {
@@ -203,37 +151,14 @@ fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let client_error = Client::register(
+    let client_error = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(mock_http_server.port()),
     )
+    .await
     .unwrap_err();
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let _ = async_runtime.block_on(async {
-        let client_error_async = Client::register_async(
-            &issuer,
-            ClientMetadata::default(),
-            None,
-            get_default_test_interceptor(mock_http_server.port()),
-        )
-        .await
-        .unwrap_err();
-
-        assert!(client_error_async.is_op_error());
-
-        let err_async = client_error_async.op_error().error;
-
-        assert_eq!("invalid_token", err_async.error);
-
-        assert_eq!(
-            Some("bad things are happening".to_string()),
-            err_async.error_description
-        );
-    });
 
     assert!(client_error.is_op_error());
 
@@ -247,8 +172,8 @@ fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() {
     );
 }
 
-#[test]
-fn is_rejected_with_when_non_200_is_returned() {
+#[tokio::test]
+async fn is_rejected_with_when_non_200_is_returned() {
     let mock_http_server = MockServer::start();
 
     let _auth_mock_server = mock_http_server.mock(|when, then| {
@@ -268,37 +193,14 @@ fn is_rejected_with_when_non_200_is_returned() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let client_error = Client::register(
+    let client_error = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(mock_http_server.port()),
     )
+    .await
     .unwrap_err();
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let _ = async_runtime.block_on(async {
-        let client_error_async = Client::register_async(
-            &issuer,
-            ClientMetadata::default(),
-            None,
-            get_default_test_interceptor(mock_http_server.port()),
-        )
-        .await
-        .unwrap_err();
-
-        assert!(client_error_async.is_op_error());
-
-        let err_async = client_error_async.op_error();
-
-        assert!(err_async.response.is_some());
-
-        assert_eq!(
-            Some("expected 201 Created, got: 500 Internal Server Error".to_string()),
-            err_async.error.error_description
-        );
-    });
 
     assert!(client_error.is_op_error());
 
@@ -312,8 +214,8 @@ fn is_rejected_with_when_non_200_is_returned() {
     );
 }
 
-#[test]
-fn is_rejected_with_json_parse_error_upon_invalid_response() {
+#[tokio::test]
+async fn is_rejected_with_json_parse_error_upon_invalid_response() {
     let mock_http_server = MockServer::start();
 
     let _auth_mock_server = mock_http_server.mock(|when, then| {
@@ -333,32 +235,14 @@ fn is_rejected_with_json_parse_error_upon_invalid_response() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let client_error = Client::register(
+    let client_error = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(mock_http_server.port()),
     )
+    .await
     .unwrap_err();
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let _ = async_runtime.block_on(async {
-        let client_error_async = Client::register_async(
-            &issuer,
-            ClientMetadata::default(),
-            None,
-            get_default_test_interceptor(mock_http_server.port()),
-        )
-        .await
-        .unwrap_err();
-
-        assert!(client_error_async.is_type_error());
-
-        let err_async = client_error_async.type_error().error;
-
-        assert_eq!("unexpected body type", err_async.message);
-    });
 
     assert!(client_error.is_type_error());
 
@@ -388,8 +272,8 @@ mod with_key_store_as_an_option {
         "{\"client_id\":\"identifier\",\"client_secret\":\"secure\"}".to_string()
     }
 
-    #[test]
-    fn enriches_the_registration_with_jwks_if_not_provided_or_jwks_uri() {
+    #[tokio::test]
+    async fn enriches_the_registration_with_jwks_if_not_provided_or_jwks_uri() {
         let mock_http_server = MockServer::start();
 
         let auth_mock_server = mock_http_server.mock(|when, then| {
@@ -429,31 +313,20 @@ mod with_key_store_as_an_option {
             ..Default::default()
         };
 
-        let _ = Client::register(
+        let _ = Client::register_async(
             &issuer,
             ClientMetadata::default(),
             Some(register_options.clone()),
             get_default_test_interceptor(mock_http_server.port()),
         )
+        .await
         .unwrap();
 
-        let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let _ = async_runtime.block_on(async {
-            let _ = Client::register_async(
-                &issuer,
-                ClientMetadata::default(),
-                Some(register_options.clone()),
-                get_default_test_interceptor(mock_http_server.port()),
-            )
-            .await
-            .unwrap();
-            auth_mock_server.assert_hits(2);
-        });
+        auth_mock_server.assert_hits(1);
     }
 
-    #[test]
-    fn ignores_the_keystore_during_registration_if_jwks_is_provided() {
+    #[tokio::test]
+    async fn ignores_the_keystore_during_registration_if_jwks_is_provided() {
         let mock_http_server = MockServer::start();
 
         let auth_mock_server = mock_http_server.mock(|when, then| {
@@ -496,31 +369,20 @@ mod with_key_store_as_an_option {
             ..Default::default()
         };
 
-        let _ = Client::register(
+        let _ = Client::register_async(
             &issuer,
             client_metadata.clone(),
             Some(register_options.clone()),
             get_default_test_interceptor(mock_http_server.port()),
         )
+        .await
         .unwrap();
 
-        let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let _ = async_runtime.block_on(async {
-            let _ = Client::register_async(
-                &issuer,
-                client_metadata,
-                Some(register_options),
-                get_default_test_interceptor(mock_http_server.port()),
-            )
-            .await
-            .unwrap();
-            auth_mock_server.assert_hits(2);
-        });
+        auth_mock_server.assert_hits(1);
     }
 
-    #[test]
-    fn ignores_the_keystore_during_registration_if_jwks_uri_is_provided() {
+    #[tokio::test]
+    async fn ignores_the_keystore_during_registration_if_jwks_uri_is_provided() {
         let mock_http_server = MockServer::start();
 
         let auth_mock_server = mock_http_server.mock(|when, then| {
@@ -567,31 +429,20 @@ mod with_key_store_as_an_option {
             ..Default::default()
         };
 
-        let _ = Client::register(
+        let _ = Client::register_async(
             &issuer,
             client_metadata.clone(),
             Some(register_options.clone()),
             get_default_test_interceptor(mock_http_server.port()),
         )
+        .await
         .unwrap();
 
-        let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let _ = async_runtime.block_on(async {
-            let _ = Client::register_async(
-                &issuer,
-                client_metadata,
-                Some(register_options),
-                get_default_test_interceptor(mock_http_server.port()),
-            )
-            .await
-            .unwrap();
-            auth_mock_server.assert_hits(2);
-        });
+        auth_mock_server.assert_hits(1);
     }
 
-    #[test]
-    fn does_not_accept_oct_keys() {
+    #[tokio::test]
+    async fn does_not_accept_oct_keys() {
         let registration_endpoint = "https://op.example.com/client/registration".to_string();
 
         let issuer_metadata = IssuerMetadata {
@@ -608,27 +459,14 @@ mod with_key_store_as_an_option {
 
         let client_metadata = ClientMetadata::default();
 
-        let client_error = Client::register(
+        let client_error = Client::register_async(
             &issuer,
             client_metadata.clone(),
             Some(register_options.clone()),
             None,
         )
+        .await
         .unwrap_err();
-
-        let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let _ = async_runtime.block_on(async {
-            let client_error_async =
-                Client::register_async(&issuer, client_metadata, Some(register_options), None)
-                    .await
-                    .unwrap_err();
-
-            assert_eq!(
-                "jwks must only contain private keys",
-                client_error_async.error().error.message
-            );
-        });
 
         assert_eq!(
             "jwks must only contain private keys",
@@ -636,8 +474,8 @@ mod with_key_store_as_an_option {
         );
     }
 
-    #[test]
-    fn does_not_accept_public_keys() {
+    #[tokio::test]
+    async fn does_not_accept_public_keys() {
         let registration_endpoint = "https://op.example.com/client/registration".to_string();
 
         let issuer_metadata = IssuerMetadata {
@@ -654,27 +492,14 @@ mod with_key_store_as_an_option {
 
         let client_metadata = ClientMetadata::default();
 
-        let client_error = Client::register(
+        let client_error = Client::register_async(
             &issuer,
             client_metadata.clone(),
             Some(register_options.clone()),
             None,
         )
+        .await
         .unwrap_err();
-
-        let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let _ = async_runtime.block_on(async {
-            let client_error_async =
-                Client::register_async(&issuer, client_metadata, Some(register_options), None)
-                    .await
-                    .unwrap_err();
-
-            assert_eq!(
-                "jwks must only contain private keys",
-                client_error_async.error().error.message
-            );
-        });
 
         assert_eq!(
             "jwks must only contain private keys",
@@ -698,8 +523,8 @@ mod with_initial_access_token {
         "{\"client_id\":\"identifier\",\"client_secret\":\"secure\"}".to_string()
     }
 
-    #[test]
-    fn uses_the_initial_access_token_in_a_bearer_authorization_scheme() {
+    #[tokio::test]
+    async fn uses_the_initial_access_token_in_a_bearer_authorization_scheme() {
         let mock_http_server = MockServer::start();
 
         let auth_mock_server = mock_http_server.mock(|when, then| {
@@ -727,28 +552,16 @@ mod with_initial_access_token {
             ..Default::default()
         };
 
-        let _ = Client::register(
+        let _ = Client::register_async(
             &issuer,
             ClientMetadata::default(),
             Some(register_options.clone()),
             get_default_test_interceptor(mock_http_server.port()),
         )
+        .await
         .unwrap();
 
-        let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let _ = async_runtime.block_on(async {
-            let _ = Client::register_async(
-                &issuer,
-                ClientMetadata::default(),
-                Some(register_options),
-                get_default_test_interceptor(mock_http_server.port()),
-            )
-            .await
-            .unwrap();
-
-            auth_mock_server.assert_hits(2);
-        });
+        auth_mock_server.assert_hits(1);
     }
 }
 
@@ -763,8 +576,8 @@ mod http_options {
         "{\"client_id\":\"identifier\",\"client_secret\":\"secure\"}".to_string()
     }
 
-    #[test]
-    fn allows_for_http_options_to_be_defined_for_issuer_discover_calls() {
+    #[tokio::test]
+    async fn allows_for_http_options_to_be_defined_for_issuer_discover_calls() {
         let mock_http_server = MockServer::start();
 
         let auth_mock_server = mock_http_server.mock(|when, then| {
@@ -792,7 +605,7 @@ mod http_options {
             ..Default::default()
         };
 
-        let _ = Client::register(
+        let _ = Client::register_async(
             &issuer,
             ClientMetadata::default(),
             Some(register_options),
@@ -802,57 +615,10 @@ mod http_options {
                 test_server_port: Some(mock_http_server.port()),
             })),
         )
+        .await
         .unwrap();
 
         auth_mock_server.assert_hits(1);
-    }
-
-    #[test]
-    fn allows_for_http_options_to_be_defined_for_issuer_discover_calls_async() {
-        let mock_http_server = MockServer::start();
-
-        let auth_mock_server = mock_http_server.mock(|when, then| {
-            when.method(POST)
-                .header("testHeader", "testHeaderValue")
-                .path("/client/registration");
-            then.status(201)
-                .body(get_default_expected_client_register_response());
-        });
-
-        let registration_endpoint = "https://op.example.com/client/registration".to_string();
-
-        let issuer_metadata = IssuerMetadata {
-            registration_endpoint: Some(registration_endpoint),
-            ..IssuerMetadata::default()
-        };
-
-        let issuer = Issuer::new(
-            issuer_metadata,
-            get_default_test_interceptor(mock_http_server.port()),
-        );
-
-        let register_options = ClientRegistrationOptions {
-            initial_access_token: Some("foobar".to_string()),
-            ..Default::default()
-        };
-
-        let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let _ = async_runtime.block_on(async {
-            let _ = Client::register_async(
-                &issuer,
-                ClientMetadata::default(),
-                Some(register_options),
-                Some(Box::new(TestInterceptor {
-                    test_header: Some("testHeader".to_string()),
-                    test_header_value: Some("testHeaderValue".to_string()),
-                    test_server_port: Some(mock_http_server.port()),
-                })),
-            )
-            .await
-            .unwrap();
-            auth_mock_server.assert_hits(1);
-        });
     }
 }
 

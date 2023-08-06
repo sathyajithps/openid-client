@@ -16,7 +16,7 @@ use url::{form_urlencoded, Url};
 
 use crate::{
     helpers::{convert_json_to, random},
-    http::request,
+    http::request_async,
     tokenset::{TokenSet, TokenSetParams},
     types::{
         AuthenticationPostParams, AuthorizationParameters, EndSessionParameters, OidcClientError,
@@ -357,12 +357,11 @@ impl Client {
     ///
     /// - `body` - HashMap<String, Value> : Request body
     /// - `params` - [AuthenticationPostParams] : Parameters for customizing auth request
-    /// - `retry` - Weather to retry if the request fails
     ///
     /// ### *Example:*
     ///  ```
     ///    let issuer_metadata = IssuerMetadata {
-    ///        authorization_endpoint: Some("https://auth.example.com/auth".to_string()),
+    ///        token_endpoint: Some("https://auth.example.com/token".to_string()),
     ///        ..Default::default()
     ///    };
     ///
@@ -377,13 +376,12 @@ impl Client {
     ///
     ///    let body: HashMap<String, Value> = HashMap::new();
     ///
-    ///    let token_set = client.grant(body, AuthenticationPostParams::default(), false).unwrap();
+    ///    let token_set = client.grant(body, AuthenticationPostParams::default()).await.unwrap();
     /// ```
-    pub fn grant(
+    pub async fn grant_async(
         &mut self,
         body: HashMap<String, Value>,
         params: AuthenticationPostParams,
-        retry: bool,
     ) -> Result<TokenSet, OidcClientError> {
         let issuer = self.issuer.as_ref().ok_or(OidcClientError::new_error(
             "Issuer is required for authenticated_post",
@@ -403,21 +401,9 @@ impl Client {
             ..Default::default()
         };
 
-        let response = match self.authenticated_post("token", req, params.clone()) {
-            Ok(res) => res,
-            Err(err) => {
-                let error_msg = match &err {
-                    OidcClientError::OPError(e, _) => &e.error,
-                    _ => "",
-                };
-
-                if !retry || !err.is_op_error() || error_msg != "use_dpop_nonce" {
-                    return Err(err);
-                }
-
-                return self.grant(body, params, false);
-            }
-        };
+        let response = self
+            .authenticated_post_async("token", req, params.clone())
+            .await?;
 
         let body = response.body.clone().ok_or(OidcClientError::new_error(
             "body expected in grant response",
@@ -629,7 +615,7 @@ impl Client {
         Ok(authorization_endpiont)
     }
 
-    fn authenticated_post(
+    async fn authenticated_post_async(
         &mut self,
         endpoint: &str,
         mut req: Request,
@@ -699,7 +685,7 @@ impl Client {
                 .insert("accept", HeaderValue::from_static("application/json"));
         }
 
-        request(req, &mut self.request_interceptor)
+        request_async(req, &mut self.request_interceptor).await
     }
 
     pub(crate) fn auth_for(

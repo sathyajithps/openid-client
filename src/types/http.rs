@@ -98,25 +98,6 @@ pub struct Response {
 }
 
 impl Response {
-    /// Creates a new instance of Response from [reqwest::blocking::Response]
-    pub(crate) fn from(response: reqwest::blocking::Response) -> Self {
-        let status = response.status();
-        let headers = response.headers().clone();
-        let body_result = response.text();
-        let mut body: Option<String> = None;
-        if let Ok(body_string) = body_result {
-            if !body_string.is_empty() {
-                body = Some(body_string);
-            }
-        }
-
-        Self {
-            body,
-            status,
-            headers,
-        }
-    }
-
     /// Creates a new instance of Response from [reqwest::Response]
     pub(crate) async fn from_async(response: reqwest::Response) -> Self {
         let status = response.status();
