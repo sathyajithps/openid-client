@@ -47,7 +47,7 @@ pub mod types;
 
 /// Re exports from the crate
 pub mod re_exports {
-    pub use josekit::jwk;
+    pub use josekit::{self};
     pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
     pub use serde_json::{json, Value};
     pub use url;

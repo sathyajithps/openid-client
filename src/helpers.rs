@@ -1,6 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use httpmock::Regex;
+use rand::Rng;
 use reqwest::{header::HeaderValue, Url};
 use serde::Deserialize;
 
@@ -126,4 +127,9 @@ pub(crate) fn now() -> i64 {
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
         .as_secs() as i64
+}
+
+pub(crate) fn random() -> String {
+    let bytes = rand::thread_rng().gen::<[u8; 32]>();
+    base64_url::encode(&bytes)
 }

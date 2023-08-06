@@ -1,6 +1,16 @@
 use std::{cmp::Ordering, collections::HashSet};
 
-use josekit::jwk::Jwk;
+use josekit::{
+    jwk::Jwk,
+    jws::{
+        alg::{
+            ecdsa::EcdsaJwsAlgorithm, eddsa::EddsaJwsAlgorithm, hmac::HmacJwsAlgorithm,
+            rsassa::RsassaJwsAlgorithm, rsassa_pss::RsassaPssJwsAlgorithm,
+        },
+        JwsSigner,
+    },
+    jwt::alg::unsecured::UnsecuredJwsAlgorithm,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::types::OidcClientError;
@@ -9,6 +19,8 @@ pub(crate) trait CustomJwk {
     fn algorithms(&self) -> HashSet<String>;
 
     fn is_private_key(&self) -> bool;
+
+    fn to_signer(&self) -> Result<Box<dyn JwsSigner>, OidcClientError>;
 }
 
 impl CustomJwk for Jwk {
@@ -69,6 +81,112 @@ impl CustomJwk for Jwk {
 
     fn is_private_key(&self) -> bool {
         self.key_type() == "oct" || self.parameter("d").is_some()
+    }
+
+    fn to_signer(&self) -> Result<Box<dyn JwsSigner>, OidcClientError> {
+        let alg = match self.algorithm() {
+            Some(a) => a,
+            None => {
+                return Err(OidcClientError::new_error(
+                    "jwk does not have algorithm",
+                    None,
+                ))
+            }
+        };
+
+        let error = OidcClientError::new_error("error when creating a jws signer", None);
+
+        match alg {
+            "HS256" => {
+                let algorithm = HmacJwsAlgorithm::Hs256;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "HS384" => {
+                let algorithm = HmacJwsAlgorithm::Hs384;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "HS512" => {
+                let algorithm = HmacJwsAlgorithm::Hs512;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "RS256" => {
+                let algorithm = RsassaJwsAlgorithm::Rs256;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "RS384" => {
+                let algorithm = RsassaJwsAlgorithm::Rs384;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "RS512" => {
+                let algorithm = RsassaJwsAlgorithm::Rs512;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "PS256" => {
+                let algorithm = RsassaPssJwsAlgorithm::Ps256;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "PS384" => {
+                let algorithm = RsassaPssJwsAlgorithm::Ps384;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "PS512" => {
+                let algorithm = RsassaPssJwsAlgorithm::Ps512;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "ES256" => {
+                let algorithm = EcdsaJwsAlgorithm::Es256;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "ES384" => {
+                let algorithm = EcdsaJwsAlgorithm::Es384;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "ES512" => {
+                let algorithm = EcdsaJwsAlgorithm::Es512;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "ES256K" => {
+                let algorithm = EcdsaJwsAlgorithm::Es256k;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "EdDSA" => {
+                let algorithm = EddsaJwsAlgorithm::Eddsa;
+                Ok(Box::new(
+                    algorithm.signer_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "none" => Ok(Box::new(UnsecuredJwsAlgorithm::None.signer())),
+            _ => Err(OidcClientError::new_error(
+                "invalid algorithm for creating a signer",
+                None,
+            )),
+        }
     }
 }
 
