@@ -7,39 +7,25 @@ fn get_default_jwks() -> String {
     "{\"keys\":[{\"e\":\"AQAB\",\"n\":\"zwGRh6jBiyfwbSz_gs71ehiLLuVNd5Cyb67wKVPaS6GFyHtPjD5r-Yta5aZ7OaZV1AB7ieuhvvKsjvx4pzBAnQzwyYcaFDdb91jVHad019LMkjO_UTwSHegV_Bcwrhi0g64tfW3bTNUMEEKLZEusJZElpLi9HLZsGRJUlRCYRTqMeq1SYjQunVF9GmTTJlgK7IIdMYJ6ktQNRkQFz9ACpTZCS6SCUCjA4psFz-vtW-pBOvwO1gu4hWFQx9IFmPIojyZhF5kgfVlOnAc0YTRgj03uEMYXwLpBlbC-SPM9YXmFq1iflRbxEZqEP170J_27HjYpvo8eK2YwL9jXxNLC4Q\",\"kty\":\"RSA\",\"kid\":\"RraeLjB4KnAKQaihCOLHPByOJaSjXc0iWkhq2b3I7-o\"}]}".to_string()
 }
 
-#[test]
-fn requires_jwks_uri_to_be_configured() {
+#[tokio::test]
+async fn requires_jwks_uri_to_be_configured() {
     let mut issuer = Issuer::new(IssuerMetadata::default(), None);
 
-    assert!(issuer.get_keystore(false).is_err());
+    assert!(issuer.get_keystore_async(false).await.is_err());
     assert_eq!(
         "jwks_uri must be configured on the issuer".to_string(),
         issuer
-            .get_keystore(false)
+            .get_keystore_async(false)
+            .await
             .unwrap_err()
             .type_error()
             .error
             .message,
     );
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-    async_runtime.block_on(async {
-        assert!(issuer.get_keystore_async(false).await.is_err());
-        assert_eq!(
-            "jwks_uri must be configured on the issuer".to_string(),
-            issuer
-                .get_keystore_async(false)
-                .await
-                .unwrap_err()
-                .type_error()
-                .error
-                .message,
-        );
-    });
 }
 
-#[test]
-fn does_not_refetch_immediately() {
+#[tokio::test]
+async fn does_not_refetch_immediately() {
     let mock_http_server = MockServer::start();
 
     let jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -65,15 +51,15 @@ fn does_not_refetch_immediately() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    assert!(issuer.get_keystore(true).is_ok());
+    assert!(issuer.get_keystore_async(true).await.is_ok());
 
-    let _ = issuer.get_keystore(false).unwrap();
+    let _ = issuer.get_keystore_async(false).await.unwrap();
 
     jwks_mock_server.assert_hits(1);
 }
 
-#[test]
-fn does_not_refetch_immediately_async() {
+#[tokio::test]
+async fn refetches_if_asked_to() {
     let mock_http_server = MockServer::start();
 
     let jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -99,87 +85,14 @@ fn does_not_refetch_immediately_async() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-    async_runtime.block_on(async {
-        assert!(issuer.get_keystore_async(true).await.is_ok());
-
-        let _ = issuer.get_keystore_async(false).await.unwrap();
-    });
-
-    jwks_mock_server.assert_hits(1);
-}
-
-#[test]
-fn refetches_if_asked_to() {
-    let mock_http_server = MockServer::start();
-
-    let jwks_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET)
-            .header("Accept", "application/json,application/jwk-set+json")
-            .path("/jwks");
-        then.status(200)
-            .header("content-type", "application/jwk-set+json")
-            .body(get_default_jwks());
-    });
-
-    let issuer = "https://op.example.com".to_string();
-    let jwks_uri = "https://op.example.com/jwks".to_string();
-
-    let metadata = IssuerMetadata {
-        issuer,
-        jwks_uri: Some(jwks_uri),
-        ..IssuerMetadata::default()
-    };
-
-    let mut issuer = Issuer::new(
-        metadata,
-        get_default_test_interceptor(mock_http_server.port()),
-    );
-
-    assert!(issuer.get_keystore(true).is_ok());
-    assert!(issuer.get_keystore(true).is_ok());
+    assert!(issuer.get_keystore_async(true).await.is_ok());
+    assert!(issuer.get_keystore_async(true).await.is_ok());
 
     jwks_mock_server.assert_hits(2);
 }
 
-#[test]
-fn refetches_if_asked_to_async() {
-    let mock_http_server = MockServer::start();
-
-    let jwks_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET)
-            .header("Accept", "application/json,application/jwk-set+json")
-            .path("/jwks");
-        then.status(200)
-            .header("content-type", "application/jwk-set+json")
-            .body(get_default_jwks());
-    });
-
-    let issuer = "https://op.example.com".to_string();
-    let jwks_uri = "https://op.example.com/jwks".to_string();
-
-    let metadata = IssuerMetadata {
-        issuer,
-        jwks_uri: Some(jwks_uri),
-        ..IssuerMetadata::default()
-    };
-
-    let mut issuer = Issuer::new(
-        metadata,
-        get_default_test_interceptor(mock_http_server.port()),
-    );
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-    async_runtime.block_on(async {
-        assert!(issuer.get_keystore_async(true).await.is_ok());
-        assert!(issuer.get_keystore_async(true).await.is_ok());
-    });
-
-    jwks_mock_server.assert_hits(2);
-}
-
-#[test]
-fn rejects_when_no_matching_key_is_found() {
+#[tokio::test]
+async fn rejects_when_no_matching_key_is_found() {
     let mock_http_server = MockServer::start();
 
     let _jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -205,11 +118,13 @@ fn rejects_when_no_matching_key_is_found() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let jwk_result = issuer.get_jwk(
-        Some("RS256".to_string()),
-        Some("sig".to_string()),
-        Some("noway".to_string()),
-    );
+    let jwk_result = issuer
+        .get_jwk_async(
+            Some("RS256".to_string()),
+            Some("sig".to_string()),
+            Some("noway".to_string()),
+        )
+        .await;
 
     let expected_error = "no valid key found in issuer\'s jwks_uri for key parameters kid: noway, alg: RS256, key_use: sig";
 
@@ -218,27 +133,10 @@ fn rejects_when_no_matching_key_is_found() {
     let error = jwk_result.unwrap_err();
 
     assert_eq!(expected_error, error.error().error.message);
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-    async_runtime.block_on(async {
-        let jwk_result_async = issuer
-            .get_jwk_async(
-                Some("RS256".to_string()),
-                Some("sig".to_string()),
-                Some("noway".to_string()),
-            )
-            .await;
-
-        assert!(jwk_result_async.is_err());
-
-        let error_async = jwk_result_async.unwrap_err();
-
-        assert_eq!(expected_error, error_async.error().error.message);
-    });
 }
 
-#[test]
-fn requires_a_kid_when_multiple_matches_are_found() {
+#[tokio::test]
+async fn requires_a_kid_when_multiple_matches_are_found() {
     let mock_http_server = MockServer::start();
 
     let _jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -265,7 +163,9 @@ fn requires_a_kid_when_multiple_matches_are_found() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let jwk_result = issuer.get_jwk(Some("RS256".to_string()), Some("sig".to_string()), None);
+    let jwk_result = issuer
+        .get_jwk_async(Some("RS256".to_string()), Some("sig".to_string()), None)
+        .await;
 
     let expected_error = "multiple matching keys found in issuer\'s jwks_uri for key parameters kid: , key_use: sig, alg: RS256, kid must be provided in this case";
 
@@ -274,23 +174,10 @@ fn requires_a_kid_when_multiple_matches_are_found() {
     let error = jwk_result.unwrap_err();
 
     assert_eq!(expected_error, error.error().error.message);
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-    async_runtime.block_on(async {
-        let jwk_result_async = issuer
-            .get_jwk_async(Some("RS256".to_string()), Some("sig".to_string()), None)
-            .await;
-
-        assert!(jwk_result_async.is_err());
-
-        let error_async = jwk_result_async.unwrap_err();
-
-        assert_eq!(expected_error, error_async.error().error.message);
-    });
 }
 
-#[test]
-fn multiple_keys_can_match_jwt_header() {
+#[tokio::test]
+async fn multiple_keys_can_match_jwt_header() {
     let mock_http_server = MockServer::start();
 
     let _jwks_mock_server = mock_http_server.mock(|when, then| {
@@ -317,34 +204,19 @@ fn multiple_keys_can_match_jwt_header() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let jwk_result = issuer.get_jwk(
-        Some("RS256".to_string()),
-        Some("sig".to_string()),
-        Some("0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A".to_string()),
-    );
+    let jwk_result = issuer
+        .get_jwk_async(
+            Some("RS256".to_string()),
+            Some("sig".to_string()),
+            Some("0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A".to_string()),
+        )
+        .await;
 
     assert!(jwk_result.is_ok());
 
     let matched_jwks = jwk_result.unwrap();
 
     assert!(matched_jwks.len() > 1);
-
-    let async_runtime = tokio::runtime::Runtime::new().unwrap();
-    async_runtime.block_on(async {
-        let jwk_result_async = issuer
-            .get_jwk_async(
-                Some("RS256".to_string()),
-                Some("sig".to_string()),
-                Some("0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A".to_string()),
-            )
-            .await;
-
-        assert!(jwk_result_async.is_ok());
-
-        let matched_jwks_async = jwk_result_async.unwrap();
-
-        assert!(matched_jwks_async.len() > 1);
-    });
 }
 
 #[cfg(test)]
@@ -354,8 +226,8 @@ mod http_options {
 
     use super::*;
 
-    #[test]
-    fn allows_for_http_options_to_be_defined_for_issuer_keystore_calls() {
+    #[tokio::test]
+    async fn allows_for_http_options_to_be_defined_for_issuer_keystore_calls() {
         let mock_http_server = MockServer::start();
 
         let issuer = "https://op.example.com".to_string();
@@ -371,14 +243,15 @@ mod http_options {
                 .body(get_default_jwks());
         });
 
-        let _ = Issuer::discover(
+        let _ = Issuer::discover_async(
             "https://op.example.com/.well-known/custom-configuration",
             Some(Box::new(TestInterceptor {
                 test_header: Some("testHeader".to_string()),
                 test_header_value: Some("testHeaderValue".to_string()),
                 test_server_port: Some(mock_http_server.port()),
             })),
-        );
+        )
+        .await;
 
         let metadata = IssuerMetadata {
             issuer,
@@ -395,57 +268,8 @@ mod http_options {
             })),
         );
 
-        let _ = issuer.get_keystore(false);
+        let _ = issuer.get_keystore_async(false).await;
 
         jwks_mock_server.assert_hits(1);
-    }
-
-    #[test]
-    fn allows_for_http_options_to_be_defined_for_issuer_keystore_calls_async() {
-        let mock_http_server = MockServer::start();
-
-        let issuer = "https://op.example.com".to_string();
-        let jwks_uri = "https://op.example.com/jwks".to_string();
-
-        let jwks_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET)
-                .header("testHeader", "testHeaderValue")
-                .path("/jwks");
-
-            then.status(200)
-                .header("content-type", "application/jwk-set+json")
-                .body(get_default_jwks());
-        });
-
-        let _ = Issuer::discover(
-            "https://op.example.com/.well-known/custom-configuration",
-            Some(Box::new(TestInterceptor {
-                test_header: Some("testHeader".to_string()),
-                test_header_value: Some("testHeaderValue".to_string()),
-                test_server_port: Some(mock_http_server.port()),
-            })),
-        );
-
-        let metadata = IssuerMetadata {
-            issuer,
-            jwks_uri: Some(jwks_uri),
-            ..IssuerMetadata::default()
-        };
-
-        let mut issuer = Issuer::new(
-            metadata,
-            Some(Box::new(TestInterceptor {
-                test_header: Some("testHeader".to_string()),
-                test_header_value: Some("testHeaderValue".to_string()),
-                test_server_port: Some(mock_http_server.port()),
-            })),
-        );
-
-        let async_runtime = tokio::runtime::Runtime::new().unwrap();
-
-        async_runtime.block_on(async {
-            let _ = issuer.get_keystore_async(false).await;
-            jwks_mock_server.assert_hits(1);
-        });
     }
 }
