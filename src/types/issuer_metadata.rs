@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 /// # MtlsEndpoints
 /// [OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens](https://datatracker.ietf.org/doc/html/rfc8705)
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct MtlsEndpoints {
     /// mTLS token endpoint
     pub token_endpoint: Option<String>,

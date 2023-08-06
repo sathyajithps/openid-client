@@ -6,8 +6,8 @@ use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
 use crate::http::{request, request_async};
 use crate::jwks::Jwks;
 use crate::types::{
-    ClientMetadata, ClientOptions, IssuerMetadata, OidcClientError, Request, RequestInterceptor,
-    Response, WebFingerResponse,
+    ClientMetadata, ClientOptions, IssuerMetadata, MtlsEndpoints, OidcClientError, Request,
+    RequestInterceptor, Response, WebFingerResponse,
 };
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
@@ -43,6 +43,9 @@ pub struct Issuer {
     pub(crate) claim_types_supported: Vec<String>,
     /// Client Authentication methods supported by Token Endpoint. [Client Authentication](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication)
     pub(crate) token_endpoint_auth_methods_supported: Option<Vec<String>>,
+    /// List of JWS signing algorithms supported by the token endpoint for the signature of
+    /// the JWT that the client uses to authenticate.
+    pub(crate) token_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
     /// List of client [authentication methods](https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#token-endpoint-auth-method) supported by the Authorization Server.
     pub(crate) introspection_endpoint_auth_methods_supported: Option<Vec<String>>,
     /// List of JWS signing algorithms supported by the introspection endpoint for the signature of
@@ -59,6 +62,10 @@ pub struct Issuer {
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
     /// Jwk Key Set,
     pub(crate) jwks: Option<Jwks>,
+    /// See [MtlsEndpoints]
+    pub(crate) mtls_endpoint_aliases: Option<MtlsEndpoints>,
+    /// [Token introspection endpoint](https://www.rfc-editor.org/rfc/rfc7662)
+    pub introspection_endpoint: Option<String>,
     /// Client registration endpoint
     pub(crate) registration_endpoint: Option<String>,
     /// OP support of returning the OP id in auth response. [RFC](https://www.ietf.org/archive/id/draft-meyerzuselhausen-oauth-iss-auth-resp-02.html#name-providing-the-issuer-identi)
@@ -90,11 +97,14 @@ impl Default for Issuer {
             revocation_endpoint: None,
             request_interceptor: None,
             revocation_endpoint_auth_methods_supported: None,
+            token_endpoint_auth_signing_alg_values_supported: None,
             introspection_endpoint_auth_signing_alg_values_supported: None,
             revocation_endpoint_auth_signing_alg_values_supported: None,
             end_session_endpoint: None,
             other_fields: Default::default(),
             jwks: None,
+            mtls_endpoint_aliases: None,
+            introspection_endpoint: None,
             authorization_response_iss_parameter_supported: None,
             registration_endpoint: None,
         }
@@ -283,12 +293,16 @@ impl Issuer {
             claim_types_supported: vec![],
             token_endpoint_auth_methods_supported: metadata.token_endpoint_auth_methods_supported,
             introspection_endpoint_auth_methods_supported,
+            token_endpoint_auth_signing_alg_values_supported: metadata
+                .token_endpoint_auth_signing_alg_values_supported,
             introspection_endpoint_auth_signing_alg_values_supported,
             revocation_endpoint_auth_methods_supported,
             revocation_endpoint_auth_signing_alg_values_supported,
             other_fields: metadata.other_fields,
             request_interceptor: interceptor,
             jwks: None,
+            mtls_endpoint_aliases: metadata.mtls_endpoint_aliases,
+            introspection_endpoint: metadata.introspection_endpoint,
             registration_endpoint: metadata.registration_endpoint,
             end_session_endpoint: metadata.end_session_endpoint,
             authorization_response_iss_parameter_supported: metadata
@@ -1016,6 +1030,9 @@ impl Clone for Issuer {
             token_endpoint_auth_methods_supported: self
                 .token_endpoint_auth_methods_supported
                 .clone(),
+            token_endpoint_auth_signing_alg_values_supported: self
+                .token_endpoint_auth_signing_alg_values_supported
+                .clone(),
             introspection_endpoint_auth_methods_supported: self
                 .introspection_endpoint_auth_methods_supported
                 .clone(),
@@ -1030,12 +1047,13 @@ impl Clone for Issuer {
                 .clone(),
             other_fields: self.other_fields.clone(),
             jwks: self.jwks.clone(),
+            mtls_endpoint_aliases: self.mtls_endpoint_aliases.clone(),
+            introspection_endpoint: self.introspection_endpoint.clone(),
             request_interceptor,
             registration_endpoint: self.registration_endpoint.clone(),
             end_session_endpoint: self.end_session_endpoint.clone(),
             authorization_response_iss_parameter_supported: self
-                .authorization_response_iss_parameter_supported
-                .clone(),
+                .authorization_response_iss_parameter_supported,
         }
     }
 }

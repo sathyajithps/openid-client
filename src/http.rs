@@ -15,6 +15,19 @@ pub fn request(
     request: Request,
     interceptor: &mut Option<RequestInterceptor>,
 ) -> Result<Response, OidcClientError> {
+    match (&request.json, &request.form, &request.body) {
+        (None, Some(_), Some(_))
+        | (Some(_), Some(_), None)
+        | (Some(_), Some(_), Some(_))
+        | (Some(_), None, Some(_)) => {
+            return Err(OidcClientError::new_error(
+                "cannot request with multiple request bodies",
+                None,
+            ))
+        }
+        _ => {}
+    }
+
     let (mut url, options) = pre_request(&request, interceptor);
 
     let mut client_builder = reqwest::blocking::ClientBuilder::new();
@@ -27,23 +40,68 @@ pub fn request(
         client_builder = client_builder.danger_accept_invalid_certs(true);
     }
 
+    if request.mtls
+        && options.client_pkcs_12.is_none()
+        && options.client_crt.is_none()
+        && options.client_key.is_none()
+    {
+        return Err(OidcClientError::new_type_error(
+            "mutual-TLS certificate and key not set",
+            None,
+        ));
+    }
+
     let client = client_builder.build().map_err(client_build_error)?;
 
     let mut req = client
         .request(request.method.clone(), url)
-        .headers(combine_and_create_new_header_map(
-            &request.headers,
-            &options.headers,
-        ))
         .query(&request.get_reqwest_query())
         .timeout(options.timeout);
 
+    let mut final_headers = combine_and_create_new_header_map(&request.headers, &options.headers);
+
     if let Some(json_body) = &request.json {
+        final_headers.insert("content-type", HeaderValue::from_static("application/json"));
+
         match serde_json::to_string(json_body) {
             Ok(serialized) => req = req.body(serialized),
             _ => return Err(invalid_json_body()),
         }
     }
+
+    if let Some(form_body) = &request.form {
+        final_headers.insert(
+            "content-type",
+            HeaderValue::from_static("application/x-www-form-urlencoded"),
+        );
+
+        let mut form_string = String::new();
+
+        for (k, v) in form_body {
+            if k.trim().is_empty() {
+                continue;
+            }
+
+            if v.is_array() || v.is_object() {
+                form_string += &format!("{}=&", k);
+            }
+
+            form_string += &format!("{0}={1}", k, v);
+        }
+
+        req = req.body(form_string.trim_end_matches('&').to_owned());
+    }
+
+    if let Some(body) = &request.body {
+        final_headers.insert(
+            "content-length",
+            HeaderValue::from_bytes(format!("{}", body.len()).as_bytes()).unwrap(),
+        );
+
+        req = req.body(body.to_owned());
+    }
+
+    req = req.headers(final_headers);
 
     let response = match req.send() {
         Ok(res) => Response::from(res),

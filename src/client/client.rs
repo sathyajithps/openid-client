@@ -320,21 +320,21 @@ impl Client {
             Self::assert_signing_alg_values_support(
                 &Some(client.token_endpoint_auth_method.clone()),
                 &client.token_endpoint_auth_signing_alg,
-                &iss.token_endpoint_auth_methods_supported,
+                &iss.token_endpoint_auth_signing_alg_values_supported,
                 "token",
             )?;
 
             Self::assert_signing_alg_values_support(
                 &client.introspection_endpoint_auth_method,
                 &client.introspection_endpoint_auth_signing_alg,
-                &iss.introspection_endpoint_auth_methods_supported,
+                &iss.token_endpoint_auth_signing_alg_values_supported,
                 "introspection",
             )?;
 
             Self::assert_signing_alg_values_support(
                 &client.revocation_endpoint_auth_method,
                 &client.revocation_endpoint_auth_signing_alg,
-                &iss.revocation_endpoint_auth_methods_supported,
+                &iss.token_endpoint_auth_signing_alg_values_supported,
                 "revocation",
             )?;
 

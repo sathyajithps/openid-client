@@ -7,25 +7,34 @@ use crate::{helpers::now, types::OidcClientError};
 
 /// # TokenSetParams
 /// Argument to create new TokenSetParams
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TokenSetParams {
     /// `access_token`
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub access_token: Option<String>,
     /// `token_type`
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub token_type: Option<String>,
     /// `id_token`
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id_token: Option<String>,
     /// `refresh_token`
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
     /// `expires_in` - Access token expiration in (seconds)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<i64>,
     /// `expires_at` - Access token expiration timestamp, represented as the number of seconds since the epoch
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
     /// `session_state`
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_state: Option<String>,
     /// `scope`
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
     /// `other`
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub other: Option<HashMap<String, Value>>,
 }
 

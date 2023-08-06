@@ -23,6 +23,10 @@ pub struct Request {
     pub search_params: HashMap<String, Vec<String>>,
     /// The request body to be sent
     pub json: Option<serde_json::Value>,
+    /// The request form body to be sent
+    pub form: Option<HashMap<String, serde_json::Value>>,
+    /// The request body to be sent
+    pub body: Option<String>,
     /// Expected response type
     pub response_type: Option<String>,
     /// Specifies if the request is MTLS and needs client certificate
@@ -40,6 +44,8 @@ impl Default for Request {
             url: "".to_string(),
             search_params: HashMap::new(),
             json: None,
+            form: None,
+            body: None,
             response_type: None,
             mtls: false,
         }
@@ -58,6 +64,24 @@ impl Request {
         }
 
         query_list
+    }
+
+    pub(crate) fn merge_form(&mut self, request: &Self) {
+        match (&mut self.form, &request.form) {
+            (None, Some(_)) => self.form = request.form.clone(),
+            (Some(own_form), Some(other_form)) => {
+                for (k, v) in other_form {
+                    own_form.insert(k.to_string(), v.to_owned());
+                }
+            }
+            (None, None) | (Some(_), None) => {}
+        }
+    }
+
+    pub(crate) fn merge_headers(&mut self, request: &Self) {
+        for (k, v) in &request.headers {
+            self.headers.insert(k, v.clone());
+        }
     }
 }
 
