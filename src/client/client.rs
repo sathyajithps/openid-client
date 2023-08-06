@@ -906,7 +906,7 @@ impl Client {
     #[allow(clippy::type_complexity)]
     fn registration_config_validation(
         issuer: &Issuer,
-        mut client_metadata: &mut ClientMetadata,
+        client_metadata: &mut ClientMetadata,
         register_options: Option<ClientRegistrationOptions>,
     ) -> Result<(Option<String>, Option<Jwks>, Option<ClientOptions>, String), OidcClientError>
     {
