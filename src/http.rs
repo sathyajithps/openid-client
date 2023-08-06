@@ -24,7 +24,7 @@ pub async fn request_async(
             headers.append(
                 "User-Agent",
                 HeaderValue::from_static(
-                    "openid-client/0.0.24-dev (https://github.com/sathyajithps/openid-client)",
+                    "openid-client/0.0.25-dev (https://github.com/sathyajithps/openid-client)",
                 ),
             );
             RequestOptions {

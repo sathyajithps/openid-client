@@ -4,12 +4,13 @@ use std::{
 };
 
 use base64::{engine::general_purpose, Engine};
-use httpmock::Regex;
 use josekit::{
     jwk::Jwk,
     jws::{self, JwsHeader},
     jwt::JwtPayload,
 };
+use lazy_static::lazy_static;
+use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
@@ -27,6 +28,12 @@ use crate::{jwks::jwks::CustomJwk, types::Request};
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
 use super::Client;
+
+lazy_static! {
+    static ref AGCMKW_REGEX: Regex = Regex::new(r#"^A(\d{3})(?:GCM)?KW$"#).unwrap();
+    static ref AGCMCBC_REGEX: Regex = Regex::new(r#"^A(\d{3})(?:GCM|CBC-HS(\d{3}))$"#).unwrap();
+    static ref HS_REGEX: Regex = Regex::new("^HS(?:256|384|512)").unwrap();
+}
 
 /// Implementation for Client
 impl Client {
@@ -422,9 +429,7 @@ impl Client {
         jwk.set_algorithm(alg);
 
         if let Some(cs) = &self.client_secret {
-            // Should not throw
-            let regex_1 = Regex::new(r#"^A(\d{3})(?:GCM)?KW$"#).unwrap();
-            if let Some(first_group) = regex_1.captures_iter(alg).next() {
+            if let Some(first_group) = AGCMKW_REGEX.captures_iter(alg).next() {
                 if let Some(extracted_alg) = first_group.get(1) {
                     jwk.set_key_use("enc");
                     jwk.set_key_value(
@@ -434,9 +439,7 @@ impl Client {
                 }
             }
 
-            // Should not throw
-            let regex_2 = Regex::new(r#"^A(\d{3})(?:GCM|CBC-HS(\d{3}))$"#).unwrap();
-            if let Some(first_group) = regex_2.captures_iter(alg).next() {
+            if let Some(first_group) = AGCMCBC_REGEX.captures_iter(alg).next() {
                 if let Some(extracted_alg) = first_group.get(1).or(first_group.get(2)) {
                     jwk.set_key_use("enc");
                     jwk.set_key_value(
@@ -893,11 +896,9 @@ impl Client {
 
         if endpiont_auth_method.unwrap_or(&"".to_string()) == "client_secret_jwt" {
             if alg.is_none() {
-                // should not throw
-                let regex = Regex::new("^HS(?:256|384|512)").unwrap();
                 alg = auth_signing_alg_values_supported
                     .iter()
-                    .find(|a| regex.is_match(a));
+                    .find(|a| HS_REGEX.is_match(a));
             }
 
             let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {}_endpoint_auth_method Client Assertion", endpoint), None))?;
