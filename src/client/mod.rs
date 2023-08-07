@@ -4,6 +4,8 @@
 #[allow(clippy::module_inception)]
 mod client;
 
+pub(super) mod helpers;
+
 /// Getter & Setter method implementations for Client
 pub mod client_get_set;
 
