@@ -1,50 +1,87 @@
 name: Test Lint Publish
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
-    creates_publish:
-        if: ${{ github.ref == 'refs/heads/master' }}
-        continue-on-error: false
-        name: Crates Publish
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout sources
-              uses: actions/checkout@v3
+  linting_docs_build:
+    if: ${{ github.ref == 'refs/heads/master' }}
+    continue-on-error: false
+    name: Lint and Docs Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
 
-            - name: Install stable toolchain
-              uses: actions-rs/toolchain@v1
-              with:
-                  profile: minimal
-                  toolchain: stable
-                  override: true
-                  components: rustfmt, clippy
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
 
-            - name: Lint
-              run: |
-                  cargo fmt --all -- --check
-                  cargo clippy -- -D warnings
+      - name: Lint
+        run: |
+          cargo fmt -- --check
+          cargo clippy -- -D warnings
 
-            - name: Running Tests
-              run: cargo test -- --include-ignored
+      - name: Running Doc Compile
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
-            - name: Running Doc Compile
-              run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+  multi_platform_build:
+    needs: linting_docs_build
+    if: ${{ github.ref == 'refs/heads/master' }}
+    continue-on-error: false
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    name: Multi Platform Build
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
 
-            - name: Publishing to Crates.io
-              run: cargo publish --token ${CRATES_TOKEN}
-              env:
-                  CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
 
-            - name: Saving Version to OC_VERSION Env
-              run: |
-                  echo "OC_VERSION=$(sed -n '3p' Cargo.toml | cut -d'=' -f2 | cut -d'"' -f2)" >> $GITHUB_ENV
+      - name: Running Tests
+        run: cargo test -- --include-ignored
 
-            - name: Create a GitHub Release
-              uses: ncipollo/release-action@v1
-              with:
-                  tag: ${{env.OC_VERSION}}
-                  name: ${{env.OC_VERSION}}
-                  omitBody: true
-                  token: ${{ secrets.RELEASE_TOKEN }}
+  creates_publish:
+    needs: multi_platform_build
+    if: ${{ github.ref == 'refs/heads/master' }}
+    continue-on-error: false
+    name: Crates Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Publishing to Crates.io
+        run: cargo publish --token ${CRATES_TOKEN}
+        env:
+          CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
+
+      - name: Saving Version to OC_VERSION Env
+        run: |
+          echo "OC_VERSION=$(sed -n '3p' Cargo.toml | cut -d'=' -f2 | cut -d'"' -f2)" >> $GITHUB_ENV
+
+      - name: Create a GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{env.OC_VERSION}}
+          name: ${{env.OC_VERSION}}
+          omitBody: true
+          token: ${{ secrets.RELEASE_TOKEN }}
