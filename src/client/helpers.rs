@@ -26,8 +26,8 @@ use sha2::{Digest, Sha256, Sha384, Sha512};
 use super::Client;
 
 lazy_static! {
-    static ref AGCMKW_REGEX: Regex = Regex::new(r#"^A(\d{3})(?:GCM)?KW$"#).unwrap();
-    static ref AGCMCBC_REGEX: Regex = Regex::new(r#"^A(\d{3})(?:GCM|CBC-HS(\d{3}))$"#).unwrap();
+    static ref AGCMKW_REGEX: Regex = Regex::new(r"^A(\d{3})(?:GCM)?KW$").unwrap();
+    static ref AGCMCBC_REGEX: Regex = Regex::new(r"^A(\d{3})(?:GCM|CBC-HS(\d{3}))$").unwrap();
     static ref HS_REGEX: Regex = Regex::new("^HS(?:256|384|512)").unwrap();
 }
 

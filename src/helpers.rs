@@ -9,7 +9,7 @@ use serde::Deserialize;
 use crate::types::{OidcClientError, Response, StandardBodyError};
 
 lazy_static! {
-    static ref SCHEME_REGEX: Regex = Regex::new(r#"/(/|\\?)/g"#).unwrap();
+    static ref SCHEME_REGEX: Regex = Regex::new(r"/(/|\\?)/g").unwrap();
     static ref WWW_REGEX: Regex = Regex::new(r#"(\w+)=("[^"]*")"#).unwrap();
 }
 
