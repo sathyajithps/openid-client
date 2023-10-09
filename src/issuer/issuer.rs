@@ -12,6 +12,8 @@ use crate::types::{
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
 
+use super::keystore::KeyStore;
+
 /// Holds all the discovered values from the OIDC Issuer
 #[derive(Debug)]
 pub struct Issuer {
@@ -62,6 +64,8 @@ pub struct Issuer {
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
     /// Jwk Key Set,
     pub(crate) jwks: Option<Jwks>,
+    /// Keystore
+    pub(crate) keystore: Option<KeyStore>,
     /// See [MtlsEndpoints]
     pub(crate) mtls_endpoint_aliases: Option<MtlsEndpoints>,
     /// [Token introspection endpoint](https://www.rfc-editor.org/rfc/rfc7662)
@@ -103,6 +107,7 @@ impl Default for Issuer {
             end_session_endpoint: None,
             other_fields: Default::default(),
             jwks: None,
+            keystore: None,
             mtls_endpoint_aliases: None,
             introspection_endpoint: None,
             authorization_response_iss_parameter_supported: None,
@@ -277,6 +282,9 @@ impl Issuer {
                 Some(v) => Some(v),
             };
 
+        let jwks_uri = metadata.jwks_uri.clone();
+        let cloned_interceptor = interceptor.as_ref().map(|i| i.clone_box());
+
         Self {
             issuer: metadata.issuer,
             authorization_endpoint: metadata.authorization_endpoint,
@@ -301,6 +309,7 @@ impl Issuer {
             other_fields: metadata.other_fields,
             request_interceptor: interceptor,
             jwks: None,
+            keystore: Some(KeyStore::new(jwks_uri, cloned_interceptor)),
             mtls_endpoint_aliases: metadata.mtls_endpoint_aliases,
             introspection_endpoint: metadata.introspection_endpoint,
             registration_endpoint: metadata.registration_endpoint,
@@ -864,6 +873,7 @@ impl Clone for Issuer {
                 .clone(),
             other_fields: self.other_fields.clone(),
             jwks: self.jwks.clone(),
+            keystore: self.keystore.clone(),
             mtls_endpoint_aliases: self.mtls_endpoint_aliases.clone(),
             introspection_endpoint: self.introspection_endpoint.clone(),
             request_interceptor,

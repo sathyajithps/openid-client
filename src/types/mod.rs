@@ -11,6 +11,7 @@ mod end_session_parameters;
 mod errors;
 mod http;
 mod issuer_metadata;
+pub(crate) mod query_keystore;
 mod webfinger;
 
 pub use authentication_post_param::AuthenticationPostParams;

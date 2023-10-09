@@ -204,6 +204,16 @@ impl From<Vec<Jwk>> for Jwks {
 }
 
 impl Jwks {
+    /// Number of keys present in [Jwks]
+    pub fn len(&self) -> usize {
+        self.keys.len()
+    }
+
+    /// Returns if [Jwks] is empty or not
+    pub fn is_empty(&self) -> bool {
+        self.keys.is_empty()
+    }
+
     #[allow(clippy::if_same_then_else)]
     pub(crate) fn get(
         &self,
