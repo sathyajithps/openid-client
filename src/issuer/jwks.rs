@@ -1,122 +1,104 @@
-//! Issuer implementation for jwks
+//! Issuer methods for Keystore
 
-use std::collections::HashMap;
-
-use josekit::jwk::Jwk;
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Method, StatusCode,
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
 };
 
+use crate::helpers::now;
 use crate::{
-    helpers::convert_json_to,
-    http::request_async,
     issuer::Issuer,
     jwks::Jwks,
-    types::{OidcClientError, Request, RequestInterceptor},
+    types::{query_keystore::QueryKeyStore, OidcClientError},
 };
 
-// TODO: Make jwks fetch from the uri on create.
-// TODO: Introduce jwks cache and expiration
-
-/// Methods for the jwks of [Issuer]
+/// [Issuer]'s Keystore methods
 impl Issuer {
-    /// # Gets Jwks of the Issuer
-    /// - `refresh` - If the jwks is empty, tries to fetch from the jwks_uri if it exists
-    pub async fn get_keystore_async(&mut self, refresh: bool) -> Result<&Jwks, OidcClientError> {
-        if self.jwks_uri.is_none() {
-            return Err(OidcClientError::new_type_error(
-                "jwks_uri must be configured on the issuer",
-                None,
-            ));
-        }
-
-        if refresh || self.jwks.is_none() {
-            let keystore = fetch_jwks_async(
-                &mut self.request_interceptor,
-                self.jwks_uri.as_ref().unwrap(),
-            )
-            .await?;
-            self.jwks = Some(keystore);
-        }
-
-        Ok(self.jwks.as_ref().unwrap())
-    }
-
-    /// # Gets as list of Jwk
-    /// - `alg` - Algorithm to find
-    /// - `key_use` - Key use to find
-    /// - `kid` - Key id to find
-    pub async fn get_jwk_async(
+    // TODO: Remove
+    #[allow(dead_code)]
+    pub(crate) async fn query_keystore_async(
         &mut self,
-        alg: Option<String>,
-        key_use: Option<String>,
-        kid: Option<String>,
-    ) -> Result<Vec<&Jwk>, OidcClientError> {
-        let key_store = self.get_keystore_async(false).await?;
-        let matched_keys = key_store.get(alg.clone(), key_use.clone(), kid.clone())?;
+        mut query: QueryKeyStore,
+        allow_multi: bool,
+    ) -> Result<Jwks, OidcClientError> {
+        let mut hasher = DefaultHasher::new();
+        query.hash(&mut hasher);
+        let hash = hasher.finish();
 
-        let unwrapped_kid = kid.clone().or_else(|| Some("".to_string())).unwrap();
-        let unwrapped_key_use = key_use.or_else(|| Some("".to_string())).unwrap();
-        let unwrapped_alg = alg.or_else(|| Some("".to_string())).unwrap();
+        match &mut self.keystore {
+            Some(keystore) => {
+                let reload =
+                    keystore.cache.contains_key(&hash) || now() - keystore.last_accessed > 60;
 
-        if matched_keys.is_empty() {
-            let message = format!("no valid key found in issuer\'s jwks_uri for key parameters kid: {}, alg: {}, key_use: {}", unwrapped_kid, unwrapped_alg, unwrapped_key_use);
-            return Err(OidcClientError::new_error(&message, None));
-        }
+                let jwks = keystore.get_keystore_async(reload).await?;
 
-        if (kid.is_none() || unwrapped_kid.is_empty()) && matched_keys.len() > 1 {
-            let message = format!("multiple matching keys found in issuer\'s jwks_uri for key parameters kid: {}, key_use: {}, alg: {}, kid must be provided in this case", unwrapped_kid, unwrapped_key_use, unwrapped_alg);
-            return Err(OidcClientError::new_error(&message, None));
-        }
+                let keys = jwks.get(
+                    query.alg.clone(),
+                    query.key_use.clone(),
+                    query.key_id.clone(),
+                )?;
 
-        Ok(matched_keys)
-    }
-}
+                let alg = query.alg.clone();
 
-async fn fetch_jwks_async(
-    interceptor: &mut Option<RequestInterceptor>,
-    url: &str,
-) -> Result<Jwks, OidcClientError> {
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        "Accept",
-        HeaderValue::from_static("application/json,application/jwk-set+json"),
-    );
+                // Why delete and print in the error below?
+                query.alg = None;
 
-    let req = Request {
-        expect_body: true,
-        expected: StatusCode::OK,
-        method: Method::GET,
-        url: url.to_string(),
-        headers,
-        bearer: false,
-        search_params: HashMap::new(),
-        ..Default::default()
-    };
+                if keys.is_empty() {
+                    let message = format!("no valid key found in issuer\'s jwks_uri for key parameters kid: {}, alg: {}, key_use: {}", query.key_id.unwrap_or("".to_string()), alg.unwrap_or("".to_string()), query.key_use.unwrap_or("".to_string()));
 
-    let res = request_async(req, interceptor).await?;
+                    // Add after the oauthcallback is done
+                    // let mut extra_data = HashMap::<String, Value>::new();
+                    //
+                    // let json_jwks = match serde_json::to_value(&jwks) {
+                    //     Ok(v) => v,
+                    //     Err(_) => return Err(OidcClientError::new_error("Malformed jwks", None));
+                    // };
+                    //
+                    // extra_data.insert("jwks".to_string(), json_jwks);
 
-    let jwks_body = res.body.as_ref();
-    match jwks_body {
-        Some(body) => match convert_json_to::<Jwks>(body) {
-            Ok(jwks) => Ok(jwks),
-            Err(_) => Err(OidcClientError::new_op_error(
-                "invalid jwks".to_string(),
-                Some("jwks was invalid".to_string()),
+                    return Err(OidcClientError::new_rp_error(&message, None));
+                }
+
+                if !allow_multi && keys.len() > 1 && query.key_id.is_none() {
+                    let message = format!("multiple matching keys found in issuer\'s jwks_uri for key parameters kid: {}, key_use: {}, alg: {}, kid must be provided in this case", query.key_id.unwrap_or("".to_string()), query.key_use.unwrap_or("".to_string()), alg.unwrap_or("".to_string()));
+
+                    // Add after the oauthcallback is done
+                    // let mut extra_data = HashMap::<String, Value>::new();
+                    //
+                    // let json_jwks = match serde_json::to_value(&jwks) {
+                    //     Ok(v) => v,
+                    //     Err(_) => return Err(OidcClientError::new_error("Malformed jwks", None));
+                    // };
+                    //
+                    // extra_data.insert("jwks".to_string(), json_jwks);
+
+                    return Err(OidcClientError::new_rp_error(&message, None));
+                }
+
+                keystore.cache.insert(hash, true);
+
+                Ok(jwks)
+            }
+            _ => Err(OidcClientError::new_error(
+                "No Keystore found for this issuer",
                 None,
-                None,
-                None,
-                Some(res),
             )),
-        },
-        None => Err(OidcClientError::new_op_error(
-            "body empty".to_string(),
-            Some("Jwks response was empty".to_string()),
-            None,
-            None,
-            None,
-            Some(res),
-        )),
+        }
+    }
+
+    /// Reload Issuer Jwks
+    /// This method force refreshes the issuer Jwks using the configured Jwks Uri.
+    /// If no `jwks_uri` is found, returns an [OidcClientError].
+    pub async fn reload_jwks_async(&mut self) -> Result<bool, OidcClientError> {
+        match &mut self.keystore {
+            Some(keystore) => {
+                keystore.get_keystore_async(true).await?;
+                Ok(true)
+            }
+            _ => Err(OidcClientError::new_error(
+                "No Keystore found for this issuer",
+                None,
+            )),
+        }
     }
 }

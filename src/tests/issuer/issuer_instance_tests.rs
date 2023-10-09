@@ -1,4 +1,5 @@
 use crate::tests::test_interceptors::get_default_test_interceptor;
+use crate::types::query_keystore::QueryKeyStore;
 use crate::{issuer::Issuer, types::IssuerMetadata};
 use httpmock::Method::GET;
 use httpmock::MockServer;
@@ -9,12 +10,14 @@ fn get_default_jwks() -> String {
 
 #[tokio::test]
 async fn requires_jwks_uri_to_be_configured() {
-    let mut issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default(), None);
 
-    assert!(issuer.get_keystore_async(false).await.is_err());
+    let mut keystore = issuer.keystore.unwrap();
+
+    assert!(keystore.get_keystore_async(false).await.is_err());
     assert_eq!(
         "jwks_uri must be configured on the issuer".to_string(),
-        issuer
+        keystore
             .get_keystore_async(false)
             .await
             .unwrap_err()
@@ -46,14 +49,16 @@ async fn does_not_refetch_immediately() {
         ..IssuerMetadata::default()
     };
 
-    let mut issuer = Issuer::new(
+    let issuer = Issuer::new(
         metadata,
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    assert!(issuer.get_keystore_async(true).await.is_ok());
+    let mut keystore = issuer.keystore.unwrap();
 
-    let _ = issuer.get_keystore_async(false).await.unwrap();
+    assert!(keystore.get_keystore_async(true).await.is_ok());
+
+    let _ = keystore.get_keystore_async(false).await.unwrap();
 
     jwks_mock_server.assert_hits(1);
 }
@@ -80,13 +85,16 @@ async fn refetches_if_asked_to() {
         ..IssuerMetadata::default()
     };
 
-    let mut issuer = Issuer::new(
+    let issuer = Issuer::new(
         metadata,
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    assert!(issuer.get_keystore_async(true).await.is_ok());
-    assert!(issuer.get_keystore_async(true).await.is_ok());
+    let mut keystore = issuer.keystore.unwrap();
+
+    assert!(keystore.get_keystore_async(true).await.is_ok());
+
+    assert!(keystore.get_keystore_async(true).await.is_ok());
 
     jwks_mock_server.assert_hits(2);
 }
@@ -118,13 +126,14 @@ async fn rejects_when_no_matching_key_is_found() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let jwk_result = issuer
-        .get_jwk_async(
-            Some("RS256".to_string()),
-            Some("sig".to_string()),
-            Some("noway".to_string()),
-        )
-        .await;
+    let query = QueryKeyStore {
+        alg: Some("RS256".to_string()),
+        key_use: Some("sig".to_string()),
+        key_id: Some("noway".to_string()),
+        key_type: None,
+    };
+
+    let jwk_result = issuer.query_keystore_async(query, false).await;
 
     let expected_error = "no valid key found in issuer\'s jwks_uri for key parameters kid: noway, alg: RS256, key_use: sig";
 
@@ -132,7 +141,7 @@ async fn rejects_when_no_matching_key_is_found() {
 
     let error = jwk_result.unwrap_err();
 
-    assert_eq!(expected_error, error.error().error.message);
+    assert_eq!(expected_error, error.rp_error().error.message);
 }
 
 #[tokio::test]
@@ -163,9 +172,14 @@ async fn requires_a_kid_when_multiple_matches_are_found() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let jwk_result = issuer
-        .get_jwk_async(Some("RS256".to_string()), Some("sig".to_string()), None)
-        .await;
+    let query = QueryKeyStore {
+        alg: Some("RS256".to_string()),
+        key_use: Some("sig".to_string()),
+        key_id: None,
+        key_type: None,
+    };
+
+    let jwk_result = issuer.query_keystore_async(query, false).await;
 
     let expected_error = "multiple matching keys found in issuer\'s jwks_uri for key parameters kid: , key_use: sig, alg: RS256, kid must be provided in this case";
 
@@ -173,7 +187,7 @@ async fn requires_a_kid_when_multiple_matches_are_found() {
 
     let error = jwk_result.unwrap_err();
 
-    assert_eq!(expected_error, error.error().error.message);
+    assert_eq!(expected_error, error.rp_error().error.message);
 }
 
 #[tokio::test]
@@ -204,13 +218,14 @@ async fn multiple_keys_can_match_jwt_header() {
         get_default_test_interceptor(mock_http_server.port()),
     );
 
-    let jwk_result = issuer
-        .get_jwk_async(
-            Some("RS256".to_string()),
-            Some("sig".to_string()),
-            Some("0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A".to_string()),
-        )
-        .await;
+    let query = QueryKeyStore {
+        alg: Some("RS256".to_string()),
+        key_use: Some("sig".to_string()),
+        key_id: Some("0pWEDfNcRM4-Lnqq6QDkmVzElFEdYE96gJff6yesi0A".to_string()),
+        key_type: None,
+    };
+
+    let jwk_result = issuer.query_keystore_async(query, false).await;
 
     assert!(jwk_result.is_ok());
 
@@ -259,7 +274,7 @@ mod http_options {
             ..IssuerMetadata::default()
         };
 
-        let mut issuer = Issuer::new(
+        let issuer = Issuer::new(
             metadata,
             Some(Box::new(TestInterceptor {
                 test_header: Some("testHeader".to_string()),
@@ -268,7 +283,7 @@ mod http_options {
             })),
         );
 
-        let _ = issuer.get_keystore_async(false).await;
+        let _ = issuer.keystore.unwrap().get_keystore_async(false).await;
 
         jwks_mock_server.assert_hits(1);
     }
