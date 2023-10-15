@@ -117,6 +117,12 @@ pub struct Client {
     pub tls_client_certificate_bound_access_tokens: Option<bool>,
     /// Client's allowed redirect uris after a logout
     pub post_logout_redirect_uris: Option<Vec<String>>,
+    /// [ClientMetadata::authorization_encrypted_response_alg]
+    pub authorization_encrypted_response_alg: Option<String>,
+    /// [ClientMetadata::authorization_encrypted_response_enc]
+    pub authorization_encrypted_response_enc: Option<String>,
+    /// [ClientMetadata::authorization_encrypted_response_alg]
+    pub authorization_signed_response_alg: Option<String>,
     /// Extra key values
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
     pub(crate) private_jwks: Option<Jwks>,
@@ -175,6 +181,9 @@ impl Client {
             issuer: None,
             tls_client_certificate_bound_access_tokens: None,
             post_logout_redirect_uris: None,
+            authorization_encrypted_response_alg: None,
+            authorization_encrypted_response_enc: None,
+            authorization_signed_response_alg: None,
             other_fields: HashMap::new(),
             client_options: None,
         }
@@ -242,6 +251,9 @@ impl Client {
             tls_client_certificate_bound_access_tokens: metadata
                 .tls_client_certificate_bound_access_tokens,
             post_logout_redirect_uris: metadata.post_logout_redirect_uris,
+            authorization_encrypted_response_alg: metadata.authorization_encrypted_response_alg,
+            authorization_encrypted_response_enc: metadata.authorization_encrypted_response_enc,
+            authorization_signed_response_alg: metadata.authorization_signed_response_alg,
             other_fields: metadata.other_fields,
             ..Client::default()
         };

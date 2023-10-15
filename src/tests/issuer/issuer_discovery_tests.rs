@@ -27,7 +27,7 @@ mod custom_well_known {
 
         let issuer = Issuer::discover_async(
             &issuer_discovery_url,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -76,7 +76,7 @@ mod well_known {
 
         let issuer = Issuer::discover_async(
             &issuer_discovery_url,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -121,7 +121,7 @@ mod well_known {
 
         let issuer = Issuer::discover_async(
             &issuer_discovery_url,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -147,7 +147,7 @@ mod well_known {
 
         let issuer = Issuer::discover_async(
             &issuer_discovery_url,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -173,7 +173,7 @@ mod well_known {
 
         let issuer = Issuer::discover_async(
             &issuer_discovery_url,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -200,7 +200,7 @@ mod well_known {
 
         let issuer = Issuer::discover_async(
             &issuer_discovery_url,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -229,7 +229,7 @@ mod well_known_oauth_authorization_server {
 
         let issuer = Issuer::discover_async(
             &issuer_discovery_url,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -276,7 +276,7 @@ mod well_known_oauth_authorization_server {
 
         let issuer = Issuer::discover_async(
             &issuer_discovery_url,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -300,7 +300,7 @@ async fn assigns_discovery_1_0_defaults_1_of_2() {
 
     let issuer = Issuer::discover_async(
         &issuer_discovery_url,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap();
@@ -346,7 +346,7 @@ async fn assigns_discovery_1_0_defaults_2_of_2() {
 
     let issuer = Issuer::discover_async(
         &issuer_discovery_url,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap();
@@ -392,7 +392,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
 
     let error = Issuer::discover_async(
         &issuer_discovery_url,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -436,7 +436,7 @@ async fn is_rejected_with_rp_error_when_error_is_not_a_string() {
 
     let error = Issuer::discover_async(
         &issuer_discovery_url,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -466,7 +466,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
 
     let error = Issuer::discover_async(
         &issuer_discovery_url,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -498,7 +498,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
 
     let error = Issuer::discover_async(
         &issuer_discovery_url,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -525,7 +525,7 @@ async fn is_rejected_when_no_body_is_returned() {
 
     let error = Issuer::discover_async(
         &issuer_discovery_url,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -555,7 +555,7 @@ async fn is_rejected_when_unepexted_status_code_is_returned() {
 
     let error = Issuer::discover_async(
         &issuer_discovery_url,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();

@@ -3,10 +3,11 @@
 
 mod authentication_post_param;
 mod authorization_parameters;
-// mod callback_params;
+mod callback_params;
 mod client_metadata;
 mod client_options;
 mod client_registration_options;
+mod decoded_token;
 mod end_session_parameters;
 mod errors;
 mod http;
@@ -18,12 +19,13 @@ pub use authentication_post_param::AuthenticationPostParams;
 pub use authorization_parameters::{
     AuthorizationParameters, ClaimParam, ClaimParamValue, ClaimsParameterMember, ResourceParam,
 };
-// pub use callback_params::{
-//     CallbackExtras, CallbackParams, OAuthCallbackChecks, OpenIDCallbackChecks,
-// };
+pub use callback_params::{
+    CallbackExtras, CallbackParams, OAuthCallbackChecks, OpenIDCallbackChecks,
+};
 pub use client_metadata::ClientMetadata;
 pub use client_options::ClientOptions;
 pub use client_registration_options::ClientRegistrationOptions;
+pub(crate) use decoded_token::DecodedToken;
 pub use end_session_parameters::EndSessionParameters;
 pub use errors::{
     Error, ErrorWithResponse, OidcClientError, RPError, StandardBodyError, TypeError,

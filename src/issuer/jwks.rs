@@ -1,9 +1,11 @@
 //! Issuer methods for Keystore
 
 use std::{
-    collections::hash_map::DefaultHasher,
+    collections::{hash_map::DefaultHasher, HashMap},
     hash::{Hash, Hasher},
 };
+
+use serde_json::Value;
 
 use crate::helpers::now;
 use crate::{
@@ -46,33 +48,39 @@ impl Issuer {
                 if keys.is_empty() {
                     let message = format!("no valid key found in issuer\'s jwks_uri for key parameters kid: {}, alg: {}, key_use: {}", query.key_id.unwrap_or("".to_string()), alg.unwrap_or("".to_string()), query.key_use.unwrap_or("".to_string()));
 
-                    // Add after the oauthcallback is done
-                    // let mut extra_data = HashMap::<String, Value>::new();
-                    //
-                    // let json_jwks = match serde_json::to_value(&jwks) {
-                    //     Ok(v) => v,
-                    //     Err(_) => return Err(OidcClientError::new_error("Malformed jwks", None));
-                    // };
-                    //
-                    // extra_data.insert("jwks".to_string(), json_jwks);
+                    let mut extra_data = HashMap::<String, Value>::new();
 
-                    return Err(OidcClientError::new_rp_error(&message, None));
+                    let json_jwks = match serde_json::to_value(&jwks) {
+                        Ok(v) => v,
+                        Err(_) => return Err(OidcClientError::new_error("Malformed jwks", None)),
+                    };
+
+                    extra_data.insert("jwks".to_string(), json_jwks);
+
+                    return Err(OidcClientError::new_rp_error(
+                        &message,
+                        None,
+                        Some(extra_data),
+                    ));
                 }
 
                 if !allow_multi && keys.len() > 1 && query.key_id.is_none() {
                     let message = format!("multiple matching keys found in issuer\'s jwks_uri for key parameters kid: {}, key_use: {}, alg: {}, kid must be provided in this case", query.key_id.unwrap_or("".to_string()), query.key_use.unwrap_or("".to_string()), alg.unwrap_or("".to_string()));
 
-                    // Add after the oauthcallback is done
-                    // let mut extra_data = HashMap::<String, Value>::new();
-                    //
-                    // let json_jwks = match serde_json::to_value(&jwks) {
-                    //     Ok(v) => v,
-                    //     Err(_) => return Err(OidcClientError::new_error("Malformed jwks", None));
-                    // };
-                    //
-                    // extra_data.insert("jwks".to_string(), json_jwks);
+                    let mut extra_data = HashMap::<String, Value>::new();
 
-                    return Err(OidcClientError::new_rp_error(&message, None));
+                    let json_jwks = match serde_json::to_value(&jwks) {
+                        Ok(v) => v,
+                        Err(_) => return Err(OidcClientError::new_error("Malformed jwks", None)),
+                    };
+
+                    extra_data.insert("jwks".to_string(), json_jwks);
+
+                    return Err(OidcClientError::new_rp_error(
+                        &message,
+                        None,
+                        Some(extra_data),
+                    ));
                 }
 
                 keystore.cache.insert(hash, true);

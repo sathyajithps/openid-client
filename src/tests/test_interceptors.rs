@@ -63,10 +63,14 @@ impl Interceptor for TestInterceptor {
     }
 }
 
-pub(crate) fn get_default_test_interceptor(port: u16) -> Option<RequestInterceptor> {
-    Some(Box::new(TestInterceptor {
-        test_header: None,
-        test_header_value: None,
-        test_server_port: Some(port),
-    }))
+pub(crate) fn get_default_test_interceptor(port: Option<u16>) -> Option<RequestInterceptor> {
+    if let Some(p) = port {
+        return Some(Box::new(TestInterceptor {
+            test_header: None,
+            test_header_value: None,
+            test_server_port: Some(p),
+        }));
+    }
+
+    None
 }

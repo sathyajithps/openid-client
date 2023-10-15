@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use crate::{
     client::client::client_test::helpers::get_query,
     issuer::Issuer,
-    types::{AuthorizationParameters, ClientMetadata, IssuerMetadata, ResourceParam},
+    types::{
+        AuthorizationParameters, ClaimParam, ClaimParamValue, ClientMetadata, IssuerMetadata,
+        ResourceParam,
+    },
 };
 
 use crate::client::Client;
@@ -78,6 +81,30 @@ fn setup_clients() -> TestClients {
         client_with_multiple_metas,
         client_with_query,
     }
+}
+
+#[test]
+fn auto_stringifies_claims_parameter() {
+    let clients = setup_clients();
+
+    let mut id_token: HashMap<String, ClaimParamValue> = HashMap::new();
+
+    id_token.insert("email".to_string(), ClaimParamValue::Null);
+
+    let auth_params = AuthorizationParameters {
+        claims: Some(ClaimParam {
+            userinfo: None,
+            id_token: Some(id_token),
+        }),
+        ..Default::default()
+    };
+
+    let url = clients.client.authorization_url(auth_params).unwrap();
+
+    assert_eq!(
+        Some(r#"{"id_token":{"email":null}}"#.to_string()),
+        get_query(&url, "claims")
+    );
 }
 
 #[test]

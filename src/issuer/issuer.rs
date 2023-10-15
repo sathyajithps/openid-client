@@ -631,6 +631,7 @@ impl Issuer {
                 return Err(OidcClientError::new_rp_error(
                     "no issuer found in webfinger response",
                     Some(response),
+                    None,
                 ));
             }
         };

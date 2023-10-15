@@ -27,7 +27,7 @@ async fn can_discover_using_the_email_syntax() {
 
     let _ = Issuer::webfinger_async(
         &resource,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await;
 
@@ -51,7 +51,7 @@ async fn verifies_the_webfinger_responds_with_an_issuer() {
 
     let error = Issuer::webfinger_async(
         &resource,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -77,7 +77,7 @@ async fn verifies_the_webfinger_responds_with_an_issuer_which_is_a_valid_issuer_
 
     let error = Issuer::webfinger_async(
         &resource,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -103,7 +103,7 @@ async fn verifies_the_webfinger_responds_with_an_issuer_which_is_a_valid_issuer_
 
     let error = Issuer::webfinger_async(
         &resource,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -135,7 +135,7 @@ async fn validates_the_discovered_issuer_is_the_same_as_from_webfinger() {
 
     let error = Issuer::webfinger_async(
         &resource,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -173,7 +173,7 @@ async fn can_discover_using_the_url_syntax() {
 
     let issuer_result = Issuer::webfinger_async(
         &webfinger_url,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await;
 
@@ -207,7 +207,7 @@ async fn can_discover_using_the_hostname_and_port_syntax() {
 
     let issuer_result = Issuer::webfinger_async(
         &auth_server_domain_with_port,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await;
 
@@ -240,7 +240,7 @@ async fn can_discover_using_the_acct_syntax() {
 
     let issuer_result = Issuer::webfinger_async(
         &resource,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await;
 

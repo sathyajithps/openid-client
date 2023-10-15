@@ -51,7 +51,7 @@ async fn does_not_refetch_immediately() {
 
     let issuer = Issuer::new(
         metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let mut keystore = issuer.keystore.unwrap();
@@ -87,7 +87,7 @@ async fn refetches_if_asked_to() {
 
     let issuer = Issuer::new(
         metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let mut keystore = issuer.keystore.unwrap();
@@ -123,7 +123,7 @@ async fn rejects_when_no_matching_key_is_found() {
 
     let mut issuer = Issuer::new(
         metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let query = QueryKeyStore {
@@ -169,7 +169,7 @@ async fn requires_a_kid_when_multiple_matches_are_found() {
 
     let mut issuer = Issuer::new(
         metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let query = QueryKeyStore {
@@ -215,7 +215,7 @@ async fn multiple_keys_can_match_jwt_header() {
 
     let mut issuer = Issuer::new(
         metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let query = QueryKeyStore {

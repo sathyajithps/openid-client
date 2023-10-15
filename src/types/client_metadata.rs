@@ -150,6 +150,23 @@ pub struct ClientMetadata {
     /// Client's allowed redirect uris after a logout
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_logout_redirect_uris: Option<Vec<String>>,
+    /// Algorithm used for signing authorization responses.
+    /// If this is specified, the response will be signed using JWS and the configured algorithm.
+    /// The algorithm none is not allowed. The default, if omitted, is RS256
+    /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
+    pub authorization_signed_response_alg: Option<String>,
+    /// Algorithm used for encrypting authorization responses.
+    /// If both signing and encryption are requested, the response will be signed then encrypted,
+    /// with the result being a Nested JWT, as defined in JWT RFC7519.
+    /// The default, if omitted, is that no encryption is performed.
+    /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
+    pub authorization_encrypted_response_alg: Option<String>,
+    /// Algoritm for encrypting authorization responses.
+    /// If authorization_encrypted_response_alg is specified, the default for this value is A128CBC-HS256.
+    ///  When authorization_encrypted_response_enc is included, authorization_encrypted_response_alg MUST
+    /// also be provided.
+    /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
+    pub authorization_encrypted_response_enc: Option<String>,
     /// Extra key values
     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
     pub other_fields: HashMap<String, serde_json::Value>,

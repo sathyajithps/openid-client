@@ -193,6 +193,11 @@ impl TokenSet {
         }
         None
     }
+
+    /// Sets id_token to None
+    pub(crate) fn set_id_token_none(&mut self) {
+        self.id_token = None;
+    }
 }
 
 #[cfg(test)]

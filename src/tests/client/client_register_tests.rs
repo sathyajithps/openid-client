@@ -66,14 +66,14 @@ async fn accepts_and_assigns_the_registered_metadata() {
 
     let issuer = Issuer::new(
         issuer_metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let client = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap();
@@ -103,14 +103,14 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
 
     let issuer = Issuer::new(
         issuer_metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let client_error = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -148,14 +148,14 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
 
     let issuer = Issuer::new(
         issuer_metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let client_error = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -190,14 +190,14 @@ async fn is_rejected_with_when_non_200_is_returned() {
 
     let issuer = Issuer::new(
         issuer_metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let client_error = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -232,14 +232,14 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
 
     let issuer = Issuer::new(
         issuer_metadata,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     );
 
     let client_error = Client::register_async(
         &issuer,
         ClientMetadata::default(),
         None,
-        get_default_test_interceptor(mock_http_server.port()),
+        get_default_test_interceptor(Some(mock_http_server.port())),
     )
     .await
     .unwrap_err();
@@ -305,7 +305,7 @@ mod with_key_store_as_an_option {
 
         let issuer = Issuer::new(
             issuer_metadata,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         );
 
         let register_options = ClientRegistrationOptions {
@@ -317,7 +317,7 @@ mod with_key_store_as_an_option {
             &issuer,
             ClientMetadata::default(),
             Some(register_options.clone()),
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -356,7 +356,7 @@ mod with_key_store_as_an_option {
 
         let issuer = Issuer::new(
             issuer_metadata,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         );
 
         let register_options = ClientRegistrationOptions {
@@ -373,7 +373,7 @@ mod with_key_store_as_an_option {
             &issuer,
             client_metadata.clone(),
             Some(register_options.clone()),
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -416,7 +416,7 @@ mod with_key_store_as_an_option {
 
         let issuer = Issuer::new(
             issuer_metadata,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         );
 
         let register_options = ClientRegistrationOptions {
@@ -433,7 +433,7 @@ mod with_key_store_as_an_option {
             &issuer,
             client_metadata.clone(),
             Some(register_options.clone()),
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -544,7 +544,7 @@ mod with_initial_access_token {
 
         let issuer = Issuer::new(
             issuer_metadata,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         );
 
         let register_options = ClientRegistrationOptions {
@@ -556,7 +556,7 @@ mod with_initial_access_token {
             &issuer,
             ClientMetadata::default(),
             Some(register_options.clone()),
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         )
         .await
         .unwrap();
@@ -597,7 +597,7 @@ mod http_options {
 
         let issuer = Issuer::new(
             issuer_metadata,
-            get_default_test_interceptor(mock_http_server.port()),
+            get_default_test_interceptor(Some(mock_http_server.port())),
         );
 
         let register_options = ClientRegistrationOptions {
