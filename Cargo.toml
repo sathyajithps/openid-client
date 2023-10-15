@@ -1,6 +1,6 @@
 [package]
 name = "openid-client"
-version = "0.0.26-dev"
+version = "0.0.27-dev"
 edition = "2021"
 license = "MIT"
 description = "Work In Progress OpenId Connect Client"
@@ -26,6 +26,8 @@ rand = "0.8.5"
 lazy_static = "1.4.0"
 regex = "1.9.3"
 lru_time_cache = "0.11.11"
+querystring = "1.1.0"
+jwt-compact = "0.7.0"
 
 [lib]
 doctest = false

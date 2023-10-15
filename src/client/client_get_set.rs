@@ -83,6 +83,21 @@ impl Client {
         self.revocation_endpoint_auth_signing_alg.clone()
     }
 
+    /// Get authorization encrypted response alg
+    pub fn get_authorization_encrypted_response_alg(&self) -> Option<String> {
+        self.authorization_encrypted_response_alg.clone()
+    }
+
+    /// Get authorization encrypted respnse enc
+    pub fn get_authorization_encrypted_response_enc(&self) -> Option<String> {
+        self.authorization_encrypted_response_enc.clone()
+    }
+
+    /// Get authorization signed response alg
+    pub fn get_authorization_signed_response_alg(&self) -> Option<String> {
+        self.authorization_signed_response_alg.clone()
+    }
+
     /// Gets a field from `other_fields`
     pub fn get_field(&self, key: &str) -> Option<&serde_json::Value> {
         self.other_fields.get(key)

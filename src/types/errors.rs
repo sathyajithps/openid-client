@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
+use serde_json::Value;
 
 use super::http::Response;
 
@@ -56,6 +59,9 @@ pub struct TypeError {
 pub struct RPError {
     /// Error Message
     pub message: String,
+
+    /// Extra data about the error
+    pub extra_data: Option<HashMap<String, Value>>,
 }
 
 /// # OidcClientError
@@ -151,10 +157,15 @@ impl OidcClientError {
 
     // TODO: remove
     #[allow(dead_code)]
-    pub(crate) fn new_rp_error(message: &str, response: Option<Response>) -> Self {
+    pub(crate) fn new_rp_error(
+        message: &str,
+        response: Option<Response>,
+        extra_data: Option<HashMap<String, Value>>,
+    ) -> Self {
         OidcClientError::RPError(
             RPError {
                 message: message.to_string(),
+                extra_data,
             },
             response,
         )

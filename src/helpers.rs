@@ -1,12 +1,16 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use josekit::{jws::JwsHeader, jwt::JwtPayload};
+use jwt_compact::jwk::JsonWebKey;
 use lazy_static::lazy_static;
 use rand::Rng;
 use regex::Regex;
 use reqwest::{header::HeaderValue, Url};
 use serde::Deserialize;
+use serde_json::{Map, Value};
+use sha2::Sha256;
 
-use crate::types::{OidcClientError, Response, StandardBodyError};
+use crate::types::{DecodedToken, OidcClientError, Response, StandardBodyError};
 
 lazy_static! {
     static ref SCHEME_REGEX: Regex = Regex::new(r"/(/|\\?)/g").unwrap();
@@ -136,4 +140,53 @@ pub(crate) fn now() -> i64 {
 pub(crate) fn random() -> String {
     let bytes = rand::thread_rng().gen::<[u8; 32]>();
     base64_url::encode(&bytes)
+}
+
+pub(crate) fn decode_jwt(token: &str) -> Result<DecodedToken, OidcClientError> {
+    let split_token: Vec<&str> = token.split('.').collect();
+
+    if split_token.len() == 5 {
+        return Err(OidcClientError::new_type_error(
+            "encrypted JWTs cannot be decoded",
+            None,
+        ));
+    }
+
+    if split_token.len() != 3 {
+        return Err(OidcClientError::new_error(
+            "JWTs must have three components",
+            None,
+        ));
+    }
+
+    let map_err_decode = |_| OidcClientError::new_error("JWT is malformed", None);
+    let map_err_deserialize = |_| OidcClientError::new_error("JWT is malformed", None);
+    let map_err_jose = |_| OidcClientError::new_error("JWT is malformed", None);
+
+    let header_str = base64_url::decode(split_token[0]).map_err(map_err_decode)?;
+    let payload_str = base64_url::decode(split_token[1]).map_err(map_err_decode)?;
+    let signature = split_token[2].to_string();
+
+    let header = serde_json::from_slice::<Map<String, Value>>(&header_str)
+        .map(JwsHeader::from_map)
+        .map_err(map_err_deserialize)?
+        .map_err(map_err_jose)?;
+
+    let payload = serde_json::from_slice::<Map<String, Value>>(&payload_str)
+        .map(JwtPayload::from_map)
+        .map_err(map_err_deserialize)?
+        .map_err(map_err_jose)?;
+
+    Ok(DecodedToken {
+        header,
+        payload,
+        signature,
+    })
+}
+
+pub(crate) fn get_jwk_thumbprint_s256(jwk_str: &str) -> Result<String, OidcClientError> {
+    let jwk: JsonWebKey<'_> = serde_json::from_str(jwk_str)
+        .map_err(|_| OidcClientError::new_error("Invalid JWK", None))?;
+
+    Ok(base64_url::encode(&jwk.thumbprint::<Sha256>().to_vec()))
 }

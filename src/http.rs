@@ -51,16 +51,25 @@ pub async fn request_async(
 
     let mut req = client
         .request(request.method.clone(), url)
-        .headers(combine_and_create_new_header_map(
-            &request.headers,
-            &options.headers,
-        ))
         .query(&request.get_reqwest_query())
         .timeout(options.timeout);
 
+    let mut headers = combine_and_create_new_header_map(&request.headers, &options.headers);
+
     if let Some(json_body) = &request.json {
         match serde_json::to_string(json_body) {
-            Ok(serialized) => req = req.body(serialized),
+            Ok(serialized) => {
+                headers.remove("content-type");
+                headers.insert("content-type", HeaderValue::from_static("application/json"));
+                headers.remove("content-length");
+                // remove unwrap ?
+                headers.insert(
+                    "content-length",
+                    HeaderValue::from_str(&serialized.as_bytes().len().to_string()).unwrap(),
+                );
+
+                req = req.body(serialized);
+            }
             _ => {
                 return Err(OidcClientError::new_error(
                     "error while serializing body to string",
@@ -68,7 +77,44 @@ pub async fn request_async(
                 ))
             }
         }
+    } else if let Some(form_body) = &request.form {
+        let mut form_encoded_body = String::new();
+        for (k, v) in form_body {
+            if let Some(v_str) = v.as_str() {
+                form_encoded_body += &format!("{}={}&", k, v_str);
+            }
+        }
+
+        form_encoded_body = form_encoded_body.trim_end_matches('&').to_owned();
+
+        form_encoded_body = urlencoding::encode(&form_encoded_body).to_string();
+
+        headers.remove("content-type");
+        headers.insert(
+            "content-type",
+            HeaderValue::from_static("application/x-www-form-urlencoded"),
+        );
+
+        headers.remove("content-length");
+        // remove unwrap ?
+        headers.insert(
+            "content-length",
+            HeaderValue::from_str(&form_encoded_body.as_bytes().len().to_string()).unwrap(),
+        );
+
+        req = req.body(form_encoded_body);
+    } else if let Some(body) = &request.body {
+        req = req.body(body.to_owned());
+
+        headers.remove("content-length");
+        // remove unwrap ?
+        headers.insert(
+            "content-length",
+            HeaderValue::from_str(&body.as_bytes().len().to_string()).unwrap(),
+        );
     }
+
+    req = req.headers(headers);
 
     let response = match req.send().await {
         Ok(res) => Response::from_async(res).await,

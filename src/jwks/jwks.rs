@@ -1,13 +1,14 @@
 use std::{cmp::Ordering, collections::HashSet};
 
 use josekit::{
+    jwe::{self, JweDecrypter, JweEncrypter},
     jwk::Jwk,
     jws::{
         alg::{
             ecdsa::EcdsaJwsAlgorithm, eddsa::EddsaJwsAlgorithm, hmac::HmacJwsAlgorithm,
             rsassa::RsassaJwsAlgorithm, rsassa_pss::RsassaPssJwsAlgorithm,
         },
-        JwsSigner,
+        JwsSigner, JwsVerifier,
     },
     jwt::alg::unsecured::UnsecuredJwsAlgorithm,
 };
@@ -21,6 +22,12 @@ pub(crate) trait CustomJwk {
     fn is_private_key(&self) -> bool;
 
     fn to_signer(&self) -> Result<Box<dyn JwsSigner>, OidcClientError>;
+
+    fn to_verifier(&self) -> Result<Box<dyn JwsVerifier>, OidcClientError>;
+
+    fn to_jwe_decrypter(&self) -> Result<Box<dyn JweDecrypter>, OidcClientError>;
+
+    fn to_jwe_encrypter(&self) -> Result<Box<dyn JweEncrypter>, OidcClientError>;
 }
 
 impl CustomJwk for Jwk {
@@ -188,6 +195,280 @@ impl CustomJwk for Jwk {
             )),
         }
     }
+
+    fn to_verifier(&self) -> Result<Box<dyn JwsVerifier>, OidcClientError> {
+        let alg = match self.algorithm() {
+            Some(a) => a,
+            None => {
+                return Err(OidcClientError::new_error(
+                    "jwk does not have algorithm",
+                    None,
+                ))
+            }
+        };
+
+        let error = OidcClientError::new_error("error when creating a jws signer", None);
+
+        match alg {
+            "HS256" => {
+                let algorithm = HmacJwsAlgorithm::Hs256;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "HS384" => {
+                let algorithm = HmacJwsAlgorithm::Hs384;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "HS512" => {
+                let algorithm = HmacJwsAlgorithm::Hs512;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "RS256" => {
+                let algorithm = RsassaJwsAlgorithm::Rs256;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "RS384" => {
+                let algorithm = RsassaJwsAlgorithm::Rs384;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "RS512" => {
+                let algorithm = RsassaJwsAlgorithm::Rs512;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "PS256" => {
+                let algorithm = RsassaPssJwsAlgorithm::Ps256;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "PS384" => {
+                let algorithm = RsassaPssJwsAlgorithm::Ps384;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "PS512" => {
+                let algorithm = RsassaPssJwsAlgorithm::Ps512;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "ES256" => {
+                let algorithm = EcdsaJwsAlgorithm::Es256;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "ES384" => {
+                let algorithm = EcdsaJwsAlgorithm::Es384;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "ES512" => {
+                let algorithm = EcdsaJwsAlgorithm::Es512;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "ES256K" => {
+                let algorithm = EcdsaJwsAlgorithm::Es256k;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "EdDSA" => {
+                let algorithm = EddsaJwsAlgorithm::Eddsa;
+                Ok(Box::new(
+                    algorithm.verifier_from_jwk(self).map_err(|_| error)?,
+                ))
+            }
+            "none" => Ok(Box::new(UnsecuredJwsAlgorithm::None.verifier())),
+            _ => Err(OidcClientError::new_error(
+                "invalid algorithm for creating a signer",
+                None,
+            )),
+        }
+    }
+
+    fn to_jwe_decrypter(&self) -> Result<Box<dyn JweDecrypter>, OidcClientError> {
+        if let Ok(decrypter) = jwe::A128GCMKW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::A128KW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::A192GCMKW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::A192KW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::A256GCMKW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::A256KW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::Dir.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::ECDH_ES.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::ECDH_ES_A128KW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::ECDH_ES_A192KW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::ECDH_ES_A256KW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::PBES2_HS256_A128KW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::PBES2_HS384_A192KW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::PBES2_HS512_A256KW.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        #[allow(deprecated)]
+        if let Ok(decrypter) = jwe::RSA1_5.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::RSA_OAEP.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::RSA_OAEP_256.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::RSA_OAEP_384.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::RSA_OAEP_512.decrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        Err(OidcClientError::new_error(
+            "Could not convert Jwk to a JWE Decrpter",
+            None,
+        ))
+    }
+
+    fn to_jwe_encrypter(&self) -> Result<Box<dyn JweEncrypter>, OidcClientError> {
+        if let Ok(encrypter) = jwe::A128GCMKW.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(encrypter) = jwe::A128KW.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(encrypter) = jwe::A192GCMKW.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(encrypter) = jwe::A192KW.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(encrypter) = jwe::A256GCMKW.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(encrypter) = jwe::A256KW.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(encrypter) = jwe::Dir.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(encrypter) = jwe::ECDH_ES.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(encrypter) = jwe::ECDH_ES_A128KW.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(encrypter) = jwe::ECDH_ES_A192KW.encrypter_from_jwk(self) {
+            return Ok(Box::new(encrypter));
+        }
+
+        if let Ok(decrypter) = jwe::ECDH_ES_A256KW.encrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::PBES2_HS256_A128KW.encrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::PBES2_HS384_A192KW.encrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::PBES2_HS512_A256KW.encrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        #[allow(deprecated)]
+        if let Ok(decrypter) = jwe::RSA1_5.encrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::RSA_OAEP.encrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::RSA_OAEP_256.encrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::RSA_OAEP_384.encrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        if let Ok(decrypter) = jwe::RSA_OAEP_512.encrypter_from_jwk(self) {
+            return Ok(Box::new(decrypter));
+        }
+
+        Err(OidcClientError::new_error(
+            "Could not convert Jwk to a JWE Decrpter",
+            None,
+        ))
+    }
 }
 
 /// Jwks that wraps [josekit::jwk::JwkSet]
@@ -212,6 +493,10 @@ impl Jwks {
     /// Returns if [Jwks] is empty or not
     pub fn is_empty(&self) -> bool {
         self.keys.is_empty()
+    }
+
+    pub(crate) fn get_keys(&self) -> Vec<Jwk> {
+        self.keys.clone()
     }
 
     #[allow(clippy::if_same_then_else)]

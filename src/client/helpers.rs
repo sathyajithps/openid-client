@@ -7,18 +7,21 @@ use base64::{engine::general_purpose, Engine};
 use josekit::{
     jwk::Jwk,
     jws::{self, JwsHeader},
-    jwt::JwtPayload,
+    jwt::{decode_with_verifier, JwtPayload},
 };
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue};
-use serde_json::json;
+use serde_json::{json, Value};
 use url::Url;
 
 use crate::{
-    helpers::random,
+    helpers::{decode_jwt, get_jwk_thumbprint_s256, now, random},
     http::request_async,
-    types::{AuthenticationPostParams, AuthorizationParameters, OidcClientError, Response},
+    types::{
+        query_keystore::QueryKeyStore, AuthenticationPostParams, AuthorizationParameters,
+        OidcClientError, Response,
+    },
 };
 use crate::{jwks::jwks::CustomJwk, types::Request};
 use sha2::{Digest, Sha256, Sha384, Sha512};
@@ -29,6 +32,7 @@ lazy_static! {
     static ref AGCMKW_REGEX: Regex = Regex::new(r"^A(\d{3})(?:GCM)?KW$").unwrap();
     static ref AGCMCBC_REGEX: Regex = Regex::new(r"^A(\d{3})(?:GCM|CBC-HS(\d{3}))$").unwrap();
     static ref HS_REGEX: Regex = Regex::new("^HS(?:256|384|512)").unwrap();
+    static ref EXPECTED_ALG_REGEX: Regex = Regex::new("^(?:RSA|ECDH)").unwrap();
 }
 
 impl Client {
@@ -53,6 +57,7 @@ impl Client {
                     jwk.set_key_value(
                         self.encryption_secret(extracted_alg.as_str().parse::<u16>().unwrap())?,
                     );
+                    jwk.set_algorithm("dir");
                     return Ok(jwk);
                 }
             }
@@ -512,7 +517,7 @@ impl Client {
                     .find(|a| HS_REGEX.is_match(a));
             }
 
-            let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {}_endpoint_auth_method Client Assertion", endpoint), None))?;
+            let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {}_endpoint_auth_method Client Assertion", endpoint), None, None))?;
 
             let mut header = JwsHeader::new();
             header.set_algorithm(algorithm);
@@ -547,7 +552,7 @@ impl Client {
             });
         }
 
-        let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {}_endpoint_auth_method Client Assertion", endpoint), None))?;
+        let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {}_endpoint_auth_method Client Assertion", endpoint), None, None))?;
 
         let keys = jwks.get(Some(algorithm.to_string()), Some("sig".to_string()), None)?;
         let key = keys.first().ok_or(OidcClientError::new_rp_error(
@@ -555,6 +560,7 @@ impl Client {
                 "no key found in client jwks to sign a client assertion with using alg {}",
                 algorithm
             ),
+            None,
             None,
         ))?;
 
@@ -575,4 +581,555 @@ impl Client {
         )
         .map_err(|_| OidcClientError::new_error("error while creating jwt", None));
     }
+
+    pub(crate) fn decrypt_jarm(&self, response: &str) -> Result<String, OidcClientError> {
+        if let Some(expected_alg) = &self.authorization_encrypted_response_alg {
+            let expected_enc = self.authorization_encrypted_response_enc.as_deref();
+            return self.decrypt_jwe(response, expected_alg, expected_enc);
+        }
+        Ok(response.to_owned())
+    }
+
+    fn decrypt_jwe(
+        &self,
+        jwe: &str,
+        expected_alg: &str,
+        expected_enc: Option<&str>,
+    ) -> Result<String, OidcClientError> {
+        let expected_enc = expected_enc.unwrap_or("A128CBC-HS256");
+
+        let split: Vec<String> = jwe.split('.').map(|f| f.to_owned()).collect();
+
+        let header = split
+            .first()
+            .ok_or(OidcClientError::new_error("Invalid JWE", None))?;
+
+        let decoded_header = match base64_url::decode(header) {
+            Ok(v) => match serde_json::from_slice::<HashMap<String, Value>>(&v) {
+                Ok(decoded) => decoded,
+                Err(_) => {
+                    return Err(OidcClientError::new_error(
+                        "jwt header deserialization error",
+                        None,
+                    ))
+                }
+            },
+            Err(_) => return Err(OidcClientError::new_error("jwt decode error", None)),
+        };
+
+        let alg = decoded_header.get("alg");
+
+        if alg.is_none()
+            || alg.is_some_and(|x| !x.is_string())
+            || alg.is_some_and(|x| x.as_str().is_some_and(|y| y != expected_alg))
+        {
+            let mut extra_data = HashMap::<String, Value>::new();
+
+            extra_data.insert("jwe".to_string(), json!(jwe));
+
+            return Err(OidcClientError::new_rp_error(
+                &format!(
+                    "unexpected JWE alg received, expected {0}, got: {1}",
+                    expected_alg,
+                    alg.unwrap().as_str().unwrap()
+                ),
+                None,
+                Some(extra_data),
+            ));
+        }
+
+        let enc = decoded_header.get("enc");
+
+        if enc.is_none()
+            || enc.is_some_and(|x| !x.is_string())
+            || enc.is_some_and(|x| x.as_str().is_some_and(|y| y != expected_enc))
+        {
+            let mut extra_data = HashMap::<String, Value>::new();
+
+            extra_data.insert("jwe".to_string(), json!(jwe));
+
+            return Err(OidcClientError::new_rp_error(
+                &format!(
+                    "unexpected JWE enc received, expected {0}, got: {1}",
+                    expected_enc,
+                    enc.unwrap().as_str().unwrap()
+                ),
+                None,
+                Some(extra_data),
+            ));
+        }
+
+        let mut plain_text: Option<String> = None;
+
+        if EXPECTED_ALG_REGEX.is_match(expected_alg) {
+            let jwks = match &self.private_jwks {
+                Some(jwks) => jwks,
+                None => return Err(OidcClientError::new_error("private_jwks is empty", None)),
+            };
+
+            let header = josekit::jwt::decode_header(jwe).unwrap();
+
+            let kid = header.claim("kid").unwrap().as_str().map(|x| x.to_owned());
+            let alg = header.claim("alg").unwrap().as_str().map(|x| x.to_owned());
+
+            let keys = jwks.get(alg, Some("enc".to_string()), kid)?;
+
+            for key in keys {
+                let decrypter = key.to_jwe_decrypter()?;
+                match josekit::jwe::deserialize_compact(jwe, &*decrypter) {
+                    Ok((bytes, _)) => {
+                        plain_text = String::from_utf8(bytes).ok();
+                        break;
+                    }
+                    _ => continue,
+                }
+            }
+        } else {
+            let alg = if expected_alg == "dir" {
+                expected_enc
+            } else {
+                expected_alg
+            };
+
+            let jwk = self.secret_for_alg(alg)?;
+
+            let decrypter = jwk.to_jwe_decrypter()?;
+            if let Ok((bytes, _)) = josekit::jwe::deserialize_compact(jwe, &*decrypter) {
+                plain_text = String::from_utf8(bytes).ok();
+            }
+        }
+
+        if let Some(pt) = plain_text {
+            return Ok(pt);
+        }
+
+        let mut extra_data = HashMap::<String, Value>::new();
+
+        extra_data.insert("jwt".to_string(), json!(jwe));
+
+        Err(OidcClientError::new_rp_error(
+            "failed to decrypt JWE",
+            None,
+            Some(extra_data),
+        ))
+    }
+
+    pub(crate) async fn validate_jarm_async(
+        &mut self,
+        response: &str,
+    ) -> Result<JwtPayload, OidcClientError> {
+        let expected_alg = match &self.authorization_signed_response_alg {
+            Some(alg) => alg.to_string(),
+            None => {
+                return Err(OidcClientError::new_error(
+                    "authorization_signed_response_alg not found on the client",
+                    None,
+                ))
+            }
+        };
+
+        let (payload, _, _) = self
+            .validate_jwt_async(
+                response,
+                &expected_alg,
+                Some(&["iss".to_string(), "exp".to_string(), "aud".to_string()]),
+            )
+            .await?;
+
+        Ok(payload)
+    }
+
+    async fn validate_jwt_async(
+        &mut self,
+        jwt: &str,
+        expected_alg: &str,
+        required: Option<&[String]>,
+    ) -> Result<(JwtPayload, JwsHeader, Option<Jwk>), OidcClientError> {
+        let mut required_claims = required
+            .unwrap_or(&[
+                "iss".to_string(),
+                "sub".to_string(),
+                "aud".to_string(),
+                "exp".to_string(),
+                "iat".to_string(),
+            ])
+            .to_vec();
+
+        let is_self_issued = self
+            .issuer
+            .as_ref()
+            .map_or(false, |x| x.issuer == "https://self-issued.me");
+
+        let timestamp = now();
+        let decoded_jwt = match decode_jwt(jwt) {
+            Ok(t) => t,
+            Err(err) => {
+                let mut extra_data = HashMap::<String, Value>::new();
+
+                extra_data.insert("jwt".to_string(), json!(jwt));
+
+                let (name, message) = match err {
+                    OidcClientError::Error(e, _) => ("Error", e.message),
+                    OidcClientError::TypeError(e, _) => ("TypeError", e.message),
+                    OidcClientError::RPError(e, _) => ("RPError", e.message),
+                    OidcClientError::OPError(e, _) => ("OPError", e.error),
+                };
+
+                return Err(OidcClientError::new_rp_error(
+                    &format!("failed to decode JWT ({}: {})", name, message),
+                    None,
+                    Some(extra_data),
+                ));
+            }
+        };
+
+        let header_alg = match decoded_jwt.header.algorithm() {
+            Some(alg) => alg,
+            None => {
+                return Err(OidcClientError::new_error(
+                    "Algorithm not found in jwt",
+                    None,
+                ))
+            }
+        };
+
+        if header_alg != expected_alg {
+            let mut extra_data = HashMap::<String, Value>::new();
+
+            extra_data.insert("jwt".to_string(), json!(jwt));
+
+            return Err(OidcClientError::new_rp_error(
+                &format!(
+                    "unexpected JWT alg received, expected {}, got: {}",
+                    expected_alg, header_alg
+                ),
+                None,
+                Some(extra_data),
+            ));
+        }
+
+        if is_self_issued {
+            required_claims.push("sub_jwk".to_string());
+        }
+
+        for claim in required_claims {
+            verify_presence(&decoded_jwt.payload, jwt, &claim)?;
+        }
+
+        let payload_iss = decoded_jwt.payload.issuer();
+
+        if let Some(iss) = payload_iss {
+            // TODO: Return error?
+            let expected_iss = self.issuer.as_ref().map_or("", |x| x.issuer.as_str());
+
+            if iss != expected_iss {
+                let mut extra_data = HashMap::<String, Value>::new();
+
+                extra_data.insert("jwt".to_string(), json!(jwt));
+
+                return Err(OidcClientError::new_rp_error(
+                    &format!(
+                        "unexpected iss value, expected {}, got: {}",
+                        expected_iss, iss
+                    ),
+                    None,
+                    Some(extra_data),
+                ));
+            }
+        }
+
+        let payload_iat = decoded_jwt.payload.issued_at();
+
+        if payload_iat.is_none() {
+            let mut extra_data = HashMap::<String, Value>::new();
+            extra_data.insert("jwt".to_string(), json!(jwt));
+
+            return Err(OidcClientError::new_rp_error(
+                "JWT iat claim must be a JSON numeric value",
+                None,
+                Some(extra_data),
+            ));
+        }
+
+        let payload_nbf = decoded_jwt.payload.claim("nbf");
+
+        if let Some(nbf) = payload_nbf {
+            if !nbf.is_number() {
+                let mut extra_data = HashMap::<String, Value>::new();
+                extra_data.insert("jwt".to_string(), json!(jwt));
+
+                return Err(OidcClientError::new_rp_error(
+                    "JWT nbf claim must be a JSON numeric value",
+                    None,
+                    Some(extra_data),
+                ));
+            }
+
+            let nbf_value = nbf.as_i64().unwrap();
+
+            // TODO: add tolerance to timestamp and compare
+            if nbf_value > timestamp {
+                let mut extra_data = HashMap::<String, Value>::new();
+                extra_data.insert("jwt".to_string(), json!(jwt));
+                extra_data.insert("nbf".to_string(), json!(nbf_value));
+                extra_data.insert("now".to_string(), json!(timestamp));
+                // TODO: add tolerance
+                extra_data.insert("tolerance".to_string(), json!(null));
+
+                return Err(OidcClientError::new_rp_error(
+                    // TODO: add tolerance
+                    &format!("JWT not active yet, now {}, nbf {}", timestamp, nbf_value),
+                    None,
+                    Some(extra_data),
+                ));
+            }
+        }
+
+        let payload_exp = decoded_jwt.payload.claim("exp");
+
+        if let Some(exp) = payload_exp {
+            if !exp.is_number() {
+                let mut extra_data = HashMap::<String, Value>::new();
+                extra_data.insert("jwt".to_string(), json!(jwt));
+
+                return Err(OidcClientError::new_rp_error(
+                    "JWT exp claim must be a JSON numeric value",
+                    None,
+                    Some(extra_data),
+                ));
+            }
+
+            let exp_value = exp.as_i64().unwrap();
+
+            // TODO: add tolerance to timestamp and compare
+            if timestamp >= exp_value {
+                let mut extra_data = HashMap::<String, Value>::new();
+                extra_data.insert("jwt".to_string(), json!(jwt));
+                extra_data.insert("exp".to_string(), json!(exp));
+                extra_data.insert("now".to_string(), json!(timestamp));
+                // TODO: add tolerance
+                extra_data.insert("tolerance".to_string(), json!(null));
+
+                return Err(OidcClientError::new_rp_error(
+                    // TODO: add tolerance
+                    &format!("JWT expired, now {}, exp {}", timestamp, exp_value),
+                    None,
+                    Some(extra_data),
+                ));
+            }
+        }
+
+        let payload_aud = decoded_jwt.payload.audience();
+        let payload_azp = decoded_jwt.payload.claim("azp");
+
+        if let Some(aud) = payload_aud {
+            if aud.len() > 1 && payload_azp.is_none() {
+                let mut extra_data = HashMap::<String, Value>::new();
+                extra_data.insert("jwt".to_string(), json!(jwt));
+
+                return Err(OidcClientError::new_rp_error(
+                    "missing required JWT property azp",
+                    None,
+                    Some(extra_data),
+                ));
+            }
+
+            if !aud.contains(&self.client_id.as_str()) {
+                let mut extra_data = HashMap::<String, Value>::new();
+                extra_data.insert("jwt".to_string(), json!(jwt));
+
+                return Err(OidcClientError::new_rp_error(
+                    &format!(
+                        "aud is missing the client_id, expected {} to be included in {:?}",
+                        self.client_id, aud
+                    ),
+                    None,
+                    Some(extra_data),
+                ));
+            }
+        }
+
+        if let Some(Value::String(azp)) = payload_azp {
+            let mut additional_autorized_parties = self
+                .client_options
+                .as_ref()
+                .map(|x| {
+                    x.additional_authorized_parties
+                        .to_owned()
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default();
+
+            additional_autorized_parties.push(self.client_id.clone());
+
+            if !additional_autorized_parties.contains(azp) {
+                let mut extra_data = HashMap::<String, Value>::new();
+                extra_data.insert("jwt".to_string(), json!(jwt));
+
+                return Err(OidcClientError::new_rp_error(
+                    &format!("azp mismatch, got: {}", azp),
+                    None,
+                    Some(extra_data),
+                ));
+            }
+        }
+
+        let mut keys = vec![];
+
+        if is_self_issued {
+            let payload_sub_jwk = decoded_jwt.payload.claim("sub_jwk");
+
+            let jwk_str = match payload_sub_jwk {
+                Some(sub_jwk) => {
+                    if !sub_jwk.is_object() {
+                        let mut extra_data = HashMap::<String, Value>::new();
+                        extra_data.insert("jwt".to_string(), json!(jwt));
+
+                        return Err(OidcClientError::new_rp_error(
+                            "failed to use sub_jwk claim as an asymmetric JSON Web Key",
+                            None,
+                            Some(extra_data),
+                        ));
+                    }
+
+                    // Shoud not throw an error
+                    let jwk_json = sub_jwk.as_str().unwrap();
+
+                    let mut jwk = Jwk::from_bytes(jwk_json).map_err(|_| {
+                        let mut extra_data = HashMap::<String, Value>::new();
+                        extra_data.insert("jwt".to_string(), json!(jwt));
+
+                        OidcClientError::new_rp_error(
+                            "failed to use sub_jwk claim as an asymmetric JSON Web Key",
+                            None,
+                            Some(extra_data),
+                        )
+                    })?;
+
+                    if jwk.algorithm().is_none() {
+                        jwk.set_algorithm(header_alg);
+                    }
+
+                    if jwk.is_private_key() {
+                        let mut extra_data = HashMap::<String, Value>::new();
+                        extra_data.insert("jwt".to_string(), json!(jwt));
+
+                        return Err(OidcClientError::new_rp_error(
+                            "failed to use sub_jwk claim as an asymmetric JSON Web Key",
+                            None,
+                            Some(extra_data),
+                        ));
+                    }
+
+                    keys.push(jwk);
+
+                    jwk_json
+                }
+                _ => {
+                    let mut extra_data = HashMap::<String, Value>::new();
+                    extra_data.insert("jwt".to_string(), json!(jwt));
+
+                    return Err(OidcClientError::new_rp_error(
+                        "failed to use sub_jwk claim as an asymmetric JSON Web Key",
+                        None,
+                        Some(extra_data),
+                    ));
+                }
+            };
+
+            let payload_sub =
+                decoded_jwt
+                    .payload
+                    .subject()
+                    .ok_or(OidcClientError::new_rp_error(
+                        "sub not found in payload",
+                        None,
+                        None,
+                    ))?;
+
+            if get_jwk_thumbprint_s256(jwk_str)? != payload_sub {
+                let mut extra_data = HashMap::<String, Value>::new();
+                extra_data.insert("jwt".to_string(), json!(jwt));
+
+                return Err(OidcClientError::new_rp_error(
+                    "failed to match the subject with sub_jwk",
+                    None,
+                    Some(extra_data),
+                ));
+            }
+        } else if header_alg.starts_with("HS") {
+            keys.push(self.secret_for_alg(header_alg)?);
+        } else if header_alg != "none" {
+            match &mut self.issuer {
+                Some(i) => {
+                    let mut header_kid = decoded_jwt.header.key_id().map(|x| x.to_string());
+
+                    let mut header_kty = decoded_jwt
+                        .header
+                        .claim("kty")
+                        .map(|x| x.as_str().unwrap_or("").to_string());
+
+                    if header_kid.clone().is_some_and(|x| x.is_empty()) {
+                        header_kid = None
+                    }
+
+                    if header_kty.clone().is_some_and(|x| x.is_empty()) {
+                        header_kty = None
+                    }
+
+                    let query = QueryKeyStore {
+                        key_use: Some("sig".to_string()),
+                        alg: Some(header_alg.to_string()),
+                        key_id: header_kid,
+                        key_type: header_kty,
+                    };
+                    let jwks = i.query_keystore_async(query, false).await?;
+
+                    keys.append(&mut jwks.get_keys());
+                }
+                None => {
+                    return Err(OidcClientError::new_error(
+                        "Issuer is not configured for this client",
+                        None,
+                    ))
+                }
+            };
+        }
+
+        if keys.is_empty() && header_alg == "none" {
+            return Ok((decoded_jwt.payload, decoded_jwt.header, None));
+        }
+
+        for key in keys {
+            let verifier = key.to_verifier()?;
+
+            if let Ok((payload, header)) = decode_with_verifier(jwt, &*verifier) {
+                return Ok((payload, header, Some(key)));
+            }
+        }
+
+        let mut extra_data = HashMap::<String, Value>::new();
+
+        extra_data.insert("jwt".to_string(), json!(jwt));
+        Err(OidcClientError::new_rp_error(
+            "failed to validate JWT signature",
+            None,
+            Some(extra_data),
+        ))
+    }
+}
+
+fn verify_presence(payload: &JwtPayload, jwt: &str, prop: &str) -> Result<(), OidcClientError> {
+    if payload.claim(prop).is_none() {
+        let mut extra_data = HashMap::<String, Value>::new();
+
+        extra_data.insert("jwt".to_string(), json!(jwt));
+
+        return Err(OidcClientError::new_rp_error(
+            &format!("missing required JWT property {}", prop),
+            None,
+            Some(extra_data),
+        ));
+    }
+    Ok(())
 }
