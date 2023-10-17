@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use crate::{
     helpers::{convert_json_to, validate_url},
@@ -104,7 +104,7 @@ pub struct Client {
     /// [Request Object Encryption Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) request_object_encryption_enc: Option<String>,
     /// [Default Max Age](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub(crate) default_max_age: Option<i64>,
+    pub(crate) default_max_age: Option<u64>,
     /// [Require Auth Time](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) require_auth_time: Option<bool>,
     /// [Default Acr Values](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
@@ -129,6 +129,10 @@ pub struct Client {
     pub(crate) request_interceptor: Option<RequestInterceptor>,
     pub(crate) issuer: Option<Issuer>,
     pub(crate) client_options: Option<ClientOptions>,
+    pub(crate) skip_max_age_check: bool,
+    pub(crate) skip_nonce_check: bool,
+    pub(crate) clock_tolerance: Duration,
+    pub(crate) is_fapi: bool,
 }
 
 impl Client {
@@ -186,6 +190,10 @@ impl Client {
             authorization_signed_response_alg: None,
             other_fields: HashMap::new(),
             client_options: None,
+            skip_max_age_check: false,
+            skip_nonce_check: false,
+            clock_tolerance: Duration::from_secs(0),
+            is_fapi: false,
         }
     }
 
@@ -202,6 +210,7 @@ impl Client {
         interceptor: Option<RequestInterceptor>,
         jwks: Option<Jwks>,
         options: Option<ClientOptions>,
+        is_fapi: bool,
     ) -> Result<Self, OidcClientError> {
         let mut valid_client_id = true;
 
@@ -255,6 +264,7 @@ impl Client {
             authorization_encrypted_response_enc: metadata.authorization_encrypted_response_enc,
             authorization_signed_response_alg: metadata.authorization_signed_response_alg,
             other_fields: metadata.other_fields,
+            is_fapi,
             ..Client::default()
         };
 
@@ -401,6 +411,7 @@ impl Client {
     /// - `client_options` - The [ClientOptions]
     /// - `issuer` - [Issuer]
     /// - `interceptor` - [RequestInterceptor]
+    /// - `is_fapi` - Marks the client as FAPI client
     ///
     /// ### *Example:*
     ///
@@ -412,6 +423,7 @@ impl Client {
     ///         None,
     ///         None,
     ///         None,
+    ///         false
     ///     )
     ///     .await
     ///     .unwrap();
@@ -474,6 +486,7 @@ impl Client {
     ///         Some(client_options),
     ///         Some(&issuer),
     ///         Some(Box::new(interceptor)),
+    ///         false
     ///     )
     ///     .await
     ///     .unwrap();
@@ -485,6 +498,7 @@ impl Client {
         client_options: Option<ClientOptions>,
         issuer: Option<&Issuer>,
         mut interceptor: Option<RequestInterceptor>,
+        is_fapi: bool,
     ) -> Result<Self, OidcClientError> {
         Self::jwks_only_private_keys_validation(jwks.as_ref())?;
 
@@ -530,7 +544,14 @@ impl Client {
                 )
             })?;
 
-        Self::from_internal(client_metadata, issuer, interceptor, jwks, client_options)
+        Self::from_internal(
+            client_metadata,
+            issuer,
+            interceptor,
+            jwks,
+            client_options,
+            is_fapi,
+        )
     }
 }
 
@@ -544,6 +565,7 @@ impl Client {
     /// - `client_metadata` - The [ClientMetadata] to be sent using the registration request.
     /// - `register_options` - [ClientRegistrationOptions]
     /// - `interceptor` - [RequestInterceptor]
+    /// - `is_fapi` - Marks the client as FAPI client
     ///
     /// ### *Example:*
     ///
@@ -557,7 +579,7 @@ impl Client {
     ///         ..ClientMetadata::default()
     ///     };
     ///
-    ///     let _client = Client::register_async(&issuer, metadata, None, None)
+    ///     let _client = Client::register_async(&issuer, metadata, None, None, false)
     ///         .await
     ///         .unwrap();
     /// ```
@@ -628,6 +650,7 @@ impl Client {
     ///         metadata,
     ///         Some(registration_options),
     ///         Some(Box::new(interceptor2)),
+    ///         false
     ///     )
     ///     .await
     ///     .unwrap();
@@ -638,6 +661,7 @@ impl Client {
         mut client_metadata: ClientMetadata,
         register_options: Option<ClientRegistrationOptions>,
         mut interceptor: Option<RequestInterceptor>,
+        is_fapi: bool,
     ) -> Result<Self, OidcClientError> {
         if issuer.registration_endpoint.is_none() {
             return Err(OidcClientError::new_type_error(
@@ -721,6 +745,7 @@ impl Client {
             interceptor,
             jwks,
             client_options,
+            is_fapi,
         )
     }
 

@@ -91,7 +91,7 @@ pub struct CallbackExtras {
 
 /// # OAuthCallbackChecks
 /// Checks that needs to be performed against the OAuth [CallbackParams] recieved from the Auth server.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub struct OAuthCallbackChecks {
     /// When provided the authorization response will be checked for presence of required parameters for a given response_type. Use of this check is recommended.
     pub response_type: Option<String>,
@@ -108,7 +108,7 @@ pub struct OAuthCallbackChecks {
 #[derive(Default, Serialize, Deserialize)]
 pub struct OpenIDCallbackChecks {
     /// When provided the authorization response's ID Token auth_time parameter will be checked to be conform to the max_age value. Use of this check is required if you sent a max_age parameter into an authorization request. Default: uses client's default_max_age.
-    pub max_age: Option<i64>,
+    pub max_age: Option<u64>,
     /// When provided the authorization response's ID Token nonce parameter will be checked to be the this expected one.
     pub nonce: Option<String>,
     /// See [OAuthCallbackChecks]

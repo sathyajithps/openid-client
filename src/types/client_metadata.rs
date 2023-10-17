@@ -131,7 +131,7 @@ pub struct ClientMetadata {
     pub request_object_encryption_enc: Option<String>,
     /// [Default Max Age](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_max_age: Option<i64>,
+    pub default_max_age: Option<u64>,
     /// [Require Auth Time](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub require_auth_time: Option<bool>,

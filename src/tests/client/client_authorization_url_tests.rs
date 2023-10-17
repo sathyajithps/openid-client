@@ -31,7 +31,9 @@ fn setup_clients() -> TestClients {
         ..Default::default()
     };
 
-    let client = issuer.client(client_metadata, None, None, None).unwrap();
+    let client = issuer
+        .client(client_metadata, None, None, None, false)
+        .unwrap();
 
     let client_with_meta_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -41,7 +43,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_meta = issuer
-        .client(client_with_meta_metadata, None, None, None)
+        .client(client_with_meta_metadata, None, None, None, false)
         .unwrap();
 
     let client_with_multiple_metas_metadata = ClientMetadata {
@@ -55,7 +57,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_multiple_metas = issuer
-        .client(client_with_multiple_metas_metadata, None, None, None)
+        .client(client_with_multiple_metas_metadata, None, None, None, false)
         .unwrap();
 
     let issuer_metadata_with_query = IssuerMetadata {
@@ -72,7 +74,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_query = issuer_with_query
-        .client(client_with_query_metadata, None, None, None)
+        .client(client_with_query_metadata, None, None, None, false)
         .unwrap();
 
     TestClients {
@@ -281,7 +283,9 @@ fn returns_error_if_authorization_endpoint_is_not_configured() {
         ..Default::default()
     };
 
-    let client = issuer.client(client_metadata, None, None, None).unwrap();
+    let client = issuer
+        .client(client_metadata, None, None, None, false)
+        .unwrap();
 
     let err = client
         .authorization_url(AuthorizationParameters::default())

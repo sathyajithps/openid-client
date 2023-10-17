@@ -8,7 +8,11 @@ use regex::Regex;
 use reqwest::{header::HeaderValue, Url};
 use serde::Deserialize;
 use serde_json::{Map, Value};
-use sha2::Sha256;
+use sha2::{Digest, Sha256, Sha384, Sha512};
+use sha3::{
+    digest::{ExtendableOutput, Update, XofReader},
+    Shake256,
+};
 
 use crate::types::{DecodedToken, OidcClientError, Response, StandardBodyError};
 
@@ -189,4 +193,88 @@ pub(crate) fn get_jwk_thumbprint_s256(jwk_str: &str) -> Result<String, OidcClien
         .map_err(|_| OidcClientError::new_error("Invalid JWK", None))?;
 
     Ok(base64_url::encode(&jwk.thumbprint::<Sha256>().to_vec()))
+}
+
+fn get_hash(alg: &str, token: &str, curve: Option<&str>) -> Result<Vec<u8>, OidcClientError> {
+    match alg {
+        "HS256" | "RS256" | "PS256" | "ES256" | "ES256K" => Ok(Sha256::digest(token)[..].to_vec()),
+        "HS384" | "RS384" | "PS384" | "ES384" => Ok(Sha384::digest(token)[..].to_vec()),
+        "HS512" | "RS512" | "PS512" | "ES512" => Ok(Sha512::digest(token)[..].to_vec()),
+        "EdDSA" => match curve {
+            Some("Ed25519") => Ok(Sha512::digest(token)[..].to_vec()),
+            Some("Ed448") => {
+                let mut hasher = Shake256::default();
+                hasher.update(token.as_bytes());
+                let mut reader = hasher.finalize_xof();
+                let mut hashed = [0u8; 114];
+                reader.read(&mut hashed);
+
+                Ok(hashed.to_vec())
+            }
+            _ => Err(OidcClientError::new_type_error(
+                "unrecognized or invalid EdDSA curve provided",
+                None,
+            )),
+        },
+        _ => Err(OidcClientError::new_type_error(
+            "unrecognized or invalid JWS algorithm provided",
+            None,
+        )),
+    }
+}
+
+fn generate_hash(alg: &str, token: &str, curve: Option<&str>) -> Result<String, OidcClientError> {
+    let hash = get_hash(alg, token, curve).unwrap();
+
+    Ok(base64_url::encode(&hash[0..hash.len() / 2]))
+}
+
+pub(crate) struct Names {
+    pub claim: String,
+    pub source: String,
+}
+
+pub(crate) fn validate_hash(
+    name: Names,
+    actual: &str,
+    alg: &str,
+    source: &str,
+    curve: Option<&str>,
+) -> Result<(), OidcClientError> {
+    if name.claim.is_empty() {
+        return Err(OidcClientError::new_type_error(
+            "names.claim must be a non-empty string",
+            None,
+        ));
+    }
+
+    if name.source.is_empty() {
+        return Err(OidcClientError::new_type_error(
+            "names.source must be a non-empty string",
+            None,
+        ));
+    }
+
+    let mut expected = "".to_string();
+
+    let msg = match generate_hash(alg, source, curve) {
+        Ok(sha) => {
+            expected = sha;
+            format!(
+                "{} mismatch, expected {}, got: {}",
+                name.claim, expected, actual
+            )
+        }
+        Err(err) => format!(
+            "{} could not be validated ({})",
+            name.claim,
+            err.type_error().error.message
+        ),
+    };
+
+    if expected != actual {
+        return Err(OidcClientError::new_error(&msg, None));
+    }
+
+    Ok(())
 }

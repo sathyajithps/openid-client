@@ -712,6 +712,7 @@ impl Issuer {
     /// - `interceptor` - [RequestInterceptor]
     /// - `jwks` - The client jwks with private keys.
     /// - `client_options` - Client options.
+    /// - `is_fapi` - Marks the client as FAPI client
     ///
     /// Note: If the [Issuer] already have a request interceptor and none was passed in through `interceptor`,
     ///       the interceptor from the [Issuer] is used.
@@ -726,7 +727,7 @@ impl Issuer {
     ///         ..ClientMetadata::default()
     ///     };
     ///     
-    ///     let _client = issuer.client(client_metadata, None, None, None).unwrap();
+    ///     let _client = issuer.client(client_metadata, None, None, None, false).unwrap();
     /// ```
     ///
     /// ### *Example: with jwks*
@@ -744,7 +745,7 @@ impl Issuer {
     ///     let jwks = Jwks::from(vec![jwk]);
     ///
     ///     let _client = issuer
-    ///         .client(client_metadata, None, Some(jwks), None)
+    ///         .client(client_metadata, None, Some(jwks), None, false)
     ///         .unwrap();
     /// ```
     ///
@@ -808,7 +809,8 @@ impl Issuer {
     ///         client_metadata,
     ///         Some(Box::new(interceptor)),
     ///         Some(jwks),
-    ///         Some(client_options))
+    ///         Some(client_options),
+    ///         false)
     ///         .unwrap();
     /// ```
     pub fn client(
@@ -817,6 +819,7 @@ impl Issuer {
         interceptor: Option<RequestInterceptor>,
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
+        is_fapi: bool,
     ) -> Result<Client, OidcClientError> {
         let request_interceptor = match (interceptor, &self.request_interceptor) {
             (None, Some(i)) => Some(i.clone_box()),
@@ -832,6 +835,7 @@ impl Issuer {
             request_interceptor,
             jwks,
             client_options,
+            is_fapi,
         )
     }
 }
