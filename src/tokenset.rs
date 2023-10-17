@@ -41,7 +41,7 @@ pub struct TokenSetParams {
 /// # TokenSet
 /// Represents a set of tokens retrieved from either authorization callback or successful token endpoint grant call.
 /// - If there are other properties present, it will be stored in `other` field. Access it via [`TokenSet::get_other()`]
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct TokenSet {
     #[serde(skip_serializing_if = "Option::is_none")]
     access_token: Option<String>,
@@ -194,9 +194,14 @@ impl TokenSet {
         None
     }
 
-    /// Sets id_token to None
-    pub(crate) fn set_id_token_none(&mut self) {
-        self.id_token = None;
+    /// Sets id_token
+    pub(crate) fn set_id_token(&mut self, token: Option<String>) {
+        self.id_token = token;
+    }
+
+    /// Sets session_state
+    pub(crate) fn set_session_state(&mut self, session_state: Option<String>) {
+        self.session_state = session_state;
     }
 }
 

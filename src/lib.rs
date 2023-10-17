@@ -25,6 +25,14 @@
 //!
 //! ## Client
 //!
+//! ### Instance methods
+//! - [client::Client::callback_async]
+//! - [client::Client::oauth_callback_async]
+//! - [client::Client::grant_async]
+//! - [client::Client::authorization_url]
+//! - [client::Client::end_session_url]
+//! - [client::Client::authorization_post]
+//!
 //! ### Client Read
 //! - [client::Client::from_uri_async]
 //!

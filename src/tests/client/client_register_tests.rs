@@ -17,9 +17,10 @@ async fn asserts_the_issuer_has_a_registration_endpoint() {
 
     let issuer = Issuer::new(issuer_metadata, None);
 
-    let client_error = Client::register_async(&issuer, ClientMetadata::default(), None, None)
-        .await
-        .unwrap_err();
+    let client_error =
+        Client::register_async(&issuer, ClientMetadata::default(), None, None, false)
+            .await
+            .unwrap_err();
 
     assert_eq!(
         "registration_endpoint must be configured on the issuer",
@@ -74,6 +75,7 @@ async fn accepts_and_assigns_the_registered_metadata() {
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap();
@@ -111,6 +113,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap_err();
@@ -156,6 +159,7 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap_err();
@@ -198,6 +202,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap_err();
@@ -240,6 +245,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap_err();
@@ -318,6 +324,7 @@ mod with_key_store_as_an_option {
             ClientMetadata::default(),
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
+            false,
         )
         .await
         .unwrap();
@@ -374,6 +381,7 @@ mod with_key_store_as_an_option {
             client_metadata.clone(),
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
+            false,
         )
         .await
         .unwrap();
@@ -434,6 +442,7 @@ mod with_key_store_as_an_option {
             client_metadata.clone(),
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
+            false,
         )
         .await
         .unwrap();
@@ -464,6 +473,7 @@ mod with_key_store_as_an_option {
             client_metadata.clone(),
             Some(register_options.clone()),
             None,
+            false,
         )
         .await
         .unwrap_err();
@@ -497,6 +507,7 @@ mod with_key_store_as_an_option {
             client_metadata.clone(),
             Some(register_options.clone()),
             None,
+            false,
         )
         .await
         .unwrap_err();
@@ -557,6 +568,7 @@ mod with_initial_access_token {
             ClientMetadata::default(),
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
+            false,
         )
         .await
         .unwrap();
@@ -614,6 +626,7 @@ mod http_options {
                 test_header_value: Some("testHeaderValue".to_string()),
                 test_server_port: Some(mock_http_server.port()),
             })),
+            false,
         )
         .await
         .unwrap();
@@ -646,7 +659,9 @@ mod dynamic_registration_defaults_not_supported_by_issuer {
             ..ClientMetadata::default()
         };
 
-        let client = issuer.client(client_metadata, None, None, None).unwrap();
+        let client = issuer
+            .client(client_metadata, None, None, None, false)
+            .unwrap();
         assert_eq!(
             "client_secret_post".to_string(),
             client.get_token_endpoint_auth_method()

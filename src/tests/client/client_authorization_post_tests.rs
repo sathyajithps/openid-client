@@ -38,7 +38,9 @@ fn setup_client() -> Client {
         ..Default::default()
     };
 
-    issuer.client(client_metadata, None, None, None).unwrap()
+    issuer
+        .client(client_metadata, None, None, None, false)
+        .unwrap()
 }
 
 #[test]

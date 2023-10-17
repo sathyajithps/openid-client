@@ -16,8 +16,9 @@ use serde_json::{json, Value};
 use url::Url;
 
 use crate::{
-    helpers::{decode_jwt, get_jwk_thumbprint_s256, now, random},
+    helpers::{decode_jwt, get_jwk_thumbprint_s256, now, random, validate_hash, Names},
     http::request_async,
+    tokenset::TokenSet,
     types::{
         query_keystore::QueryKeyStore, AuthenticationPostParams, AuthorizationParameters,
         OidcClientError, Response,
@@ -1115,6 +1116,344 @@ impl Client {
             "failed to validate JWT signature",
             None,
             Some(extra_data),
+        ))
+    }
+
+    pub(crate) fn decrypt_id_token(
+        &self,
+        token_set: TokenSet,
+    ) -> Result<TokenSet, OidcClientError> {
+        if self.id_token_encrypted_response_alg.is_none() {
+            return Ok(token_set);
+        }
+
+        if let Some(id_token) = token_set.get_id_token() {
+            let (expected_alg, expected_enc) = match (
+                &self.id_token_encrypted_response_alg,
+                &self.id_token_encrypted_response_enc,
+            ) {
+                (Some(alg), Some(enc)) => (alg, enc),
+                _ => return Err(OidcClientError::new_error("both id_token_encrypted_response_alg and id_token_encrypted_response_enc is required on the client to decrypt id_token", None))
+            };
+
+            let decrypted_id_token =
+                self.decrypt_jwe(&id_token, expected_alg, Some(expected_enc))?;
+
+            let mut new_token_set = token_set.clone();
+
+            new_token_set.set_id_token(Some(decrypted_id_token));
+            return Ok(new_token_set);
+        }
+
+        Err(OidcClientError::new_type_error(
+            "id_token not present in TokenSet",
+            None,
+        ))
+    }
+
+    pub(crate) async fn validate_id_token_async(
+        &mut self,
+        token_set: TokenSet,
+        nonce: Option<String>,
+        returned_by: &str,
+        max_age: Option<u64>,
+        state: Option<String>,
+    ) -> Result<TokenSet, OidcClientError> {
+        if let Some(id_token) = token_set.get_id_token() {
+            let expected_alg = self.id_token_signed_response_alg.clone();
+
+            let timestamp = now();
+
+            let (header, payload, key) = self
+                .validate_jwt_async(&id_token, &expected_alg, None)
+                .await?;
+
+            if max_age.is_some()
+                || (!self.skip_max_age_check && self.require_auth_time.is_some_and(|x| x))
+            {
+                match payload.claim("auth_time") {
+                    Some(Value::Number(_)) => {}
+                    Some(_) => {
+                        let mut extra_data = HashMap::<String, Value>::new();
+
+                        extra_data.insert("jwt".to_string(), json!(id_token));
+                        return Err(OidcClientError::new_rp_error(
+                            "JWT auth_time claim must be a JSON numeric value",
+                            None,
+                            Some(extra_data),
+                        ));
+                    }
+                    None => {
+                        let mut extra_data = HashMap::<String, Value>::new();
+
+                        extra_data.insert("jwt".to_string(), json!(id_token));
+                        return Err(OidcClientError::new_rp_error(
+                            "missing required JWT property auth_time",
+                            None,
+                            Some(extra_data),
+                        ));
+                    }
+                };
+            }
+
+            if let (Some(ma), Some(Value::Number(at))) = (max_age, payload.claim("auth_time")) {
+                if let Some(auth_time) = at.as_u64() {
+                    if ma.wrapping_add(auth_time)
+                        < timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64) as u64
+                    {
+                        let mut extra_data = HashMap::<String, Value>::new();
+
+                        extra_data.insert("jwt".to_string(), json!(id_token));
+                        extra_data.insert("now".to_string(), json!(timestamp));
+                        extra_data.insert("auth_time".to_string(), json!(auth_time));
+                        extra_data.insert(
+                            "tolerance".to_string(),
+                            json!(self.clock_tolerance.as_secs()),
+                        );
+
+                        return Err(OidcClientError::new_rp_error(
+                                             &format!("too much time has elapsed since the last End-User authentication, max_age {}, auth_time: {}, now {}", ma, auth_time, timestamp),
+                                             None,
+                                             Some(extra_data),
+                                         ));
+                    }
+                }
+            };
+
+            if !self.skip_nonce_check {
+                let payload_nonce = match payload.claim("nonce") {
+                    Some(Value::String(n)) => Some(n),
+                    _ => None,
+                };
+
+                if (payload_nonce.is_some() || nonce.is_some()) && payload_nonce != nonce.as_ref() {
+                    let mut extra_data = HashMap::<String, Value>::new();
+
+                    extra_data.insert("jwt".to_string(), json!(id_token));
+                    return Err(OidcClientError::new_rp_error(
+                        &format!(
+                            "nonce mismatch, expected {}, got: {}",
+                            nonce.unwrap_or_default(),
+                            payload_nonce.unwrap_or(&String::new())
+                        ),
+                        None,
+                        Some(extra_data),
+                    ));
+                }
+            }
+
+            if returned_by == "authorization" {
+                if payload.claim("at_hash").is_none() && token_set.get_access_token().is_some() {
+                    let mut extra_data = HashMap::<String, Value>::new();
+
+                    extra_data.insert("jwt".to_string(), json!(id_token));
+
+                    return Err(OidcClientError::new_rp_error(
+                        "missing required property at_hash",
+                        None,
+                        Some(extra_data),
+                    ));
+                }
+
+                let other_fields = token_set.get_other().unwrap_or_default();
+
+                let code = other_fields.get("code");
+
+                if payload.claim("c_hash").is_none() && code.is_some() {
+                    let mut extra_data = HashMap::<String, Value>::new();
+
+                    extra_data.insert("jwt".to_string(), json!(id_token));
+
+                    return Err(OidcClientError::new_rp_error(
+                        "missing required property c_hash",
+                        None,
+                        Some(extra_data),
+                    ));
+                }
+
+                let s_hash = payload.claim("s_hash");
+
+                if self.is_fapi {
+                    let token_set_state = other_fields.get("state");
+
+                    if s_hash.is_none() && (token_set_state.is_some() || state.is_some()) {
+                        let mut extra_data = HashMap::<String, Value>::new();
+
+                        extra_data.insert("jwt".to_string(), json!(id_token));
+
+                        return Err(OidcClientError::new_rp_error(
+                            "missing required property s_hash",
+                            None,
+                            Some(extra_data),
+                        ));
+                    }
+                }
+
+                if let Some(Value::String(state_hash)) = s_hash {
+                    if state.is_none() {
+                        return Err(OidcClientError::new_type_error(
+                            "cannot verify s_hash, \"checks.state\" property not provided",
+                            None,
+                        ));
+                    }
+
+                    let alg = header
+                        .claim("alg")
+                        .map(|x| x.as_str().unwrap_or_default())
+                        .unwrap_or_default();
+
+                    let crv = key.as_ref().map(|x| x.curve().unwrap_or_default());
+
+                    let name = Names {
+                        claim: "s_hash".to_string(),
+                        source: "state".to_string(),
+                    };
+
+                    let state_source = state.unwrap_or_default();
+
+                    match validate_hash(name, state_hash, alg, &state_source, crv) {
+                        Ok(_) => {}
+                        Err(OidcClientError::Error(e, _)) => {
+                            let mut extra_data = HashMap::<String, Value>::new();
+
+                            extra_data.insert("jwt".to_string(), json!(id_token));
+
+                            return Err(OidcClientError::new_rp_error(
+                                &e.message,
+                                None,
+                                Some(extra_data),
+                            ));
+                        }
+                        Err(OidcClientError::TypeError(e, _)) => {
+                            let mut extra_data = HashMap::<String, Value>::new();
+
+                            extra_data.insert("jwt".to_string(), json!(id_token));
+
+                            return Err(OidcClientError::new_rp_error(
+                                &e.message,
+                                None,
+                                Some(extra_data),
+                            ));
+                        }
+                        Err(err) => return Err(err),
+                    };
+                }
+            }
+
+            let payload_iat = payload
+                .claim("iat")
+                .map(|x| x.as_i64().unwrap_or_default())
+                .unwrap_or_default();
+
+            if self.is_fapi && payload_iat < timestamp - 3600 {
+                let mut extra_data = HashMap::<String, Value>::new();
+
+                extra_data.insert("jwt".to_string(), json!(id_token));
+
+                return Err(OidcClientError::new_rp_error(
+                    &format!(
+                        "JWT issued too far in the past, now {}, iat {}",
+                        timestamp, payload_iat
+                    ),
+                    None,
+                    Some(extra_data),
+                ));
+            }
+
+            if let Some(access_token) = token_set.get_access_token() {
+                if let Some(Value::String(at_hash)) = payload.claim("at_hash") {
+                    let name = Names {
+                        claim: "at_hash".to_string(),
+                        source: "access_token".to_string(),
+                    };
+
+                    let alg = header
+                        .claim("alg")
+                        .map(|x| x.as_str().unwrap_or_default())
+                        .unwrap_or_default();
+
+                    let crv = key.as_ref().map(|x| x.curve().unwrap_or_default());
+
+                    match validate_hash(name, at_hash, alg, &access_token, crv) {
+                        Ok(_) => {}
+                        Err(OidcClientError::Error(e, _)) => {
+                            let mut extra_data = HashMap::<String, Value>::new();
+
+                            extra_data.insert("jwt".to_string(), json!(id_token));
+
+                            return Err(OidcClientError::new_rp_error(
+                                &e.message,
+                                None,
+                                Some(extra_data),
+                            ));
+                        }
+                        Err(OidcClientError::TypeError(e, _)) => {
+                            let mut extra_data = HashMap::<String, Value>::new();
+
+                            extra_data.insert("jwt".to_string(), json!(id_token));
+
+                            return Err(OidcClientError::new_rp_error(
+                                &e.message,
+                                None,
+                                Some(extra_data),
+                            ));
+                        }
+                        Err(err) => return Err(err),
+                    };
+                }
+            }
+
+            let other_fields = token_set.get_other().unwrap_or_default();
+
+            if let Some(Value::String(code)) = other_fields.get("code") {
+                if let Some(Value::String(c_hash)) = payload.claim("c_hash") {
+                    let name = Names {
+                        claim: "c_hash".to_string(),
+                        source: "code".to_string(),
+                    };
+
+                    let alg = header
+                        .claim("alg")
+                        .map(|x| x.as_str().unwrap_or_default())
+                        .unwrap_or_default();
+
+                    let crv = key.as_ref().map(|x| x.curve().unwrap_or_default());
+
+                    match validate_hash(name, c_hash, alg, code, crv) {
+                        Ok(_) => {}
+                        Err(OidcClientError::Error(e, _)) => {
+                            let mut extra_data = HashMap::<String, Value>::new();
+
+                            extra_data.insert("jwt".to_string(), json!(id_token));
+
+                            return Err(OidcClientError::new_rp_error(
+                                &e.message,
+                                None,
+                                Some(extra_data),
+                            ));
+                        }
+                        Err(OidcClientError::TypeError(e, _)) => {
+                            let mut extra_data = HashMap::<String, Value>::new();
+
+                            extra_data.insert("jwt".to_string(), json!(id_token));
+
+                            return Err(OidcClientError::new_rp_error(
+                                &e.message,
+                                None,
+                                Some(extra_data),
+                            ));
+                        }
+                        Err(err) => return Err(err),
+                    }
+                }
+            }
+
+            return Ok(token_set);
+        }
+
+        Err(OidcClientError::new_type_error(
+            "id_token not present in TokenSet",
+            None,
         ))
     }
 }

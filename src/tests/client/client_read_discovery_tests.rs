@@ -29,6 +29,7 @@ async fn accepts_and_assigns_discovered_metadata() {
         None,
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap();
@@ -58,6 +59,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
         None,
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap_err();
@@ -95,6 +97,7 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
         None,
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap_err();
@@ -129,6 +132,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
         None,
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap_err();
@@ -163,6 +167,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
         None,
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
+        false,
     )
     .await
     .unwrap_err();
@@ -187,6 +192,7 @@ async fn does_not_accept_oct_keys() {
         None,
         None,
         None,
+        false,
     )
     .await
     .unwrap_err();
@@ -209,6 +215,7 @@ async fn does_not_accept_public_keys() {
         None,
         None,
         None,
+        false,
     )
     .await
     .unwrap_err();
@@ -252,6 +259,7 @@ mod http_options {
                 test_header_value: Some("testHeaderValue".to_string()),
                 test_server_port: Some(mock_http_server.port()),
             })),
+            false,
         )
         .await
         .unwrap();

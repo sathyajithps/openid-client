@@ -209,7 +209,7 @@ impl Client {
     }
 
     /// Get default max age
-    pub fn get_default_max_age(&self) -> Option<i64> {
+    pub fn get_default_max_age(&self) -> Option<u64> {
         self.default_max_age
     }
 

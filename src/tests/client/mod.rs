@@ -28,4 +28,7 @@ mod client_auth_for_tests;
 #[cfg(test)]
 mod client_oauth_callback_tests;
 
+#[cfg(test)]
+mod client_callback_tests;
+
 pub mod helpers;

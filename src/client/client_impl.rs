@@ -1,9 +1,12 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
-use crate::types::{CallbackExtras, CallbackParams, OAuthCallbackChecks, Request};
+use crate::types::{
+    CallbackExtras, CallbackParams, OAuthCallbackChecks, OpenIDCallbackChecks, Request,
+};
 use crate::{
     helpers::convert_json_to,
     tokenset::{TokenSet, TokenSetParams},
@@ -709,7 +712,7 @@ impl Client {
             ));
             }
 
-            token_set.set_id_token_none();
+            token_set.set_id_token(None);
 
             return Ok(token_set);
         }
@@ -753,7 +756,432 @@ impl Client {
             token_type,
             session_state,
             refresh_token,
-            ..Default::default()
+            other: Some(other_fields),
+        };
+
+        Ok(TokenSet::new(token_params))
+    }
+
+    /// When `skip_max_age_check` is set to true, Id token's
+    /// Max age wont be validated
+    pub fn set_skip_max_age_check(&mut self, max_age_check: bool) {
+        self.skip_max_age_check = max_age_check;
+    }
+
+    /// When `skip_nonce_check` is set to true, Id token's
+    /// Nonce wont be validated
+    pub fn set_skip_nonce_check(&mut self, nonce_check: bool) {
+        self.skip_nonce_check = nonce_check;
+    }
+
+    /// It is possible the RP or OP environment has a system clock skew,
+    /// which can result in the error "JWT not active yet".
+    pub fn set_clock_skew_duration(&mut self, duration: Duration) {
+        self.clock_tolerance = duration;
+    }
+
+    /// # Callback
+    /// Performs the callback for Authorization Server's authorization response.
+    ///
+    /// - `redirect_uri` - The redirect uri of the [Client]
+    /// - `params` - [CallbackParams] : Parameters recieved from the callback response
+    /// - `checks` - [OpenIDCallbackChecks] : Checks to be performed against `params`
+    /// - `extras` - [CallbackExtras] : Extra details to be used for token grant
+    ///
+    /// ### *Example:*
+    ///  ```
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: Some("https://auth.example.com".to_string()),
+    ///        token_endpoint: Some("https://auth.example.com/token".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        client_secret: Some("secure".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let callback_params = CallbackParams {
+    ///        code: Some("code".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let token_set = client
+    ///        .callback_async(
+    ///            Some("https://rp.example.com/cb".to_string()),
+    ///            callback_params,
+    ///            None,
+    ///            None,
+    ///        )
+    ///        .await.unwrap();
+    /// ```
+    pub async fn callback_async(
+        &mut self,
+        redirect_uri: Option<String>,
+        mut params: CallbackParams,
+        checks: Option<OpenIDCallbackChecks>,
+        extras: Option<CallbackExtras>,
+    ) -> Result<TokenSet, OidcClientError> {
+        let mut checks = checks.unwrap_or_default();
+
+        let oauth_checks = checks.oauth_checks.clone().unwrap_or_default();
+
+        if oauth_checks.jarm.is_some_and(|x| x) && params.response.is_none() {
+            let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+            if let Ok(p) = serde_json::to_value(params) {
+                extra_data.insert("params".to_string(), p);
+            };
+
+            if let Ok(c) = serde_json::to_value(checks) {
+                extra_data.insert("checks".to_string(), c);
+            };
+
+            return Err(OidcClientError::new_rp_error(
+                "expected a JARM response",
+                None,
+                Some(extra_data),
+            ));
+        } else if let Some(response) = &params.response {
+            let decrypted = self.decrypt_jarm(response)?;
+            let payload = self.validate_jarm_async(&decrypted).await?;
+            params = CallbackParams::from_jwt_payload(&payload);
+        }
+
+        if self.default_max_age.is_some() && checks.max_age.is_none() {
+            checks.max_age = self.default_max_age;
+        }
+
+        if params.state.is_some() && oauth_checks.state.is_none() {
+            return Err(OidcClientError::new_type_error(
+                "checks.state argument is missing",
+                None,
+            ));
+        }
+
+        if params.state.is_none() && oauth_checks.state.is_some() {
+            let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+            if let Ok(p) = serde_json::to_value(params) {
+                extra_data.insert("params".to_string(), p);
+            };
+
+            if let Ok(c) = serde_json::to_value(checks) {
+                extra_data.insert("checks".to_string(), c);
+            };
+
+            return Err(OidcClientError::new_rp_error(
+                "state missing from the response",
+                None,
+                Some(extra_data),
+            ));
+        }
+
+        if params.state != oauth_checks.state {
+            let checks_state = oauth_checks.state.clone();
+            let params_state = params.state.clone();
+
+            let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+            if let Ok(p) = serde_json::to_value(params) {
+                extra_data.insert("params".to_string(), p);
+            };
+
+            if let Ok(c) = serde_json::to_value(checks) {
+                extra_data.insert("checks".to_string(), c);
+            };
+
+            return Err(OidcClientError::new_rp_error(
+                &format!(
+                    "state mismatch, expected {0}, got: {1}",
+                    checks_state.unwrap(),
+                    params_state.unwrap()
+                ),
+                None,
+                Some(extra_data),
+            ));
+        }
+
+        let issuer = match self.issuer.as_ref() {
+            Some(iss) => iss,
+            None => return Err(OidcClientError::new_type_error("Issuer is required", None)),
+        };
+
+        if params.iss.is_some() {
+            if issuer.issuer.is_empty() {
+                return Err(OidcClientError::new_type_error(
+                    "issuer must be configured on the issuer",
+                    None,
+                ));
+            }
+
+            let params_iss = params.iss.clone().unwrap();
+            if params_iss != issuer.issuer {
+                let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+                if let Ok(p) = serde_json::to_value(params) {
+                    extra_data.insert("params".to_string(), p);
+                };
+
+                return Err(OidcClientError::new_rp_error(
+                    &format!(
+                        "iss mismatch, expected {0}, got: {1}",
+                        issuer.issuer, params_iss
+                    ),
+                    None,
+                    Some(extra_data),
+                ));
+            }
+        } else if issuer
+            .authorization_response_iss_parameter_supported
+            .is_some_and(|x| x)
+            && params.id_token.is_none()
+            && params.response.is_none()
+        {
+            let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+            if let Ok(p) = serde_json::to_value(params) {
+                extra_data.insert("params".to_string(), p);
+            };
+
+            return Err(OidcClientError::new_rp_error(
+                "iss missing from the response",
+                None,
+                Some(extra_data),
+            ));
+        }
+
+        if params.error.is_some() {
+            return Err(OidcClientError::new_op_error(
+                params.error.unwrap(),
+                params.error_description,
+                params.error_uri,
+                None,
+                None,
+                None,
+            ));
+        }
+
+        if oauth_checks.response_type.is_some() {
+            for res_type in oauth_checks.response_type.as_ref().unwrap().split(' ') {
+                if res_type == "none"
+                    && (params.code.is_some()
+                        || params.id_token.is_some()
+                        || params.access_token.is_some())
+                {
+                    let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+                    if let Ok(p) = serde_json::to_value(params) {
+                        extra_data.insert("params".to_string(), p);
+                    };
+
+                    if let Ok(c) = serde_json::to_value(checks) {
+                        extra_data.insert("checks".to_string(), c);
+                    };
+
+                    return Err(OidcClientError::new_rp_error(
+                        "unexpected params encountered for \"none\" response",
+                        None,
+                        Some(extra_data),
+                    ));
+                } else if res_type == "code" || res_type == "token" || res_type == "id_token" {
+                    let mut message = "";
+
+                    if res_type == "code" && params.code.is_none() {
+                        message = "code missing from response";
+                    }
+
+                    if res_type == "token" && params.access_token.is_none() {
+                        message = "access_token missing from response";
+                    }
+
+                    if res_type == "token" && params.token_type.is_none() {
+                        message = "token_type missing from response";
+                    }
+
+                    if res_type == "id_token" && params.id_token.is_none() {
+                        message = "id_token missing from response";
+                    }
+
+                    if !message.is_empty() {
+                        let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+                        if let Ok(p) = serde_json::to_value(params) {
+                            extra_data.insert("params".to_string(), p);
+                        };
+
+                        if let Ok(c) = serde_json::to_value(checks) {
+                            extra_data.insert("checks".to_string(), c);
+                        };
+
+                        return Err(OidcClientError::new_rp_error(
+                            message,
+                            None,
+                            Some(extra_data),
+                        ));
+                    }
+                }
+            }
+        }
+
+        if params.id_token.as_ref().is_some_and(|x| !x.is_empty()) {
+            let other_fields = match &params.other {
+                Some(o) => o.clone(),
+                None => HashMap::new(),
+            };
+
+            let expires_at = match other_fields.get("expires_at") {
+                Some(eat) => eat.as_i64(),
+                None => None,
+            };
+            let scope = match other_fields.get("scope") {
+                Some(s) => s.as_str().map(|f| f.to_owned()),
+                None => None,
+            };
+            let token_type = match other_fields.get("token_type") {
+                Some(s) => s.as_str().map(|f| f.to_owned()),
+                None => None,
+            };
+            let session_state = match other_fields.get("session_state") {
+                Some(s) => s.as_str().map(|f| f.to_owned()),
+                None => None,
+            };
+            let refresh_token = match other_fields.get("refresh_token") {
+                Some(s) => s.as_str().map(|f| f.to_owned()),
+                None => None,
+            };
+            let expires_in = match &params.expires_in {
+                Some(exp_in) => exp_in.parse::<i64>().ok(),
+                None => None,
+            };
+
+            let token_params = TokenSetParams {
+                access_token: params.access_token.clone(),
+                id_token: params.id_token.clone(),
+                expires_in,
+                expires_at,
+                scope,
+                token_type,
+                session_state,
+                refresh_token,
+                other: Some(other_fields),
+            };
+
+            let mut token_set = TokenSet::new(token_params);
+
+            token_set = self.decrypt_id_token(token_set)?;
+
+            token_set = self
+                .validate_id_token_async(
+                    token_set,
+                    checks.nonce.clone(),
+                    "authorization",
+                    checks.max_age,
+                    oauth_checks.state.clone(),
+                )
+                .await?;
+
+            if params.code.is_none() {
+                return Ok(token_set);
+            }
+        }
+
+        if params.code.is_some() {
+            let mut exchange_body = match extras.as_ref() {
+                Some(e) => e
+                    .exchange_body
+                    .clone()
+                    .unwrap_or(HashMap::<String, Value>::new()),
+                None => HashMap::<String, Value>::new(),
+            };
+
+            exchange_body.insert("grant_type".to_string(), json!("authorization_code"));
+            exchange_body.insert("code".to_string(), json!(params.code.as_ref().unwrap()));
+            if let Some(ru) = redirect_uri.as_ref() {
+                exchange_body.insert("redirect_uri".to_string(), json!(ru));
+            };
+
+            if let Some(cv) = oauth_checks.code_verifier.as_ref() {
+                exchange_body.insert("code_verifier".to_string(), json!(cv));
+            };
+
+            let mut auth_post_params = AuthenticationPostParams::default();
+
+            match &extras {
+                Some(e) => {
+                    auth_post_params.client_assertion_payload = e.client_assertion_payload.clone();
+                    auth_post_params.dpop = e.dpop.clone();
+                }
+                None => {}
+            };
+
+            let mut token_set = self.grant_async(exchange_body, auth_post_params).await?;
+
+            token_set = self.decrypt_id_token(token_set)?;
+            token_set = self
+                .validate_id_token_async(
+                    token_set,
+                    checks.nonce,
+                    "token",
+                    checks.max_age,
+                    oauth_checks.state,
+                )
+                .await?;
+
+            if params.session_state.is_some() {
+                token_set.set_session_state(params.session_state);
+            }
+
+            return Ok(token_set);
+        }
+
+        let mut other_fields = match &params.other {
+            Some(o) => o.clone(),
+            None => HashMap::new(),
+        };
+
+        if let Some(state) = params.state {
+            other_fields.insert("state".to_string(), json!(state));
+        }
+
+        let expires_at = match other_fields.get("expires_at") {
+            Some(eat) => eat.as_i64(),
+            None => None,
+        };
+        let scope = match other_fields.get("scope") {
+            Some(s) => s.as_str().map(|f| f.to_owned()),
+            None => None,
+        };
+        let token_type = match other_fields.get("token_type") {
+            Some(s) => s.as_str().map(|f| f.to_owned()),
+            None => None,
+        };
+        let session_state = match other_fields.get("session_state") {
+            Some(s) => s.as_str().map(|f| f.to_owned()),
+            None => None,
+        };
+        let refresh_token = match other_fields.get("refresh_token") {
+            Some(s) => s.as_str().map(|f| f.to_owned()),
+            None => None,
+        };
+        let expires_in = match params.expires_in {
+            Some(exp_in) => exp_in.parse::<i64>().ok(),
+            None => None,
+        };
+
+        let token_params = TokenSetParams {
+            access_token: params.access_token,
+            id_token: params.id_token,
+            expires_in,
+            expires_at,
+            scope,
+            token_type,
+            session_state,
+            refresh_token,
+            other: Some(other_fields),
         };
 
         Ok(TokenSet::new(token_params))
