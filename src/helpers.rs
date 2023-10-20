@@ -223,7 +223,11 @@ fn get_hash(alg: &str, token: &str, curve: Option<&str>) -> Result<Vec<u8>, Oidc
     }
 }
 
-fn generate_hash(alg: &str, token: &str, curve: Option<&str>) -> Result<String, OidcClientError> {
+pub(crate) fn generate_hash(
+    alg: &str,
+    token: &str,
+    curve: Option<&str>,
+) -> Result<String, OidcClientError> {
     let hash = get_hash(alg, token, curve).unwrap();
 
     Ok(base64_url::encode(&hash[0..hash.len() / 2]))

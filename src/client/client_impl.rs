@@ -717,10 +717,18 @@ impl Client {
             return Ok(token_set);
         }
 
-        let other_fields = match params.other {
+        let mut other_fields = match params.other {
             Some(o) => o.clone(),
             None => HashMap::new(),
         };
+
+        if let Some(state) = &params.state {
+            other_fields.insert("state".to_string(), json!(state));
+        }
+
+        if let Some(code) = &params.code {
+            other_fields.insert("code".to_string(), json!(code));
+        }
 
         let expires_at = match other_fields.get("expires_at") {
             Some(eat) => eat.as_i64(),
@@ -1028,10 +1036,18 @@ impl Client {
         }
 
         if params.id_token.as_ref().is_some_and(|x| !x.is_empty()) {
-            let other_fields = match &params.other {
+            let mut other_fields = match &params.other {
                 Some(o) => o.clone(),
                 None => HashMap::new(),
             };
+
+            if let Some(state) = &params.state {
+                other_fields.insert("state".to_string(), json!(state));
+            }
+
+            if let Some(code) = &params.code {
+                other_fields.insert("code".to_string(), json!(code));
+            }
 
             let expires_at = match other_fields.get("expires_at") {
                 Some(eat) => eat.as_i64(),
@@ -1145,6 +1161,10 @@ impl Client {
 
         if let Some(state) = params.state {
             other_fields.insert("state".to_string(), json!(state));
+        }
+
+        if let Some(code) = params.code {
+            other_fields.insert("code".to_string(), json!(code));
         }
 
         let expires_at = match other_fields.get("expires_at") {
