@@ -33,6 +33,7 @@ pub struct CallbackParams {
     /// Issuer
     pub iss: Option<String>,
     /// Other fields from Auth server
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub other: Option<HashMap<String, Value>>,
 }
 

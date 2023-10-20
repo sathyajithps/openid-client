@@ -573,7 +573,17 @@ impl Jwks {
             keys: self
                 .keys
                 .iter()
-                .filter_map(|k| k.to_public_key().ok())
+                .filter_map(|k| {
+                    let mut pub_key = k.to_public_key().ok();
+
+                    if let Some(pk) = &mut pub_key {
+                        if let Some(alg) = k.algorithm() {
+                            pk.set_algorithm(alg);
+                        }
+                    }
+
+                    pub_key
+                })
                 .collect(),
         }
     }

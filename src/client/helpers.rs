@@ -868,18 +868,22 @@ impl Client {
 
             let nbf_value = nbf.as_i64().unwrap();
 
-            // TODO: add tolerance to timestamp and compare
-            if nbf_value > timestamp {
+            if nbf_value > (timestamp.wrapping_add(self.clock_tolerance.as_secs() as i64)) {
                 let mut extra_data = HashMap::<String, Value>::new();
                 extra_data.insert("jwt".to_string(), json!(jwt));
                 extra_data.insert("nbf".to_string(), json!(nbf_value));
                 extra_data.insert("now".to_string(), json!(timestamp));
-                // TODO: add tolerance
-                extra_data.insert("tolerance".to_string(), json!(null));
+                extra_data.insert(
+                    "tolerance".to_string(),
+                    json!(self.clock_tolerance.as_secs()),
+                );
 
                 return Err(OidcClientError::new_rp_error(
-                    // TODO: add tolerance
-                    &format!("JWT not active yet, now {}, nbf {}", timestamp, nbf_value),
+                    &format!(
+                        "JWT not active yet, now {}, nbf {}",
+                        timestamp.wrapping_add(self.clock_tolerance.as_secs() as i64),
+                        nbf_value
+                    ),
                     None,
                     Some(extra_data),
                 ));
@@ -902,18 +906,22 @@ impl Client {
 
             let exp_value = exp.as_i64().unwrap();
 
-            // TODO: add tolerance to timestamp and compare
-            if timestamp >= exp_value {
+            if (timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64)) >= exp_value {
                 let mut extra_data = HashMap::<String, Value>::new();
                 extra_data.insert("jwt".to_string(), json!(jwt));
                 extra_data.insert("exp".to_string(), json!(exp));
                 extra_data.insert("now".to_string(), json!(timestamp));
-                // TODO: add tolerance
-                extra_data.insert("tolerance".to_string(), json!(null));
+                extra_data.insert(
+                    "tolerance".to_string(),
+                    json!(self.clock_tolerance.as_secs()),
+                );
 
                 return Err(OidcClientError::new_rp_error(
-                    // TODO: add tolerance
-                    &format!("JWT expired, now {}, exp {}", timestamp, exp_value),
+                    &format!(
+                        "JWT expired, now {}, exp {}",
+                        timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64),
+                        exp_value
+                    ),
                     None,
                     Some(extra_data),
                 ));
@@ -935,7 +943,7 @@ impl Client {
                 ));
             }
 
-            if !aud.contains(&self.client_id.as_str()) {
+            if aud.len() > 1 && !aud.contains(&self.client_id.as_str()) {
                 let mut extra_data = HashMap::<String, Value>::new();
                 extra_data.insert("jwt".to_string(), json!(jwt));
 
@@ -944,6 +952,15 @@ impl Client {
                         "aud is missing the client_id, expected {} to be included in {:?}",
                         self.client_id, aud
                     ),
+                    None,
+                    Some(extra_data),
+                ));
+            } else if aud.len() == 1 && !aud.contains(&self.client_id.as_str()) {
+                let mut extra_data = HashMap::<String, Value>::new();
+                extra_data.insert("jwt".to_string(), json!(jwt));
+
+                return Err(OidcClientError::new_rp_error(
+                    &format!("aud mismatch, expected {}, got: {}", self.client_id, aud[0]),
                     None,
                     Some(extra_data),
                 ));
@@ -1164,7 +1181,7 @@ impl Client {
 
             let timestamp = now();
 
-            let (header, payload, key) = self
+            let (payload, header, key) = self
                 .validate_jwt_async(&id_token, &expected_alg, None)
                 .await?;
 

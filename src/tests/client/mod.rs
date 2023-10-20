@@ -31,4 +31,7 @@ mod client_oauth_callback_tests;
 #[cfg(test)]
 mod client_callback_tests;
 
+#[cfg(test)]
+mod client_validate_id_token;
+
 pub mod helpers;
