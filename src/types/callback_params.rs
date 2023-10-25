@@ -6,7 +6,7 @@ use serde_json::Value;
 
 /// # CallbackParams
 /// These are the fields that was recieved from the Authorization server to the client
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Debug)]
 pub struct CallbackParams {
     /// Access token obtained
     pub access_token: Option<String>,

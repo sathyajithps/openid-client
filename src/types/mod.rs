@@ -11,8 +11,10 @@ mod decoded_token;
 mod end_session_parameters;
 mod errors;
 mod http;
+mod introspection_params;
 mod issuer_metadata;
 pub(crate) mod query_keystore;
+mod request_resource_params;
 mod webfinger;
 
 pub use authentication_post_param::AuthenticationPostParams;
@@ -31,5 +33,7 @@ pub use errors::{
     Error, ErrorWithResponse, OidcClientError, RPError, StandardBodyError, TypeError,
 };
 pub use http::{Interceptor, Lookup, Request, RequestInterceptor, RequestOptions, Response};
+pub use introspection_params::IntrospectionParams;
 pub use issuer_metadata::{IssuerMetadata, MtlsEndpoints};
+pub use request_resource_params::RequestResourceParams;
 pub(crate) use webfinger::WebFingerResponse;
