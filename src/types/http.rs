@@ -1,7 +1,10 @@
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 
 use reqwest::{header::HeaderMap, Method, StatusCode};
+use serde_json::Value;
 use url::Url;
+
+use crate::helpers::convert_json_to;
 
 /// # Request
 /// Request is an internal struct used to create various OIDC requests.
@@ -98,6 +101,14 @@ pub struct Response {
 }
 
 impl Response {
+    /// Tries and converts the body (if present) to a [HashMap<String, Value>]
+    pub async fn try_get_body_as_hash_map(&self) -> Option<HashMap<String, Value>> {
+        if let Some(body_string) = &self.body {
+            return convert_json_to::<HashMap<String, Value>>(body_string).ok();
+        }
+        None
+    }
+
     /// Creates a new instance of Response from [reqwest::Response]
     pub(crate) async fn from_async(response: reqwest::Response) -> Self {
         let status = response.status();

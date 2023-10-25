@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 /// # MtlsEndpoints
 /// [OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens](https://datatracker.ietf.org/doc/html/rfc8705)
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub struct MtlsEndpoints {
     /// mTLS token endpoint
     pub token_endpoint: Option<String>,
@@ -20,7 +20,7 @@ pub struct MtlsEndpoints {
 
 /// # IssuerMetadata
 /// Metadata about the OIDC Authorization Server. [OIDC Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationResponse).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct IssuerMetadata {
     /// Issuer url. [RFC8414 - Obtaining Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html#section-3).
     pub issuer: String,
@@ -61,35 +61,9 @@ pub struct IssuerMetadata {
     pub mtls_endpoint_aliases: Option<MtlsEndpoints>,
     /// OP support of returning the OP id in auth response. [RFC](https://www.ietf.org/archive/id/draft-meyerzuselhausen-oauth-iss-auth-resp-02.html#name-providing-the-issuer-identi)
     pub authorization_response_iss_parameter_supported: Option<bool>,
+    /// A JSON array containing a list of the JWS alg values supported by the authorization server for DPoP proof JWTs
+    pub dpop_signing_alg_values_supported: Option<Vec<String>>,
     /// Any extra data that was read from the discovery document
     #[serde(flatten)]
     pub other_fields: HashMap<String, serde_json::Value>,
-}
-
-impl Default for IssuerMetadata {
-    /// This default value serves only one purpose, just so that you dont have to assign every value
-    /// as none if you just to get started with a couple of values.
-    fn default() -> Self {
-        Self {
-            issuer: "".to_string(),
-            authorization_endpoint: None,
-            token_endpoint: None,
-            jwks_uri: None,
-            userinfo_endpoint: None,
-            revocation_endpoint: None,
-            end_session_endpoint: None,
-            registration_endpoint: None,
-            introspection_endpoint: None,
-            token_endpoint_auth_methods_supported: None,
-            token_endpoint_auth_signing_alg_values_supported: None,
-            introspection_endpoint_auth_methods_supported: None,
-            introspection_endpoint_auth_signing_alg_values_supported: None,
-            revocation_endpoint_auth_methods_supported: None,
-            revocation_endpoint_auth_signing_alg_values_supported: None,
-            request_object_signing_alg_values_supported: None,
-            mtls_endpoint_aliases: None,
-            authorization_response_iss_parameter_supported: None,
-            other_fields: Default::default(),
-        }
-    }
 }

@@ -62,8 +62,6 @@ pub struct Issuer {
     pub(crate) end_session_endpoint: Option<String>,
     /// Extra key values
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
-    /// Jwk Key Set,
-    pub(crate) jwks: Option<Jwks>,
     /// Keystore
     pub(crate) keystore: Option<KeyStore>,
     /// See [MtlsEndpoints]
@@ -74,6 +72,8 @@ pub struct Issuer {
     pub(crate) registration_endpoint: Option<String>,
     /// OP support of returning the OP id in auth response. [RFC](https://www.ietf.org/archive/id/draft-meyerzuselhausen-oauth-iss-auth-resp-02.html#name-providing-the-issuer-identi)
     pub(crate) authorization_response_iss_parameter_supported: Option<bool>,
+    /// A JSON array containing a list of the JWS alg values supported by the authorization server for DPoP proof JWTs
+    pub(crate) dpop_signing_alg_values_supported: Option<Vec<String>>,
     /// Request interceptor used for every request
     pub(crate) request_interceptor: Option<RequestInterceptor>,
 }
@@ -106,12 +106,12 @@ impl Default for Issuer {
             revocation_endpoint_auth_signing_alg_values_supported: None,
             end_session_endpoint: None,
             other_fields: Default::default(),
-            jwks: None,
             keystore: None,
             mtls_endpoint_aliases: None,
             introspection_endpoint: None,
             authorization_response_iss_parameter_supported: None,
             registration_endpoint: None,
+            dpop_signing_alg_values_supported: None,
         }
     }
 }
@@ -308,7 +308,6 @@ impl Issuer {
             revocation_endpoint_auth_signing_alg_values_supported,
             other_fields: metadata.other_fields,
             request_interceptor: interceptor,
-            jwks: None,
             keystore: Some(KeyStore::new(jwks_uri, cloned_interceptor)),
             mtls_endpoint_aliases: metadata.mtls_endpoint_aliases,
             introspection_endpoint: metadata.introspection_endpoint,
@@ -316,6 +315,7 @@ impl Issuer {
             end_session_endpoint: metadata.end_session_endpoint,
             authorization_response_iss_parameter_supported: metadata
                 .authorization_response_iss_parameter_supported,
+            dpop_signing_alg_values_supported: metadata.dpop_signing_alg_values_supported,
         }
     }
 }
@@ -877,7 +877,6 @@ impl Clone for Issuer {
                 .revocation_endpoint_auth_signing_alg_values_supported
                 .clone(),
             other_fields: self.other_fields.clone(),
-            jwks: self.jwks.clone(),
             keystore: self.keystore.clone(),
             mtls_endpoint_aliases: self.mtls_endpoint_aliases.clone(),
             introspection_endpoint: self.introspection_endpoint.clone(),
@@ -886,6 +885,7 @@ impl Clone for Issuer {
             end_session_endpoint: self.end_session_endpoint.clone(),
             authorization_response_iss_parameter_supported: self
                 .authorization_response_iss_parameter_supported,
+            dpop_signing_alg_values_supported: self.dpop_signing_alg_values_supported.clone(),
         }
     }
 }
@@ -1005,13 +1005,27 @@ impl Issuer {
     }
 
     /// Get Jwks
-    pub fn get_jwks(&self) -> Option<Jwks> {
-        self.jwks.clone()
+    pub async fn get_jwks(&mut self) -> Option<Jwks> {
+        if let Some(ks) = &mut self.keystore {
+            return ks.get_keystore_async(false).await.ok();
+        }
+
+        None
     }
 
     /// Get registration endpoint
     pub fn get_registration_endpoint(&self) -> Option<String> {
         self.registration_endpoint.clone()
+    }
+
+    /// Get authorization response issuer parameter supported
+    pub fn get_authorization_response_iss_parameter_supported(&self) -> Option<bool> {
+        self.authorization_response_iss_parameter_supported
+    }
+
+    /// Get DPoP alg valued supported
+    pub fn get_dpop_signing_alg_values_supported(&self) -> Option<Vec<String>> {
+        self.dpop_signing_alg_values_supported.clone()
     }
 
     /// Sets an [RequestInterceptor]

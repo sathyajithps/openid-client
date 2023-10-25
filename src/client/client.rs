@@ -168,7 +168,7 @@ impl Client {
             subject_type: None,
             id_token_signed_response_alg: "RS256".to_string(),
             id_token_encrypted_response_alg: None,
-            id_token_encrypted_response_enc: None,
+            id_token_encrypted_response_enc: Some("A128CBC-HS256".to_string()),
             userinfo_signed_response_alg: None,
             userinfo_encrypted_response_alg: None,
             userinfo_encrypted_response_enc: None,
@@ -243,7 +243,6 @@ impl Client {
             client_id_issued_at: metadata.client_id_issued_at,
             client_secret_expires_at: metadata.client_secret_expires_at,
             id_token_encrypted_response_alg: metadata.id_token_encrypted_response_alg,
-            id_token_encrypted_response_enc: metadata.id_token_encrypted_response_enc,
             userinfo_signed_response_alg: metadata.userinfo_signed_response_alg,
             userinfo_encrypted_response_alg: metadata.userinfo_encrypted_response_alg,
             userinfo_encrypted_response_enc: metadata.userinfo_encrypted_response_enc,
@@ -361,6 +360,10 @@ impl Client {
             )?;
 
             client.issuer = Some(iss.clone());
+        }
+
+        if metadata.id_token_encrypted_response_enc.is_some() {
+            client.id_token_encrypted_response_enc = metadata.id_token_encrypted_response_enc;
         }
 
         if let Some(i) = interceptor {

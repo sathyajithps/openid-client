@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use reqwest::header::HeaderValue;
+use reqwest::Method;
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
+use crate::http::request_async;
 use crate::types::{
-    CallbackExtras, CallbackParams, OAuthCallbackChecks, OpenIDCallbackChecks, Request,
+    CallbackExtras, CallbackParams, IntrospectionParams, OAuthCallbackChecks, OpenIDCallbackChecks,
+    Request, RequestResourceParams, Response,
 };
 use crate::{
     helpers::convert_json_to,
@@ -1205,6 +1209,239 @@ impl Client {
         };
 
         Ok(TokenSet::new(token_params))
+    }
+
+    /// # Introspect
+    /// Performs an introspection request at `Issuer::introspection_endpoint`
+    ///
+    /// - `token` : The token to introspect
+    /// - `token_type_hint` : Type of the token passed in `token`. Usually `access_token` or `refresh_token`
+    /// - `params`: See [IntrospectionParams]
+    pub async fn introspect_async(
+        &mut self,
+        token: &str,
+        token_type_hint: Option<String>,
+        params: Option<IntrospectionParams>,
+    ) -> Result<Response, OidcClientError> {
+        let issuer = match self.issuer.as_ref() {
+            Some(iss) => iss,
+            None => return Err(OidcClientError::new_type_error("Issuer is required", None)),
+        };
+
+        if issuer.introspection_endpoint.is_none() {
+            return Err(OidcClientError::new_type_error(
+                "introspection_endpoint must be configured on the issuer",
+                None,
+            ));
+        }
+
+        let mut form = HashMap::new();
+
+        form.insert("token".to_string(), json!(token));
+
+        if let Some(hint) = token_type_hint {
+            form.insert("token_type_hint".to_string(), json!(hint));
+        }
+
+        let mut client_assertion_payload = None;
+
+        if let Some(p) = params {
+            if let Some(body) = p.introspect_body {
+                for (k, v) in body {
+                    form.insert(k, v);
+                }
+            }
+
+            if let Some(cap) = p.client_assertion_payload {
+                client_assertion_payload = Some(cap);
+            }
+        }
+
+        let req = Request {
+            form: Some(form),
+            response_type: Some("json".to_string()),
+            method: Method::POST,
+            ..Default::default()
+        };
+
+        self.authenticated_post_async(
+            "introspection",
+            req,
+            AuthenticationPostParams {
+                client_assertion_payload,
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    /// # Request Resource
+    /// Performs a request to fetch using the access token at `resource_url`.
+    ///
+    /// - `resource_url` : Url of the resource server
+    /// - `token` : Token to authenticate the resource fetch request
+    /// - `token_type` : Type of the `token`. Eg: `access_token`
+    /// - `retry` : Whether to retry if the request failed or not
+    /// - `params` : See [RequestResourceParams]
+    #[async_recursion::async_recursion(?Send)]
+    pub async fn request_resource_async(
+        &mut self,
+        resource_url: &str,
+        token: &str,
+        token_type: Option<String>,
+        retry: bool,
+        mut params: RequestResourceParams,
+    ) -> Result<Response, OidcClientError> {
+        let tt = token_type.unwrap_or("Bearer".to_string());
+
+        if !params
+            .headers
+            .iter()
+            .any(|(k, _)| k.as_str().to_lowercase() == "authorization")
+        {
+            if let Ok(header_val) = HeaderValue::from_str(&format!("{} {}", tt, token)) {
+                params.headers.insert("Authorization", header_val);
+            }
+        }
+
+        let req = Request {
+            method: params.method.clone(),
+            body: params.body.clone(),
+            url: resource_url.to_string(),
+            mtls: self
+                .tls_client_certificate_bound_access_tokens
+                .is_some_and(|x| x),
+            headers: params.headers.clone(),
+            ..Default::default()
+        };
+
+        match request_async(req, &mut self.request_interceptor).await {
+            Ok(r) => Ok(r),
+            // TODO: revisit when implementing the dpop
+            Err(OidcClientError::OPError(e, Some(res))) => {
+                if retry && e.error == "use_dpop_nonce" {
+                    if let Some(header_val) = res.headers.get("www-authenticate") {
+                        if let Some(header_val_str) =
+                            header_val.to_str().ok().map(|x| x.to_lowercase())
+                        {
+                            if header_val_str.starts_with("dpop ") {
+                                return self
+                                    .request_resource_async(
+                                        resource_url,
+                                        token,
+                                        Some(tt),
+                                        false,
+                                        params.clone(),
+                                    )
+                                    .await;
+                            }
+                        }
+                    }
+                }
+
+                return Err(OidcClientError::new_op_error(
+                    e.error,
+                    e.error_description,
+                    e.error_uri,
+                    e.state,
+                    e.scope,
+                    Some(res),
+                ));
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// # Callback Params
+    /// Tries to convert the Url or a body string to [CallbackParams]
+    ///
+    /// - `incoming_url` : The full url of the request ([Url]). Use this param if the request is of the type GET
+    /// - `incoming_body` : Incoming body. Use this param if the request is of the type POST
+    ///
+    /// > Only one of the above parameter is parsed.
+    pub fn callback_params(
+        &self,
+        incoming_url: Option<&Url>,
+        incoming_body: Option<String>,
+    ) -> Result<CallbackParams, OidcClientError> {
+        let mut query_pairs = None;
+        if let Some(url) = incoming_url {
+            query_pairs = Some(
+                url.query_pairs()
+                    .map(|(x, y)| (x.to_string(), y.to_string()))
+                    .collect::<Vec<(String, String)>>(),
+            );
+        } else if let Some(body) = incoming_body {
+            if let Ok(decoded) = urlencoding::decode(&body) {
+                query_pairs = Some(
+                    querystring::querify(&decoded)
+                        .iter()
+                        .map(|(x, y)| (x.to_string(), y.to_string()))
+                        .collect(),
+                );
+            }
+        }
+
+        if let Some(qp) = query_pairs {
+            let mut params = CallbackParams::default();
+
+            let mut other = HashMap::new();
+
+            for (k, v) in qp {
+                if k == "access_token" {
+                    params.access_token = Some(v.to_string());
+                } else if k == "code" {
+                    params.code = Some(v.to_string());
+                } else if k == "error" {
+                    params.error = Some(v.to_string());
+                } else if k == "error_description" {
+                    params.error_description = Some(v.to_string());
+                } else if k == "error_uri" {
+                    params.error_uri = Some(v.to_string());
+                } else if k == "id_token" {
+                    params.id_token = Some(v.to_string());
+                } else if k == "iss" {
+                    params.iss = Some(v.to_string());
+                } else if k == "response" {
+                    params.response = Some(v.to_string());
+                } else if k == "session_state" {
+                    params.session_state = Some(v.to_string());
+                } else if k == "state" {
+                    params.state = Some(v.to_string());
+                } else if k == "token_type" {
+                    params.token_type = Some(v.to_string());
+                } else {
+                    let val = v.to_string();
+                    let key = k.to_string();
+                    if let Ok(u_64) = val.parse::<u64>() {
+                        other.insert(key, json!(u_64));
+                    } else if let Ok(i_64) = val.parse::<i64>() {
+                        other.insert(key, json!(i_64));
+                    } else if let Ok(f_64) = val.parse::<f64>() {
+                        other.insert(key, json!(f_64));
+                    } else if val == "true" || val == "false" {
+                        let bool = val == "true";
+                        other.insert(key, json!(bool));
+                    } else if let Ok(arr) = serde_json::from_str::<Vec<Value>>(&val) {
+                        other.insert(key, json!(arr));
+                    } else if let Ok(obj) = serde_json::from_str::<Value>(&val) {
+                        other.insert(key, obj);
+                    } else {
+                        other.insert(key, json!(val));
+                    }
+                }
+            }
+
+            if !other.is_empty() {
+                params.other = Some(other);
+            }
+            return Ok(params);
+        }
+
+        Err(OidcClientError::new_error(
+            "could not parse the request",
+            None,
+        ))
     }
 }
 
