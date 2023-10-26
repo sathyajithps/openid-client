@@ -36,6 +36,7 @@
 //! - [client::Client::callback_params]
 //! - [client::Client::request_resource_async]
 //! - [client::Client::refresh_async]
+//! - [client::Client::revoke_async]
 //!
 //! ### Client Read
 //! - [client::Client::from_uri_async]

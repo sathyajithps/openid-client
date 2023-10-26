@@ -2,14 +2,13 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use reqwest::header::HeaderValue;
-use reqwest::Method;
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
 use crate::http::request_async;
 use crate::types::{
     CallbackExtras, CallbackParams, IntrospectionParams, OAuthCallbackChecks, OpenIDCallbackChecks,
-    RefreshTokenRequestParams, Request, RequestResourceParams, Response,
+    RefreshTokenRequestParams, Request, RequestResourceParams, Response, RevokeRequestParams,
 };
 use crate::{
     helpers::convert_json_to,
@@ -1260,7 +1259,6 @@ impl Client {
         let req = Request {
             form: Some(form),
             response_type: Some("json".to_string()),
-            method: Method::POST,
             ..Default::default()
         };
 
@@ -1506,6 +1504,69 @@ impl Client {
         }
 
         Ok(new_token_set)
+    }
+
+    /// # Revoke Token
+    /// Performs a token revocation at Issuer's `revocation_endpoint`
+    ///
+    /// - `token` : The token to be revoked
+    /// - `hint` : Hint to which type of token is being revoked
+    /// - `params` : See [RevokeRequestParams]
+    pub async fn revoke_async(
+        &mut self,
+        token: String,
+        hint: Option<String>,
+        params: Option<RevokeRequestParams>,
+    ) -> Result<Response, OidcClientError> {
+        let issuer = match self.issuer.as_ref() {
+            Some(iss) => iss,
+            None => return Err(OidcClientError::new_type_error("Issuer is required", None)),
+        };
+
+        if issuer.revocation_endpoint.is_none() {
+            return Err(OidcClientError::new_type_error(
+                "revocation_endpoint must be configured on the issuer",
+                None,
+            ));
+        }
+
+        let mut form = HashMap::new();
+
+        form.insert("token".to_string(), json!(token));
+
+        if let Some(h) = hint {
+            form.insert("token_type_hint".to_string(), json!(h));
+        }
+
+        let mut client_assertion_payload = None;
+
+        if let Some(p) = params {
+            if let Some(body) = p.revocation_body {
+                for (k, v) in body {
+                    form.insert(k, v);
+                }
+            }
+
+            if let Some(cap) = p.client_assertion_payload {
+                client_assertion_payload = Some(cap);
+            }
+        }
+
+        let req = Request {
+            form: Some(form),
+            expect_body: false,
+            ..Default::default()
+        };
+
+        self.authenticated_post_async(
+            "revocation",
+            req,
+            AuthenticationPostParams {
+                client_assertion_payload,
+                ..Default::default()
+            },
+        )
+        .await
     }
 }
 
