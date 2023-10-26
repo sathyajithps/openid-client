@@ -24,7 +24,7 @@ pub async fn request_async(
             headers.append(
                 "User-Agent",
                 HeaderValue::from_static(
-                    "openid-client/0.0.31-dev (https://github.com/sathyajithps/openid-client)",
+                    "openid-client/0.0.32-dev (https://github.com/sathyajithps/openid-client)",
                 ),
             );
             RequestOptions {
@@ -238,7 +238,7 @@ fn return_error_if_not_expected_status(
 }
 
 fn return_error_if_expected_body_is_absent(
-    response: Response,
+    mut response: Response,
     request: &Request,
 ) -> Result<Response, OidcClientError> {
     if request.expect_body && response.body.is_none() {
@@ -254,6 +254,11 @@ fn return_error_if_expected_body_is_absent(
             Some(response),
         ));
     }
+
+    if !request.expect_body {
+        response.body = None;
+    }
+
     Ok(response)
 }
 

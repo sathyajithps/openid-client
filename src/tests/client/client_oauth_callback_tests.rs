@@ -67,7 +67,6 @@ async fn does_an_authorization_code_grant_with_code_and_redirect_uri() {
                 let grant_type = kvp
                     .iter()
                     .find(|(k, v)| k == &"grant_type" && v == &"authorization_code");
-                println!("{:?}", kvp);
                 code.is_some() && redirect_uri.is_some() && grant_type.is_some()
             })
             .path("/token");
@@ -266,7 +265,6 @@ mod jarm_response_mode {
                     let grant_type = kvp
                         .iter()
                         .find(|(k, v)| k == &"grant_type" && v == &"authorization_code");
-                    println!("{:?}", kvp);
                     code.is_some()
                         && redirect_uri.is_some()
                         && grant_type.is_some()
@@ -370,7 +368,6 @@ mod jarm_response_mode {
                     let grant_type = kvp
                         .iter()
                         .find(|(k, v)| k == &"grant_type" && v == &"authorization_code");
-                    println!("{:?}", kvp);
                     code.is_some()
                         && redirect_uri.is_some()
                         && grant_type.is_some()

@@ -46,4 +46,7 @@ mod client_decrypt_id_token_tests;
 #[cfg(test)]
 mod client_refresh_tests;
 
+#[cfg(test)]
+mod client_revocation_tests;
+
 pub mod helpers;
