@@ -11,7 +11,10 @@ use josekit::{
 };
 use lazy_static::lazy_static;
 use regex::Regex;
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    Method,
+};
 use serde_json::{json, Value};
 use url::Url;
 
@@ -304,6 +307,8 @@ impl Client {
             req.headers
                 .insert("accept", HeaderValue::from_static("application/json"));
         }
+
+        req.method = Method::POST;
 
         request_async(req, &mut self.request_interceptor).await
     }

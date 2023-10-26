@@ -1,4 +1,4 @@
-use httpmock::{Method::GET, MockServer};
+use httpmock::{Method::POST, MockServer};
 
 use crate::{
     client::Client,
@@ -53,7 +53,7 @@ async fn does_an_authorization_code_grant_with_code_and_redirect_uri() {
     let mock_http_server = MockServer::start();
 
     let oauth_callback_server = mock_http_server.mock(|when, then| {
-        when.method(GET)
+        when.method(POST)
             .header("Accept", "application/json")
             .matches(|req| {
                 let decoded =
@@ -276,7 +276,7 @@ mod jarm_response_mode {
         let mock_http_server = MockServer::start();
 
         let oauth_callback_server = mock_http_server.mock(|when, then| {
-            when.method(GET)
+            when.method(POST)
                 .header("accept", "application/json")
                 .matches(|req| {
                     let mut content_length_exists = false;
@@ -383,7 +383,7 @@ mod jarm_response_mode {
         let mock_http_server = MockServer::start();
 
         let oauth_callback_server = mock_http_server.mock(|when, then| {
-            when.method(GET)
+            when.method(POST)
                 .header("accept", "application/json")
                 .matches(|req| {
                     let mut content_length_exists = false;

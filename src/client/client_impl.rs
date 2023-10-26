@@ -9,7 +9,7 @@ use url::{form_urlencoded, Url};
 use crate::http::request_async;
 use crate::types::{
     CallbackExtras, CallbackParams, IntrospectionParams, OAuthCallbackChecks, OpenIDCallbackChecks,
-    Request, RequestResourceParams, Response,
+    RefreshTokenRequestParams, Request, RequestResourceParams, Response,
 };
 use crate::{
     helpers::convert_json_to,
@@ -1442,6 +1442,70 @@ impl Client {
             "could not parse the request",
             None,
         ))
+    }
+
+    /// # Refresh Request
+    /// Performs a Token Refresh request at Issuer's `token_endpoint`
+    ///
+    /// - `token_set` : [TokenSet] with refresh token that will be used to perform the request
+    /// - `params` : See [RefreshTokenRequestParams]
+    pub async fn refresh_async(
+        &mut self,
+        token_set: TokenSet,
+        params: Option<RefreshTokenRequestParams>,
+    ) -> Result<TokenSet, OidcClientError> {
+        let refresh_token = match token_set.get_refresh_token() {
+            Some(rt) => rt,
+            None => {
+                return Err(OidcClientError::new_type_error(
+                    "refresh_token not present in TokenSet",
+                    None,
+                ))
+            }
+        };
+
+        let mut body = HashMap::new();
+
+        if let Some(exchange_payload) = params.as_ref().and_then(|x| x.exchange_body.as_ref()) {
+            for (k, v) in exchange_payload {
+                body.insert(k.to_owned(), v.to_owned());
+            }
+        }
+
+        body.insert("grant_type".to_string(), json!("refresh_token"));
+        body.insert("refresh_token".to_string(), json!(refresh_token));
+
+        let auth_post_params = AuthenticationPostParams {
+            client_assertion_payload: params.and_then(|x| x.client_assertion_payload),
+            ..Default::default()
+        };
+
+        let mut new_token_set = self.grant_async(body, auth_post_params).await?;
+
+        if let Some(id_token) = new_token_set.get_id_token() {
+            new_token_set = self.decrypt_id_token(new_token_set)?;
+            new_token_set = self
+                .validate_id_token_async(new_token_set, None, "token", None, None)
+                .await?;
+
+            if let Some(Value::String(expected_sub)) = token_set.claims()?.get("sub") {
+                if let Some(Value::String(new_sub)) = new_token_set.claims()?.get("sub") {
+                    if expected_sub != new_sub {
+                        let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+                        extra_data.insert("jwt".to_string(), json!(id_token));
+
+                        return Err(OidcClientError::new_rp_error(
+                            &format!("sub mismatch, expected {}, got: {}", expected_sub, new_sub),
+                            None,
+                            Some(extra_data),
+                        ));
+                    }
+                }
+            }
+        }
+
+        Ok(new_token_set)
     }
 }
 
