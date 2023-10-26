@@ -43,4 +43,7 @@ mod client_callback_params_test;
 #[cfg(test)]
 mod client_decrypt_id_token_tests;
 
+#[cfg(test)]
+mod client_refresh_tests;
+
 pub mod helpers;

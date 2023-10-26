@@ -26,7 +26,7 @@ async fn posts_the_token_in_a_body_and_returns_the_parsed_response() {
                 let client_id = kvp
                     .iter()
                     .find(|(k, v)| k == &"client_id" && v == &"identifier");
-                println!("{:?}", kvp);
+
                 token.is_some() && client_id.is_some()
             })
             .path("/token/introspect");
@@ -86,7 +86,7 @@ async fn posts_the_token_and_a_hint_in_a_body() {
                 let client_id = kvp
                     .iter()
                     .find(|(k, v)| k == &"client_id" && v == &"identifier");
-                println!("{:?}", kvp);
+
                 token.is_some() && client_id.is_some() && token_type_hint.is_some()
             })
             .path("/token/introspect");

@@ -14,6 +14,7 @@ mod http;
 mod introspection_params;
 mod issuer_metadata;
 pub(crate) mod query_keystore;
+mod refresh_params;
 mod request_resource_params;
 mod webfinger;
 
@@ -35,5 +36,6 @@ pub use errors::{
 pub use http::{Interceptor, Lookup, Request, RequestInterceptor, RequestOptions, Response};
 pub use introspection_params::IntrospectionParams;
 pub use issuer_metadata::{IssuerMetadata, MtlsEndpoints};
+pub use refresh_params::RefreshTokenRequestParams;
 pub use request_resource_params::RequestResourceParams;
 pub(crate) use webfinger::WebFingerResponse;

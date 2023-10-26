@@ -32,6 +32,10 @@
 //! - [client::Client::authorization_url]
 //! - [client::Client::end_session_url]
 //! - [client::Client::authorization_post]
+//! - [client::Client::introspect_async]
+//! - [client::Client::callback_params]
+//! - [client::Client::request_resource_async]
+//! - [client::Client::refresh_async]
 //!
 //! ### Client Read
 //! - [client::Client::from_uri_async]
