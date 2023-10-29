@@ -724,7 +724,6 @@ impl Client {
             bearer: true,
             headers,
             json: Some(body),
-            response_type: Some("json".to_string()),
             ..Request::default()
         };
 
@@ -750,6 +749,64 @@ impl Client {
             client_options,
             is_fapi,
         )
+    }
+
+    /// # Get Client Metadata
+    /// Gets the [ClientMetadata] of the `client`/`self`
+    pub fn metadata(&self) -> ClientMetadata {
+        ClientMetadata {
+            client_id: Some(self.client_id.clone()),
+            client_secret: self.client_secret.clone(),
+            registration_access_token: self.registration_access_token.clone(),
+            registration_client_uri: self.registration_client_uri.clone(),
+            client_id_issued_at: self.client_id_issued_at,
+            client_secret_expires_at: self.client_secret_expires_at,
+            token_endpoint_auth_method: Some(self.token_endpoint_auth_method.clone()),
+            token_endpoint_auth_signing_alg: self.token_endpoint_auth_signing_alg.clone(),
+            introspection_endpoint_auth_method: self.introspection_endpoint_auth_method.clone(),
+            introspection_endpoint_auth_signing_alg: self
+                .introspection_endpoint_auth_signing_alg
+                .clone(),
+            revocation_endpoint_auth_method: self.revocation_endpoint_auth_method.clone(),
+            revocation_endpoint_auth_signing_alg: self.revocation_endpoint_auth_signing_alg.clone(),
+            redirect_uri: self.redirect_uri.clone(),
+            redirect_uris: self.redirect_uris.clone(),
+            response_type: self.response_type.clone(),
+            response_types: Some(self.response_types.clone()),
+            grant_types: Some(self.grant_types.clone()),
+            application_type: self.application_type.clone(),
+            contacts: self.contacts.clone(),
+            client_name: self.client_name.clone(),
+            logo_uri: self.logo_uri.clone(),
+            client_uri: self.client_uri.clone(),
+            policy_uri: self.policy_uri.clone(),
+            tos_uri: self.tos_uri.clone(),
+            jwks_uri: self.jwks_uri.clone(),
+            jwks: self.jwks.clone(),
+            sector_identifier_uri: self.sector_identifier_uri.clone(),
+            subject_type: self.subject_type.clone(),
+            id_token_signed_response_alg: Some(self.id_token_signed_response_alg.clone()),
+            id_token_encrypted_response_alg: self.id_token_encrypted_response_alg.clone(),
+            id_token_encrypted_response_enc: self.id_token_encrypted_response_enc.clone(),
+            userinfo_signed_response_alg: self.userinfo_signed_response_alg.clone(),
+            userinfo_encrypted_response_alg: self.userinfo_encrypted_response_alg.clone(),
+            userinfo_encrypted_response_enc: self.userinfo_encrypted_response_enc.clone(),
+            request_object_signing_alg: self.request_object_signing_alg.clone(),
+            request_object_encryption_alg: self.request_object_encryption_alg.clone(),
+            request_object_encryption_enc: self.request_object_encryption_enc.clone(),
+            default_max_age: self.default_max_age,
+            require_auth_time: self.require_auth_time,
+            default_acr_values: self.default_acr_values.clone(),
+            initiate_login_uri: self.initiate_login_uri.clone(),
+            request_uris: self.request_uris.clone(),
+            tls_client_certificate_bound_access_tokens: self
+                .tls_client_certificate_bound_access_tokens,
+            post_logout_redirect_uris: self.post_logout_redirect_uris.clone(),
+            authorization_signed_response_alg: self.authorization_signed_response_alg.clone(),
+            authorization_encrypted_response_alg: self.authorization_encrypted_response_alg.clone(),
+            authorization_encrypted_response_enc: self.authorization_encrypted_response_enc.clone(),
+            other_fields: self.other_fields.clone(),
+        }
     }
 
     /// Returs error if JWKS only has private keys

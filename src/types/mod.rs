@@ -17,6 +17,7 @@ pub(crate) mod query_keystore;
 mod refresh_params;
 mod request_resource_params;
 mod revoke_request_params;
+mod userinfo_request_params;
 mod webfinger;
 
 pub use authentication_post_param::AuthenticationPostParams;
@@ -40,4 +41,5 @@ pub use issuer_metadata::{IssuerMetadata, MtlsEndpoints};
 pub use refresh_params::RefreshTokenRequestParams;
 pub use request_resource_params::RequestResourceParams;
 pub use revoke_request_params::RevokeRequestParams;
+pub use userinfo_request_params::UserinfoRequestParams;
 pub(crate) use webfinger::WebFingerResponse;

@@ -316,7 +316,7 @@ impl Client {
     pub(crate) fn auth_for(
         &self,
         endpoint: &str,
-        client_assertion_payload: Option<&HashMap<String, serde_json::Value>>,
+        client_assertion_payload: Option<&HashMap<String, Value>>,
     ) -> Result<Request, OidcClientError> {
         let endpiont_auth_method = match endpoint {
             "token" => Some(&self.token_endpoint_auth_method),
@@ -339,7 +339,7 @@ impl Client {
             "self_signed_tls_client_auth" | "tls_client_auth" | "none" => {
                 let mut request = Request::default();
 
-                let mut form: HashMap<String, serde_json::Value> = HashMap::new();
+                let mut form: HashMap<String, Value> = HashMap::new();
 
                 form.insert("client_id".to_string(), json!(self.client_id));
 
@@ -357,7 +357,7 @@ impl Client {
 
                 let mut request = Request::default();
 
-                let mut form: HashMap<String, serde_json::Value> = HashMap::new();
+                let mut form: HashMap<String, Value> = HashMap::new();
 
                 form.insert("client_id".to_string(), json!(self.client_id));
                 form.insert(
@@ -410,7 +410,7 @@ impl Client {
 
                 let mut request = Request::default();
 
-                let mut form: HashMap<String, serde_json::Value> = HashMap::new();
+                let mut form: HashMap<String, Value> = HashMap::new();
 
                 form.insert("client_id".to_string(), json!(self.client_id));
                 form.insert("client_assertion".to_string(), json!(assertion));
@@ -1477,6 +1477,31 @@ impl Client {
             "id_token not present in TokenSet",
             None,
         ))
+    }
+
+    pub(crate) fn decrypt_jwt_userinfo(&self, body: String) -> Result<String, OidcClientError> {
+        if let Some(expected_alg) = &self.userinfo_encrypted_response_alg {
+            let expected_enc = self.userinfo_encrypted_response_enc.as_deref();
+            return self.decrypt_jwe(&body, expected_alg, expected_enc);
+        }
+
+        Ok(body)
+    }
+
+    pub(crate) async fn validate_jwt_userinfo_async(
+        &mut self,
+        body: &str,
+    ) -> Result<(JwtPayload, JwsHeader, Option<Jwk>), OidcClientError> {
+        let userinfo_signed_response_alg = self
+            .userinfo_signed_response_alg
+            .as_ref()
+            .ok_or(OidcClientError::new_type_error(
+                "userinfo_signed_response_alg should be present",
+                None,
+            ))?
+            .to_owned();
+        self.validate_jwt_async(body, &userinfo_signed_response_alg, Some(&[]))
+            .await
     }
 }
 

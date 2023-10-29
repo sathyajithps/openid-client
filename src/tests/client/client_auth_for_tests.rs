@@ -43,7 +43,10 @@ mod when_none {
         assert_eq!(expected_request.json, request.json);
         assert_eq!(expected_request.method, request.method);
         assert_eq!(expected_request.mtls, request.mtls);
-        assert_eq!(expected_request.response_type, request.response_type);
+        assert_eq!(
+            expected_request.expect_body_to_be_json,
+            request.expect_body_to_be_json
+        );
         assert_eq!(expected_request.search_params, request.search_params);
         assert_eq!(expected_request.url, request.url);
     }
@@ -96,7 +99,10 @@ mod when_client_secret_post {
         assert_eq!(expected_request.json, request.json);
         assert_eq!(expected_request.method, request.method);
         assert_eq!(expected_request.mtls, request.mtls);
-        assert_eq!(expected_request.response_type, request.response_type);
+        assert_eq!(
+            expected_request.expect_body_to_be_json,
+            request.expect_body_to_be_json
+        );
         assert_eq!(expected_request.search_params, request.search_params);
         assert_eq!(expected_request.url, request.url);
     }
@@ -170,7 +176,10 @@ mod when_client_secret_basic {
         assert_eq!(expected_request.json, request.json);
         assert_eq!(expected_request.method, request.method);
         assert_eq!(expected_request.mtls, request.mtls);
-        assert_eq!(expected_request.response_type, request.response_type);
+        assert_eq!(
+            expected_request.expect_body_to_be_json,
+            request.expect_body_to_be_json
+        );
         assert_eq!(expected_request.search_params, request.search_params);
         assert_eq!(expected_request.url, request.url);
     }
@@ -209,7 +218,10 @@ mod when_client_secret_basic {
         assert_eq!(expected_request.json, request.json);
         assert_eq!(expected_request.method, request.method);
         assert_eq!(expected_request.mtls, request.mtls);
-        assert_eq!(expected_request.response_type, request.response_type);
+        assert_eq!(
+            expected_request.expect_body_to_be_json,
+            request.expect_body_to_be_json
+        );
         assert_eq!(expected_request.search_params, request.search_params);
         assert_eq!(expected_request.url, request.url);
     }

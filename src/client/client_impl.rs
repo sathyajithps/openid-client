@@ -1,7 +1,9 @@
+use josekit::jwt::JwtPayload;
 use std::collections::HashMap;
 use std::time::Duration;
 
 use reqwest::header::HeaderValue;
+use reqwest::Method;
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
@@ -9,6 +11,7 @@ use crate::http::request_async;
 use crate::types::{
     CallbackExtras, CallbackParams, IntrospectionParams, OAuthCallbackChecks, OpenIDCallbackChecks,
     RefreshTokenRequestParams, Request, RequestResourceParams, Response, RevokeRequestParams,
+    UserinfoRequestParams,
 };
 use crate::{
     helpers::convert_json_to,
@@ -168,7 +171,7 @@ impl Client {
                     return Err(OidcClientError::new_type_error(
                         "end_session_endpoint must be configured on the issuer",
                         None,
-                    ))
+                    ));
                 }
             },
             None => return Err(OidcClientError::new_error("issuer is empty", None)),
@@ -390,7 +393,6 @@ impl Client {
 
         let req = Request {
             form: Some(body.clone()),
-            response_type: Some("json".to_string()),
             ..Default::default()
         };
 
@@ -709,10 +711,10 @@ impl Client {
                 };
 
                 return Err(OidcClientError::new_rp_error(
-                "id_token detected in the response, you must use client.callback_async() instead of client.oauth_callback_async()",
-                None,
-                Some(extra_data),
-            ));
+                    "id_token detected in the response, you must use client.callback_async() instead of client.oauth_callback_async()",
+                    None,
+                    Some(extra_data),
+                ));
             }
 
             token_set.set_id_token(None);
@@ -1258,7 +1260,6 @@ impl Client {
 
         let req = Request {
             form: Some(form),
-            response_type: Some("json".to_string()),
             ..Default::default()
         };
 
@@ -1281,7 +1282,7 @@ impl Client {
     /// - `token_type` : Type of the `token`. Eg: `access_token`
     /// - `retry` : Whether to retry if the request failed or not
     /// - `params` : See [RequestResourceParams]
-    #[async_recursion::async_recursion(?Send)]
+    #[async_recursion::async_recursion(? Send)]
     pub async fn request_resource_async(
         &mut self,
         resource_url: &str,
@@ -1310,6 +1311,8 @@ impl Client {
                 .tls_client_certificate_bound_access_tokens
                 .is_some_and(|x| x),
             headers: params.headers.clone(),
+            bearer: params.bearer,
+            expect_body_to_be_json: params.expect_body_to_be_json,
             ..Default::default()
         };
 
@@ -1458,7 +1461,7 @@ impl Client {
                 return Err(OidcClientError::new_type_error(
                     "refresh_token not present in TokenSet",
                     None,
-                ))
+                ));
             }
         };
 
@@ -1567,6 +1570,269 @@ impl Client {
             },
         )
         .await
+    }
+
+    ///
+    pub async fn userinfo_async(
+        &mut self,
+        token_set: &TokenSet,
+        options: UserinfoRequestParams,
+    ) -> Result<JwtPayload, OidcClientError> {
+        let issuer = match self.issuer.as_ref() {
+            Some(iss) => iss,
+            None => return Err(OidcClientError::new_type_error("Issuer is required", None)),
+        };
+
+        let userinfo_endpoint = match &issuer.userinfo_endpoint {
+            Some(e) => e.to_string(),
+            None => {
+                return Err(OidcClientError::new_type_error(
+                    "userinfo_endpoint must be configured on the issuer",
+                    None,
+                ))
+            }
+        };
+
+        let access_token = token_set
+            .get_access_token()
+            .ok_or(OidcClientError::new_type_error(
+                "access_token is required in token_set",
+                None,
+            ))?;
+
+        if options.via != "header" && options.via != "body" {
+            return Err(OidcClientError::new_type_error(
+                "via can only be body or header",
+                None,
+            ));
+        }
+
+        let mut req = Request::default();
+
+        if options.method != Method::GET && options.method != Method::POST {
+            return Err(OidcClientError::new_type_error(
+                "userinfo_async() method can only be POST or a GET",
+                None,
+            ));
+        }
+
+        if options.via == "body" && options.method != Method::POST {
+            return Err(OidcClientError::new_type_error(
+                "can only send body on POST",
+                None,
+            ));
+        }
+
+        let jwt = self.userinfo_signed_response_alg.is_some()
+            || self.userinfo_encrypted_response_alg.is_some();
+
+        if jwt {
+            req.headers
+                .insert("Accept", HeaderValue::from_static("application/jwt"));
+        } else {
+            req.headers
+                .insert("Accept", HeaderValue::from_static("application/json"));
+        }
+
+        let mtls = self
+            .tls_client_certificate_bound_access_tokens
+            .is_some_and(|x| x);
+
+        let mut target_url = None;
+
+        if mtls && issuer.mtls_endpoint_aliases.is_some() {
+            if let Some(mtls_alias) = &issuer.mtls_endpoint_aliases {
+                if mtls_alias.userinfo_endpoint.is_some() {
+                    target_url = mtls_alias.userinfo_endpoint.clone();
+                }
+            }
+        }
+
+        let mut url = Url::parse(target_url.unwrap_or(userinfo_endpoint).as_str())
+            .map_err(|_| OidcClientError::new_error("Invalid Url", None))?;
+
+        let mut form_body = HashMap::new();
+
+        if options.via == "body" {
+            // What?
+            req.headers.remove("Authorization");
+            req.headers.insert(
+                "Content-Type",
+                HeaderValue::from_static("application/x-www-form-urlencoded"),
+            );
+            form_body.insert("access_token".to_string(), json!(access_token));
+        }
+
+        if let Some(params) = &options.params {
+            if options.method == Method::GET {
+                for (k, v) in params {
+                    if let Some(v_str) = v.as_str() {
+                        url.query_pairs_mut().append_pair(k, v_str);
+                    }
+                }
+            } else if options.via == "body" && options.method == Method::POST {
+                for (k, v) in params {
+                    form_body.insert(k.to_owned(), v.to_owned());
+                }
+            } else {
+                req.headers.remove("Content-Type");
+                req.headers.insert(
+                    "Content-Type",
+                    HeaderValue::from_static("application/x-www-form-urlencoded"),
+                );
+                for (k, v) in params {
+                    form_body.insert(k.to_owned(), v.to_owned());
+                }
+            }
+        }
+
+        let mut body = None;
+        if !form_body.is_empty() {
+            let mut form_encoded_body = String::new();
+            for (k, v) in form_body {
+                if let Some(v_str) = v.as_str() {
+                    form_encoded_body += &format!(
+                        "{}={}&",
+                        urlencoding::encode(&k),
+                        urlencoding::encode(v_str)
+                    );
+                }
+            }
+
+            form_encoded_body = form_encoded_body.trim_end_matches('&').to_owned();
+            body = Some(form_encoded_body);
+        }
+
+        let req_res_params = RequestResourceParams {
+            method: options.method,
+            headers: req.headers,
+            bearer: true,
+            expect_body_to_be_json: !jwt,
+            body,
+        };
+
+        let res = self
+            .request_resource_async(
+                url.as_str(),
+                &access_token,
+                token_set.get_token_type(),
+                false,
+                req_res_params,
+            )
+            .await?;
+
+        let payload = match jwt {
+            true => {
+                if !&res.headers.iter().any(|(x, v)| {
+                    if let Ok(Some(val)) = v.to_str().map(|x| {
+                        x.split(';')
+                            .collect::<Vec<&str>>()
+                            .first()
+                            .map(|x| x.to_owned())
+                    }) {
+                        return x.as_str().to_lowercase() == "content-type"
+                            && val == "application/jwt";
+                    }
+                    false
+                }) {
+                    return Err(OidcClientError::new_rp_error(
+                        "expected application/jwt response from the userinfo_endpoint",
+                        Some(res),
+                        None,
+                    ));
+                }
+
+                let body = res
+                    .body
+                    .as_ref()
+                    .ok_or(OidcClientError::new_rp_error(
+                        "body was emtpy",
+                        Some(res.clone()),
+                        None,
+                    ))?
+                    .to_owned();
+                let userinfo = self.decrypt_jwt_userinfo(body)?;
+
+                if self.userinfo_signed_response_alg.is_none() {
+                    if let Ok(Value::Object(json_res)) = serde_json::from_str::<Value>(&userinfo) {
+                        let mut payload = JwtPayload::new();
+                        for (k, v) in json_res {
+                            payload.set_claim(&k, Some(v)).unwrap_or_default();
+                        }
+                        payload
+                    } else {
+                        let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+                        extra_data.insert("jwt".to_string(), json!(userinfo));
+
+                        return Err(OidcClientError::new_rp_error(
+                            "failed to parse userinfo JWE payload as JSON",
+                            Some(res),
+                            Some(extra_data),
+                        ));
+                    }
+                } else {
+                    let (payload, _, _) = self.validate_jwt_userinfo_async(&userinfo).await?;
+                    payload
+                }
+            }
+            false => {
+                let body = res
+                    .body
+                    .as_ref()
+                    .ok_or(OidcClientError::new_rp_error(
+                        "body was emtpy",
+                        Some(res.clone()),
+                        None,
+                    ))?
+                    .to_owned();
+
+                if let Ok(Value::Object(json_res)) = serde_json::from_str::<Value>(&body) {
+                    let mut payload = JwtPayload::new();
+                    for (k, v) in json_res {
+                        payload.set_claim(&k, Some(v)).unwrap_or_default();
+                    }
+                    payload
+                } else {
+                    let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+                    extra_data.insert("jwt".to_string(), json!(body));
+
+                    return Err(OidcClientError::new_rp_error(
+                        "failed to parse userinfo JWE payload as JSON",
+                        Some(res),
+                        Some(extra_data),
+                    ));
+                }
+            }
+        };
+
+        if let Some(id_token) = token_set.get_id_token() {
+            if let Some(Value::String(expected_sub)) = token_set.claims()?.get("sub") {
+                if let Some(new_sub) = payload.subject() {
+                    if expected_sub != new_sub {
+                        let mut extra_data: HashMap<String, Value> = HashMap::new();
+
+                        if let Some(Ok(b)) = res.body.map(|x| serde_json::from_str::<Value>(&x)) {
+                            extra_data.insert("body".to_string(), b);
+                        }
+
+                        extra_data.insert("jwt".to_string(), json!(id_token));
+
+                        return Err(OidcClientError::new_rp_error(
+                            &format!(
+                                "userinfo sub mismatch, expected {}, got: {}",
+                                expected_sub, new_sub
+                            ),
+                            None,
+                            Some(extra_data),
+                        ));
+                    }
+                }
+            }
+        }
+
+        Ok(payload)
     }
 }
 

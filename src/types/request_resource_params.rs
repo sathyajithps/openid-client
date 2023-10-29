@@ -10,4 +10,8 @@ pub struct RequestResourceParams {
     pub headers: HeaderMap,
     /// Body of the request
     pub body: Option<String>,
+    /// Specifies if the request should use bearer auth
+    pub bearer: bool,
+    /// Checks if the body should be of type json
+    pub expect_body_to_be_json: bool,
 }
