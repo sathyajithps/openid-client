@@ -25,13 +25,13 @@ pub struct Request {
     /// Query Params that are send with the request
     pub search_params: HashMap<String, Vec<String>>,
     /// The request body to be sent
-    pub json: Option<serde_json::Value>,
+    pub json: Option<Value>,
     /// The request form body to be sent
-    pub form: Option<HashMap<String, serde_json::Value>>,
+    pub form: Option<HashMap<String, Value>>,
     /// The request body to be sent
     pub body: Option<String>,
-    /// Expected response type
-    pub response_type: Option<String>,
+    /// Specifies if the response should be of type json and validates it
+    pub expect_body_to_be_json: bool,
     /// Specifies if the request is MTLS and needs client certificate
     pub mtls: bool,
 }
@@ -49,7 +49,7 @@ impl Default for Request {
             json: None,
             form: None,
             body: None,
-            response_type: None,
+            expect_body_to_be_json: true,
             mtls: false,
         }
     }

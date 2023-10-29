@@ -24,7 +24,7 @@ pub async fn request_async(
             headers.append(
                 "User-Agent",
                 HeaderValue::from_static(
-                    "openid-client/0.0.32-dev (https://github.com/sathyajithps/openid-client)",
+                    "openid-client/0.0.33-dev (https://github.com/sathyajithps/openid-client)",
                 ),
             );
             RequestOptions {
@@ -81,13 +81,12 @@ pub async fn request_async(
         let mut form_encoded_body = String::new();
         for (k, v) in form_body {
             if let Some(v_str) = v.as_str() {
-                form_encoded_body += &format!("{}={}&", k, v_str);
+                form_encoded_body +=
+                    &format!("{}={}&", urlencoding::encode(k), urlencoding::encode(v_str));
             }
         }
 
         form_encoded_body = form_encoded_body.trim_end_matches('&').to_owned();
-
-        form_encoded_body = urlencoding::encode(&form_encoded_body).to_string();
 
         headers.remove("content-type");
         headers.insert(
@@ -171,10 +170,8 @@ fn process_response(response: Response, request: &Request) -> Result<Response, O
 
     res = return_error_if_expected_body_is_absent(res, request)?;
 
-    if let Some(response_type) = &request.response_type {
-        if response_type != "json" {
-            return Ok(res);
-        }
+    if !request.expect_body_to_be_json {
+        return Ok(res);
     }
 
     let mut invalid_json = false;

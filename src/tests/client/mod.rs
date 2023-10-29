@@ -49,4 +49,7 @@ mod client_refresh_tests;
 #[cfg(test)]
 mod client_revocation_tests;
 
+#[cfg(test)]
+mod client_userinfo_tests;
+
 pub mod helpers;
