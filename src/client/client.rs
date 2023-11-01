@@ -114,15 +114,15 @@ pub struct Client {
     /// [Request Uris](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) request_uris: Option<String>,
     /// [Client's intention to use mutual-TLS client certificate-bound access tokens](https://datatracker.ietf.org/doc/html/rfc8705#name-client-registration-metadata-2)
-    pub tls_client_certificate_bound_access_tokens: Option<bool>,
+    pub(crate) tls_client_certificate_bound_access_tokens: Option<bool>,
     /// Client's allowed redirect uris after a logout
-    pub post_logout_redirect_uris: Option<Vec<String>>,
+    pub(crate) post_logout_redirect_uris: Option<Vec<String>>,
     /// [ClientMetadata::authorization_encrypted_response_alg]
-    pub authorization_encrypted_response_alg: Option<String>,
+    pub(crate) authorization_encrypted_response_alg: Option<String>,
     /// [ClientMetadata::authorization_encrypted_response_enc]
-    pub authorization_encrypted_response_enc: Option<String>,
+    pub(crate) authorization_encrypted_response_enc: Option<String>,
     /// [ClientMetadata::authorization_encrypted_response_alg]
-    pub authorization_signed_response_alg: Option<String>,
+    pub(crate) authorization_signed_response_alg: Option<String>,
     /// Extra key values
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
     pub(crate) private_jwks: Option<Jwks>,
@@ -201,8 +201,6 @@ impl Client {
     /// This method is used to create an instance of [Client] by:
     ///     - [`Issuer::client()`]
     ///     - [`Client::from_uri_async()`],
-    ///     - [`Client::from_uri()`]
-    ///     - [`Client::register()`]
     ///     - [`Client::register_async()`]
     pub(crate) fn from_internal(
         metadata: ClientMetadata,
@@ -338,26 +336,32 @@ impl Client {
             .or(client.get_token_endpoint_auth_signing_alg());
 
         if let Some(iss) = issuer {
-            Self::assert_signing_alg_values_support(
-                &Some(client.token_endpoint_auth_method.clone()),
-                &client.token_endpoint_auth_signing_alg,
-                &iss.token_endpoint_auth_signing_alg_values_supported,
-                "token",
-            )?;
+            if iss.token_endpoint.is_some() {
+                Self::assert_signing_alg_values_support(
+                    &Some(client.token_endpoint_auth_method.clone()),
+                    &client.token_endpoint_auth_signing_alg,
+                    &iss.token_endpoint_auth_signing_alg_values_supported,
+                    "token",
+                )?;
+            }
 
-            Self::assert_signing_alg_values_support(
-                &client.introspection_endpoint_auth_method,
-                &client.introspection_endpoint_auth_signing_alg,
-                &iss.token_endpoint_auth_signing_alg_values_supported,
-                "introspection",
-            )?;
+            if iss.introspection_endpoint.is_some() {
+                Self::assert_signing_alg_values_support(
+                    &client.introspection_endpoint_auth_method,
+                    &client.introspection_endpoint_auth_signing_alg,
+                    &iss.token_endpoint_auth_signing_alg_values_supported,
+                    "introspection",
+                )?;
+            }
 
-            Self::assert_signing_alg_values_support(
-                &client.revocation_endpoint_auth_method,
-                &client.revocation_endpoint_auth_signing_alg,
-                &iss.token_endpoint_auth_signing_alg_values_supported,
-                "revocation",
-            )?;
+            if iss.revocation_endpoint.is_some() {
+                Self::assert_signing_alg_values_support(
+                    &client.revocation_endpoint_auth_method,
+                    &client.revocation_endpoint_auth_signing_alg,
+                    &iss.token_endpoint_auth_signing_alg_values_supported,
+                    "revocation",
+                )?;
+            }
 
             client.issuer = Some(iss.clone());
         }

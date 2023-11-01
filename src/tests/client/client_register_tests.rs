@@ -289,7 +289,7 @@ mod with_key_store_as_an_option {
                             if let Ok(body_str) = body_string {
                                 if let Ok(metadata) = convert_json_to::<ClientMetadata>(&body_str) {
                                     return metadata.jwks.unwrap()
-                                        == convert_json_to::<Jwks>("{\"keys\":[{\"kty\":\"EC\",\"use\":\"sig\",\"crv\":\"P-256\",\"x\":\"hBWMzCM4tmlWWK0ovPlg2oCnpcdWAcVvtr9M5bichiA\",\"y\":\"yP7NOAHMReiT1PG-Nxl4MbegpvwJnUGfLCI_llPQIg4\",\"alg\":\"ES256\"}]}")
+                                        == convert_json_to::<Jwks>("{\"keys\":[{\"kty\":\"EC\",\"use\":\"sig\",\"crv\":\"P-256\",\"x\":\"hBWMzCM4tmlWWK0ovPlg2oCnpcdWAcVvtr9M5bichiA\",\"y\":\"yP7NOAHMReiT1PG-Nxl4MbegpvwJnUGfLCI_llPQIg4\",\"alg\":\"ES256\",\"kid\":\"E5e5oAXKlVe1Pp1uYlorEE2XEDzZ-5sTNDuS4RcU_VA\"}]}")
                                             .unwrap();
                                 }
                             }

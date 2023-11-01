@@ -580,6 +580,9 @@ impl Jwks {
                         if let Some(alg) = k.algorithm() {
                             pk.set_algorithm(alg);
                         }
+                        if let Some(kid) = k.key_id() {
+                            pk.set_key_id(kid);
+                        }
                     }
 
                     pub_key
