@@ -1,4 +1,7 @@
+use josekit::jwe::JweHeader;
+use josekit::jws::JwsHeader;
 use josekit::jwt::JwtPayload;
+use josekit::{jwe, jws};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -7,7 +10,10 @@ use reqwest::Method;
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
+use crate::helpers::{now, random};
 use crate::http::request_async;
+use crate::jwks::jwks::CustomJwk;
+use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
     CallbackExtras, CallbackParams, IntrospectionParams, OAuthCallbackChecks, OpenIDCallbackChecks,
     RefreshTokenRequestParams, Request, RequestResourceParams, Response, RevokeRequestParams,
@@ -1572,7 +1578,11 @@ impl Client {
         .await
     }
 
+    /// # Userinfo
+    /// Performs userinfo request at Issuer's `userinfo` endpoint.
     ///
+    /// - `token_set` : [TokenSet] with `access_token` that will be used to perform the request
+    /// - `options` : See [UserinfoRequestParams]
     pub async fn userinfo_async(
         &mut self,
         token_set: &TokenSet,
@@ -1833,6 +1843,165 @@ impl Client {
         }
 
         Ok(payload)
+    }
+
+    /// # Request Object
+    ///
+    /// Creates a request object for JAR
+    ///
+    /// - `request_object` : A [Value] which should be an object
+    pub async fn request_object_async(
+        &mut self,
+        mut request_object: Value,
+    ) -> Result<String, OidcClientError> {
+        if !request_object.is_object() {
+            return Err(OidcClientError::new_type_error(
+                "request_object must be a plain object",
+                None,
+            ));
+        }
+
+        let e_key_management = self.request_object_encryption_alg.clone();
+
+        let header_alg = self
+            .request_object_signing_alg
+            .as_ref()
+            .map(|x| x.to_owned())
+            .unwrap_or("none".to_string());
+        let header_typ = "oauth-authz-req+jwt";
+
+        let unix = now();
+
+        request_object["iss"] = json!(self.client_id);
+
+        if let Some(aud) = self.issuer.as_ref().map(|x| x.issuer.to_owned()) {
+            request_object["aud"] = json!(aud);
+        }
+
+        request_object["client_id"] = json!(self.client_id);
+
+        request_object["jti"] = json!(random());
+
+        request_object["iat"] = json!(unix);
+
+        request_object["exp"] = json!(unix + 300);
+
+        if self.is_fapi {
+            request_object["nbf"] = json!(unix);
+        }
+
+        let signed;
+        let mut key = None;
+
+        let payload = request_object.to_string();
+
+        if header_alg == "none" {
+            let encoded_header = base64_url::encode(&format!(
+                "{{\"alg\":\"{}\",\"typ\":\"{}\"}}",
+                &header_alg, header_typ
+            ));
+            let encoded_payload = base64_url::encode(&payload);
+            signed = format!("{}.{}.", encoded_header, encoded_payload);
+        } else {
+            let symmetric = &header_alg.starts_with("HS");
+            if *symmetric {
+                key = Some(self.secret_for_alg(&header_alg)?);
+            } else {
+                let keystore =
+                    self.private_jwks
+                        .as_ref()
+                        .ok_or(OidcClientError::new_type_error(
+                            &format!(
+                        "no keystore present for client, cannot sign using alg {header_alg}"
+                    ),
+                            None,
+                        ))?;
+
+                key = keystore
+                    .get(Some(header_alg.to_string()), Some("sig".to_string()), None)?
+                    .first()
+                    .map(|x| x.to_owned().clone());
+
+                if key.is_none() {
+                    return Err(OidcClientError::new_type_error(
+                        &format!("no key to sign with found for alg {header_alg}"),
+                        None,
+                    ));
+                }
+            }
+
+            let jwk = key.clone().ok_or(OidcClientError::new_error(
+                "No key found for signing request object",
+                None,
+            ))?;
+            let signer = jwk.to_signer()?;
+
+            let mut header = JwsHeader::new();
+            header.set_algorithm(&header_alg);
+            header.set_token_type(header_typ);
+
+            if !symmetric {
+                if let Some(kid) = jwk.key_id() {
+                    header.set_key_id(kid);
+                }
+            }
+
+            signed = jws::serialize_compact(payload.as_bytes(), &header, &*signer)
+                .map_err(|e| OidcClientError::new_error(&e.to_string(), None))?;
+        }
+
+        let field_alg = match e_key_management {
+            Some(a) => a,
+            None => return Ok(signed),
+        };
+
+        let field_enc = self
+            .request_object_encryption_enc
+            .as_ref()
+            .map(|x| x.to_owned())
+            .unwrap_or("A128CBC-HS256".to_string()); // e_content_encryption
+        let field_cty = "oauth-authz-req+jwt";
+
+        if field_alg.contains("RSA") || field_alg.contains("ECDH") {
+            if let Some(issuer) = &mut self.issuer {
+                let query_params = QueryKeyStore {
+                    alg: Some(field_alg.to_string()),
+                    key_use: Some("enc".to_string()),
+                    ..Default::default()
+                };
+                key = issuer
+                    .query_keystore_async(query_params, true)
+                    .await?
+                    .get_keys()
+                    .first()
+                    .map(|x| x.to_owned());
+            }
+        } else {
+            let alg = if field_alg == "dir" {
+                &field_enc
+            } else {
+                &field_alg
+            };
+            key = Some(self.secret_for_alg(alg)?);
+        }
+
+        let jwk = key.ok_or(OidcClientError::new_error(
+            "No key found for encrypting request object",
+            None,
+        ))?;
+        let encryptor = jwk.to_jwe_encrypter()?;
+
+        let mut jwe_header = JweHeader::new();
+
+        jwe_header.set_algorithm(&field_alg);
+        jwe_header.set_content_encryption(field_enc);
+        jwe_header.set_content_type(field_cty);
+        if let Some(kid) = jwk.key_id() {
+            jwe_header.set_key_id(kid);
+        }
+
+        jwe::serialize_compact(payload.as_bytes(), &jwe_header, &*encryptor)
+            .map_err(|x| OidcClientError::new_error(&x.to_string(), None))
     }
 }
 

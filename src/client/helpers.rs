@@ -56,7 +56,7 @@ impl Client {
             }
 
             if let Some(first_group) = AGCMCBC_REGEX.captures_iter(alg).next() {
-                if let Some(extracted_alg) = first_group.get(1).or(first_group.get(2)) {
+                if let Some(extracted_alg) = first_group.get(2).or(first_group.get(1)) {
                     jwk.set_key_use("enc");
                     jwk.set_key_value(
                         self.encryption_secret(extracted_alg.as_str().parse::<u16>().unwrap())?,

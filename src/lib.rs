@@ -37,6 +37,8 @@
 //! - [client::Client::request_resource_async]
 //! - [client::Client::refresh_async]
 //! - [client::Client::revoke_async]
+//! - [client::Client::userinfo_async]
+//! - [client::Client::request_object_async]
 //!
 //! ### Client Read
 //! - [client::Client::from_uri_async]
