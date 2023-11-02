@@ -6,6 +6,8 @@ use url::Url;
 
 use crate::helpers::convert_json_to;
 
+use super::OidcClientError;
+
 /// # Request
 /// Request is an internal struct used to create various OIDC requests.
 #[derive(Debug)]
@@ -101,12 +103,17 @@ pub struct Response {
 }
 
 impl Response {
-    /// Tries and converts the body (if present) to a [HashMap<String, Value>]
-    pub async fn try_get_body_as_hash_map(&self) -> Option<HashMap<String, Value>> {
+    /// Converts to [Value]
+    pub fn body_to_json_value(&self) -> Result<Value, OidcClientError> {
         if let Some(body_string) = &self.body {
-            return convert_json_to::<HashMap<String, Value>>(body_string).ok();
+            if let Ok(v) = convert_json_to::<Value>(body_string) {
+                return Ok(v);
+            }
         }
-        None
+        Err(OidcClientError::new_error(
+            "could not convert body to serde::json value",
+            None,
+        ))
     }
 
     /// Creates a new instance of Response from [reqwest::Response]

@@ -282,3 +282,24 @@ pub(crate) fn validate_hash(
 
     Ok(())
 }
+
+pub(crate) fn get_serde_value_as_string(v: &Value) -> Result<String, OidcClientError> {
+    match v {
+        Value::Null => Ok("null".to_string()),
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Number(n) => Ok(n.to_string()),
+        Value::String(s) => Ok(s.to_string()),
+        Value::Array(a) => serde_json::to_string(a)
+            .ok()
+            .ok_or(OidcClientError::new_error(
+                &format!("Invalid serde array value to convert to string: {:?}", a),
+                None,
+            )),
+        Value::Object(o) => serde_json::to_string(o)
+            .ok()
+            .ok_or(OidcClientError::new_error(
+                &format!("Invalid serde object value to convert to string: {:?}", o),
+                None,
+            )),
+    }
+}

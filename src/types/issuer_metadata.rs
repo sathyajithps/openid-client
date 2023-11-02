@@ -63,6 +63,11 @@ pub struct IssuerMetadata {
     pub authorization_response_iss_parameter_supported: Option<bool>,
     /// A JSON array containing a list of the JWS alg values supported by the authorization server for DPoP proof JWTs
     pub dpop_signing_alg_values_supported: Option<Vec<String>>,
+    /// The URL of the pushed authorization request endpoint at which client can post an authorization request to exchange for a "request_uri" value usable at the authorization server.  
+    pub pushed_authorization_request_endpoint: Option<String>,
+    /// Boolean parameter indicating whether the authorization server accepts authorization request data only via PAR.  If omitted, the default value is "false".
+    #[serde(default)]
+    pub require_pushed_authorization_requests: bool,
     /// Any extra data that was read from the discovery document
     #[serde(flatten)]
     pub other_fields: HashMap<String, serde_json::Value>,

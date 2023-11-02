@@ -55,4 +55,7 @@ mod client_userinfo_tests;
 #[cfg(test)]
 mod client_request_object_tests;
 
+#[cfg(test)]
+mod client_par_tests;
+
 pub mod helpers;
