@@ -39,6 +39,7 @@
 //! - [client::Client::revoke_async]
 //! - [client::Client::userinfo_async]
 //! - [client::Client::request_object_async]
+//! - [client::Client::pushed_authorization_request_async]
 //!
 //! ### Client Read
 //! - [client::Client::from_uri_async]

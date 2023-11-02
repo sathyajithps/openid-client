@@ -244,12 +244,15 @@ impl Client {
         mut req: Request,
         params: AuthenticationPostParams,
     ) -> Result<Response, OidcClientError> {
-        let auth_request = self.auth_for(endpoint, params.client_assertion_payload.as_ref())?;
+        let endpoint_auth_method = params.endpoint_auth_method.unwrap_or(endpoint.to_string());
+
+        let auth_request = self.auth_for(
+            &endpoint_auth_method,
+            params.client_assertion_payload.as_ref(),
+        )?;
 
         req.merge_form(&auth_request);
         req.merge_headers(&auth_request);
-
-        let endpoint_auth_method = params.endpoint_auth_method.unwrap_or(endpoint.to_string());
 
         let auth_method = match endpoint_auth_method.as_str() {
             "token" => Some(&self.token_endpoint_auth_method),
@@ -281,8 +284,8 @@ impl Client {
 
             target_url = match endpoint {
                 "token" => aliases.and_then(|a| a.token_endpoint.as_ref()),
-                "introspection" => aliases.and_then(|a| a.token_endpoint.as_ref()),
-                "revocation" => aliases.and_then(|a| a.token_endpoint.as_ref()),
+                "introspection" => aliases.and_then(|a| a.introspection_endpoint.as_ref()),
+                "revocation" => aliases.and_then(|a| a.revocation_endpoint.as_ref()),
                 _ => return Err(OidcClientError::new_error("unknown endpoint", None)),
             };
         }
@@ -292,6 +295,9 @@ impl Client {
                 "token" => issuer.token_endpoint.as_ref(),
                 "introspection" => issuer.introspection_endpoint.as_ref(),
                 "revocation" => issuer.revocation_endpoint.as_ref(),
+                "pushed_authorization_request" => {
+                    issuer.pushed_authorization_request_endpoint.as_ref()
+                }
                 _ => return Err(OidcClientError::new_error("unknown endpoint", None)),
             };
         }

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    helpers::{convert_json_to, parse_www_authenticate_error},
+    helpers::{convert_json_to, get_serde_value_as_string, parse_www_authenticate_error},
     types::{
         Lookup, OidcClientError, Request, RequestInterceptor, RequestOptions, Response,
         StandardBodyError,
@@ -24,7 +24,7 @@ pub async fn request_async(
             headers.append(
                 "User-Agent",
                 HeaderValue::from_static(
-                    "openid-client/0.0.34-dev (https://github.com/sathyajithps/openid-client)",
+                    "openid-client/0.0.35-dev (https://github.com/sathyajithps/openid-client)",
                 ),
             );
             RequestOptions {
@@ -80,10 +80,12 @@ pub async fn request_async(
     } else if let Some(form_body) = &request.form {
         let mut form_encoded_body = String::new();
         for (k, v) in form_body {
-            if let Some(v_str) = v.as_str() {
-                form_encoded_body +=
-                    &format!("{}={}&", urlencoding::encode(k), urlencoding::encode(v_str));
-            }
+            let v_str = get_serde_value_as_string(v)?;
+            form_encoded_body += &format!(
+                "{}={}&",
+                urlencoding::encode(k),
+                urlencoding::encode(&v_str)
+            );
         }
 
         form_encoded_body = form_encoded_body.trim_end_matches('&').to_owned();

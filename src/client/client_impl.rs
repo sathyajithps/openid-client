@@ -6,18 +6,18 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use reqwest::header::HeaderValue;
-use reqwest::Method;
+use reqwest::{Method, StatusCode};
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
-use crate::helpers::{now, random};
+use crate::helpers::{get_serde_value_as_string, now, random};
 use crate::http::request_async;
 use crate::jwks::jwks::CustomJwk;
 use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
     CallbackExtras, CallbackParams, IntrospectionParams, OAuthCallbackChecks, OpenIDCallbackChecks,
-    RefreshTokenRequestParams, Request, RequestResourceParams, Response, RevokeRequestParams,
-    UserinfoRequestParams,
+    PushedAuthorizationRequestParams, RefreshTokenRequestParams, Request, RequestResourceParams,
+    Response, RevokeRequestParams, UserinfoRequestParams,
 };
 use crate::{
     helpers::convert_json_to,
@@ -1700,13 +1700,12 @@ impl Client {
         if !form_body.is_empty() {
             let mut form_encoded_body = String::new();
             for (k, v) in form_body {
-                if let Some(v_str) = v.as_str() {
-                    form_encoded_body += &format!(
-                        "{}={}&",
-                        urlencoding::encode(&k),
-                        urlencoding::encode(v_str)
-                    );
-                }
+                let v_str = get_serde_value_as_string(&v)?;
+                form_encoded_body += &format!(
+                    "{}={}&",
+                    urlencoding::encode(&k),
+                    urlencoding::encode(&v_str)
+                );
             }
 
             form_encoded_body = form_encoded_body.trim_end_matches('&').to_owned();
@@ -2003,10 +2002,143 @@ impl Client {
         jwe::serialize_compact(payload.as_bytes(), &jwe_header, &*encryptor)
             .map_err(|x| OidcClientError::new_error(&x.to_string(), None))
     }
+
+    /// # Pushed Authorization Request
+    ///
+    /// Performs a PAR on the `pushed_authorization_request_endpoint`
+    ///
+    /// - `params` : See [AuthorizationParameters]
+    /// - `par_params` : See [PushedAuthorizationRequestParams]
+    pub async fn pushed_authorization_request_async(
+        &mut self,
+        params: Option<AuthorizationParameters>,
+        par_params: Option<PushedAuthorizationRequestParams>,
+    ) -> Result<Value, OidcClientError> {
+        let issuer = match self.issuer.as_ref() {
+            Some(iss) => iss,
+            None => return Err(OidcClientError::new_type_error("Issuer is required", None)),
+        };
+
+        if issuer.pushed_authorization_request_endpoint.is_none() {
+            return Err(OidcClientError::new_type_error(
+                "pushed_authorization_request_endpoint must be configured on the issuer",
+                None,
+            ));
+        }
+
+        let auth_params = params.unwrap_or_default();
+
+        let mut body = if auth_params.request.is_some() {
+            auth_params
+        } else {
+            self.authorization_params(auth_params)
+        };
+
+        body.client_id = Some(self.client_id.clone());
+
+        let mut form_body = HashMap::new();
+
+        if let Some(other) = body.other {
+            for (k, v) in other {
+                form_body.insert(k, json!(v));
+            }
+        }
+
+        insert_form(&mut form_body, "client_id", body.client_id);
+        insert_form(&mut form_body, "acr_values", body.acr_values);
+        insert_form(&mut form_body, "audience", body.audience);
+        insert_form(&mut form_body, "claims_locales", body.claims_locales);
+        insert_form(
+            &mut form_body,
+            "code_challenge_method",
+            body.code_challenge_method,
+        );
+        insert_form(&mut form_body, "code_challenge", body.code_challenge);
+        insert_form(&mut form_body, "display", body.display);
+        insert_form(&mut form_body, "id_token_hint", body.id_token_hint);
+        insert_form(&mut form_body, "login_hint", body.login_hint);
+        insert_form(&mut form_body, "max_age", body.max_age);
+        insert_form(&mut form_body, "nonce", body.nonce);
+        insert_form(&mut form_body, "prompt", body.prompt);
+        insert_form(&mut form_body, "redirect_uri", body.redirect_uri);
+        insert_form(&mut form_body, "registration", body.registration);
+        insert_form(&mut form_body, "request_uri", body.request_uri);
+        insert_form(&mut form_body, "request", body.request);
+        insert_form(&mut form_body, "response_mode", body.response_mode);
+        insert_form(&mut form_body, "response_type", body.response_type);
+        insert_form(&mut form_body, "scope", body.scope);
+        insert_form(&mut form_body, "state", body.state);
+        insert_form(&mut form_body, "ui_locales", body.ui_locales);
+
+        if let Some(c) = &body.claims {
+            if let Ok(v) = serde_json::to_value(c) {
+                form_body.insert("claims".to_string(), v);
+            }
+        }
+
+        let req = Request {
+            form: Some(form_body),
+            expect_body_to_be_json: true,
+            expected: StatusCode::CREATED,
+            ..Default::default()
+        };
+
+        let params = AuthenticationPostParams {
+            client_assertion_payload: par_params.and_then(|x| x.client_assertion_payload),
+            endpoint_auth_method: Some("token".to_string()),
+            ..Default::default()
+        };
+
+        let res = self
+            .authenticated_post_async("pushed_authorization_request", req, params)
+            .await?;
+
+        let body_obj = res.body_to_json_value()?;
+
+        if body_obj.get("expires_in").is_none() {
+            return Err(OidcClientError::new_rp_error(
+                "expected expires_in in Pushed Authorization Successful Response",
+                Some(res),
+                None,
+            ));
+        }
+
+        if !body_obj["expires_in"].is_number() {
+            return Err(OidcClientError::new_rp_error(
+                "invalid expires_in value in Pushed Authorization Successful Response",
+                Some(res),
+                None,
+            ));
+        }
+
+        if body_obj.get("request_uri").is_none() {
+            return Err(OidcClientError::new_rp_error(
+                "expected request_uri in Pushed Authorization Successful Response",
+                Some(res),
+                None,
+            ));
+        }
+
+        if !body_obj["request_uri"].is_string() {
+            return Err(OidcClientError::new_rp_error(
+                "invalid request_uri value in Pushed Authorization Successful Response",
+                Some(res),
+                None,
+            ));
+        }
+
+        Ok(body_obj)
+    }
 }
 
 fn insert_query(qp: &mut HashMap<String, String>, key: &str, value: Option<String>) {
     if let Some(v) = value {
         qp.insert(key.to_string(), v);
+    }
+}
+
+fn insert_form(f: &mut HashMap<String, Value>, key: &str, value: Option<String>) {
+    if let Some(v) = value {
+        f.insert(key.to_string(), json!(v));
     }
 }

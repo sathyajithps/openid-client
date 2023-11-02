@@ -13,6 +13,7 @@ mod errors;
 mod http;
 mod introspection_params;
 mod issuer_metadata;
+mod pushed_authorization_request_params;
 pub(crate) mod query_keystore;
 mod refresh_params;
 mod request_resource_params;
@@ -38,6 +39,7 @@ pub use errors::{
 pub use http::{Interceptor, Lookup, Request, RequestInterceptor, RequestOptions, Response};
 pub use introspection_params::IntrospectionParams;
 pub use issuer_metadata::{IssuerMetadata, MtlsEndpoints};
+pub use pushed_authorization_request_params::PushedAuthorizationRequestParams;
 pub use refresh_params::RefreshTokenRequestParams;
 pub use request_resource_params::RequestResourceParams;
 pub use revoke_request_params::RevokeRequestParams;

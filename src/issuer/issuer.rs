@@ -74,6 +74,10 @@ pub struct Issuer {
     pub(crate) authorization_response_iss_parameter_supported: Option<bool>,
     /// A JSON array containing a list of the JWS alg values supported by the authorization server for DPoP proof JWTs
     pub(crate) dpop_signing_alg_values_supported: Option<Vec<String>>,
+    /// The URL of the pushed authorization request endpoint at which client can post an authorization request to exchange for a "request_uri" value usable at the authorization server.  
+    pub pushed_authorization_request_endpoint: Option<String>,
+    /// Boolean parameter indicating whether the authorization server accepts authorization request data only via PAR.  If omitted, the default value is "false".
+    pub require_pushed_authorization_requests: bool,
     /// Request interceptor used for every request
     pub(crate) request_interceptor: Option<RequestInterceptor>,
 }
@@ -112,6 +116,8 @@ impl Default for Issuer {
             authorization_response_iss_parameter_supported: None,
             registration_endpoint: None,
             dpop_signing_alg_values_supported: None,
+            pushed_authorization_request_endpoint: None,
+            require_pushed_authorization_requests: false,
         }
     }
 }
@@ -316,6 +322,8 @@ impl Issuer {
             authorization_response_iss_parameter_supported: metadata
                 .authorization_response_iss_parameter_supported,
             dpop_signing_alg_values_supported: metadata.dpop_signing_alg_values_supported,
+            pushed_authorization_request_endpoint: metadata.pushed_authorization_request_endpoint,
+            require_pushed_authorization_requests: metadata.require_pushed_authorization_requests,
         }
     }
 }
@@ -886,6 +894,10 @@ impl Clone for Issuer {
             authorization_response_iss_parameter_supported: self
                 .authorization_response_iss_parameter_supported,
             dpop_signing_alg_values_supported: self.dpop_signing_alg_values_supported.clone(),
+            pushed_authorization_request_endpoint: self
+                .pushed_authorization_request_endpoint
+                .clone(),
+            require_pushed_authorization_requests: self.require_pushed_authorization_requests,
         }
     }
 }
