@@ -2,7 +2,7 @@ use core::fmt::Debug;
 use std::collections::HashMap;
 
 use crate::client::Client;
-use crate::helpers::{convert_json_to, validate_url, webfinger_normalize};
+use crate::helpers::{convert_json_to, now, validate_url, webfinger_normalize};
 use crate::http::request_async;
 use crate::jwks::Jwks;
 use crate::types::{
@@ -80,6 +80,7 @@ pub struct Issuer {
     pub require_pushed_authorization_requests: bool,
     /// Request interceptor used for every request
     pub(crate) request_interceptor: Option<RequestInterceptor>,
+    pub(crate) now: fn() -> i64,
 }
 
 impl Default for Issuer {
@@ -118,6 +119,7 @@ impl Default for Issuer {
             dpop_signing_alg_values_supported: None,
             pushed_authorization_request_endpoint: None,
             require_pushed_authorization_requests: false,
+            now,
         }
     }
 }
@@ -324,6 +326,7 @@ impl Issuer {
             dpop_signing_alg_values_supported: metadata.dpop_signing_alg_values_supported,
             pushed_authorization_request_endpoint: metadata.pushed_authorization_request_endpoint,
             require_pushed_authorization_requests: metadata.require_pushed_authorization_requests,
+            now,
         }
     }
 }
@@ -898,6 +901,7 @@ impl Clone for Issuer {
                 .pushed_authorization_request_endpoint
                 .clone(),
             require_pushed_authorization_requests: self.require_pushed_authorization_requests,
+            now,
         }
     }
 }

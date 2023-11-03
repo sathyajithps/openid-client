@@ -7,7 +7,6 @@ use std::{
 
 use serde_json::Value;
 
-use crate::helpers::now;
 use crate::{
     issuer::Issuer,
     jwks::Jwks,
@@ -29,8 +28,8 @@ impl Issuer {
 
         match &mut self.keystore {
             Some(keystore) => {
-                let reload =
-                    keystore.cache.contains_key(&hash) || now() - keystore.last_accessed > 60;
+                let reload = keystore.cache.contains_key(&hash)
+                    || (self.now)() - keystore.last_accessed > 60;
 
                 let jwks = keystore.get_keystore_async(reload).await?;
 

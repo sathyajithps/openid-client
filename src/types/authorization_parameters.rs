@@ -10,7 +10,7 @@ pub struct AuthorizationParameters {
     /// [Auth Context Class Reference Values](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
     pub acr_values: Option<String>,
     /// Audience of the Access Token
-    pub audience: Option<String>,
+    pub audience: Option<Vec<String>>,
     /// Claims customization for `id_token` and `userinfo`
     pub claims: Option<ClaimParam>,
     /// Preferred [language script](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest) for claims
@@ -49,7 +49,7 @@ pub struct AuthorizationParameters {
     /// [Response Mode](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
     pub response_mode: Option<String>,
     /// [Response Type](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub response_type: Option<String>,
+    pub response_type: Option<Vec<String>>,
     /// [Scope](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
     pub scope: Option<String>,
     /// [State Parameter](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)

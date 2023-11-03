@@ -512,7 +512,7 @@ impl Jwks {
                 None,
             ));
         }
-        let kty = get_kty_from_alg(alg.as_ref())?;
+        let kty = get_kty_from_alg(alg.as_ref());
 
         let mut keys: Vec<&Jwk> = self
             .keys
@@ -520,7 +520,7 @@ impl Jwks {
             .filter(|key| {
                 let mut candidate = true;
 
-                if candidate && key.key_type() != kty {
+                if candidate && kty.as_ref().is_some_and(|x| x != key.key_type()) {
                     candidate = false;
                 }
 
@@ -592,21 +592,16 @@ impl Jwks {
     }
 }
 
-fn get_kty_from_alg(alg: Option<&String>) -> Result<&str, OidcClientError> {
-    let kty = match alg {
+fn get_kty_from_alg(alg: Option<&String>) -> Option<String> {
+    match alg {
         Some(a) => match &a.as_str()[0..2] {
-            "RS" | "PS" => Some("RSA"),
-            "ES" => Some("EC"),
-            "Ed" => Some("OKP"),
+            "RS" | "PS" => Some("RSA".to_string()),
+            "ES" => Some("EC".to_string()),
+            "Ed" => Some("OKP".to_string()),
             _ => None,
         },
         _ => None,
-    };
-
-    kty.ok_or(OidcClientError::new_error(
-        "key_use or alg should be present",
-        None,
-    ))
+    }
 }
 
 fn keyscore_jose(key: &Jwk, alg: bool, key_use: bool) -> i8 {

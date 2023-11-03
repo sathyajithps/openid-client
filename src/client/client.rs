@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use crate::{
-    helpers::{convert_json_to, validate_url},
+    helpers::{convert_json_to, now, validate_url},
     http::request_async,
     issuer::Issuer,
     jwks::Jwks,
@@ -133,6 +133,7 @@ pub struct Client {
     pub(crate) skip_nonce_check: bool,
     pub(crate) clock_tolerance: Duration,
     pub(crate) is_fapi: bool,
+    pub(crate) now: fn() -> i64,
 }
 
 impl Client {
@@ -194,6 +195,7 @@ impl Client {
             skip_nonce_check: false,
             clock_tolerance: Duration::from_secs(0),
             is_fapi: false,
+            now,
         }
     }
 
