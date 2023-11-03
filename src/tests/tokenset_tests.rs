@@ -44,16 +44,12 @@ fn provides_a_claims_getter() {
 }
 
 #[test]
-fn claims_throws_if_no_id_token_is_present() {
+fn claims_is_none_if_id_token_not_present() {
     let tokenset = TokenSet::new(TokenSetParams::default());
 
-    let error = tokenset.claims().unwrap_err();
+    let claims = tokenset.claims();
 
-    assert!(error.is_type_error());
-    assert_eq!(
-        "id_token not present in TokenSet",
-        error.type_error().error.message
-    );
+    assert!(claims.is_none());
 }
 
 #[test]

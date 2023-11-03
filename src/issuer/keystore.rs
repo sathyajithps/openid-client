@@ -19,6 +19,7 @@ pub(crate) struct KeyStore {
     pub(crate) cache: LruCache<u64, bool>,
     pub(crate) last_accessed: i64,
     interceptor: Option<RequestInterceptor>,
+    now: fn() -> i64,
 }
 
 impl KeyStore {
@@ -30,8 +31,9 @@ impl KeyStore {
             jwks: None,
             jwks_uri,
             cache: LruCache::with_capacity(100),
-            last_accessed: now(),
+            last_accessed: 0,
             interceptor,
+            now,
         }
     }
 
@@ -80,7 +82,7 @@ impl KeyStore {
                 Ok(jwks) => {
                     self.jwks = Some(jwks);
 
-                    self.last_accessed = now();
+                    self.last_accessed = (self.now)();
 
                     if let Some(jwks) = &self.jwks {
                         return Ok(jwks.clone());
@@ -134,6 +136,7 @@ impl Clone for KeyStore {
             cache: self.cache.clone(),
             last_accessed: self.last_accessed,
             interceptor,
+            now,
         }
     }
 }

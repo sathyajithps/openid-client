@@ -10,7 +10,7 @@ use reqwest::{Method, StatusCode};
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
-use crate::helpers::{get_serde_value_as_string, now, random};
+use crate::helpers::{get_serde_value_as_string, random};
 use crate::http::request_async;
 use crate::jwks::jwks::CustomJwk;
 use crate::types::query_keystore::QueryKeyStore;
@@ -77,7 +77,20 @@ impl Client {
 
         insert_query(&mut query_params, "client_id", params.client_id);
         insert_query(&mut query_params, "acr_values", params.acr_values);
-        insert_query(&mut query_params, "audience", params.audience);
+
+        if let Some(aud_arr) = params.audience {
+            let mut aud_str = String::new();
+            for aud in aud_arr {
+                aud_str += &format!("{} ", aud);
+            }
+
+            insert_query(
+                &mut query_params,
+                "audience",
+                Some(aud_str.trim_end().to_string()),
+            );
+        }
+
         insert_query(&mut query_params, "claims_locales", params.claims_locales);
         insert_query(
             &mut query_params,
@@ -96,7 +109,20 @@ impl Client {
         insert_query(&mut query_params, "request_uri", params.request_uri);
         insert_query(&mut query_params, "request", params.request);
         insert_query(&mut query_params, "response_mode", params.response_mode);
-        insert_query(&mut query_params, "response_type", params.response_type);
+
+        if let Some(res_arr) = params.response_type {
+            let mut res_str = String::new();
+            for res in res_arr {
+                res_str += &format!("{} ", res);
+            }
+
+            insert_query(
+                &mut query_params,
+                "response_type",
+                Some(res_str.trim_end().to_string()),
+            );
+        }
+
         insert_query(&mut query_params, "scope", params.scope);
         insert_query(&mut query_params, "state", params.state);
         insert_query(&mut query_params, "ui_locales", params.ui_locales);
@@ -275,7 +301,18 @@ impl Client {
 
         insert_query(&mut query_params, "client_id", params.client_id);
         insert_query(&mut query_params, "acr_values", params.acr_values);
-        insert_query(&mut query_params, "audience", params.audience);
+        if let Some(aud_arr) = params.audience {
+            let mut aud_str = String::new();
+            for aud in aud_arr {
+                aud_str += &format!("{} ", aud);
+            }
+
+            insert_query(
+                &mut query_params,
+                "audience",
+                Some(aud_str.trim_end().to_string()),
+            );
+        }
         insert_query(&mut query_params, "claims_locales", params.claims_locales);
         insert_query(
             &mut query_params,
@@ -294,7 +331,18 @@ impl Client {
         insert_query(&mut query_params, "request_uri", params.request_uri);
         insert_query(&mut query_params, "request", params.request);
         insert_query(&mut query_params, "response_mode", params.response_mode);
-        insert_query(&mut query_params, "response_type", params.response_type);
+        if let Some(res_arr) = params.response_type {
+            let mut res_str = String::new();
+            for res in res_arr {
+                res_str += &format!("{} ", res);
+            }
+
+            insert_query(
+                &mut query_params,
+                "response_type",
+                Some(res_str.trim_end().to_string()),
+            );
+        }
         insert_query(&mut query_params, "scope", params.scope);
         insert_query(&mut query_params, "state", params.state);
         insert_query(&mut query_params, "ui_locales", params.ui_locales);
@@ -1495,8 +1543,12 @@ impl Client {
                 .validate_id_token_async(new_token_set, None, "token", None, None)
                 .await?;
 
-            if let Some(Value::String(expected_sub)) = token_set.claims()?.get("sub") {
-                if let Some(Value::String(new_sub)) = new_token_set.claims()?.get("sub") {
+            if let Some(Value::String(expected_sub)) =
+                token_set.claims().as_ref().and_then(|x| x.get("sub"))
+            {
+                if let Some(Value::String(new_sub)) =
+                    new_token_set.claims().as_ref().and_then(|x| x.get("sub"))
+                {
                     if expected_sub != new_sub {
                         let mut extra_data: HashMap<String, Value> = HashMap::new();
 
@@ -1817,7 +1869,9 @@ impl Client {
         };
 
         if let Some(id_token) = token_set.get_id_token() {
-            if let Some(Value::String(expected_sub)) = token_set.claims()?.get("sub") {
+            if let Some(Value::String(expected_sub)) =
+                token_set.claims().as_ref().and_then(|x| x.get("sub"))
+            {
                 if let Some(new_sub) = payload.subject() {
                     if expected_sub != new_sub {
                         let mut extra_data: HashMap<String, Value> = HashMap::new();
@@ -1869,7 +1923,7 @@ impl Client {
             .unwrap_or("none".to_string());
         let header_typ = "oauth-authz-req+jwt";
 
-        let unix = now();
+        let unix = (self.now)();
 
         request_object["iss"] = json!(self.client_id);
 
@@ -2046,7 +2100,18 @@ impl Client {
 
         insert_form(&mut form_body, "client_id", body.client_id);
         insert_form(&mut form_body, "acr_values", body.acr_values);
-        insert_form(&mut form_body, "audience", body.audience);
+        if let Some(aud_arr) = body.audience {
+            let mut aud_str = String::new();
+            for aud in aud_arr {
+                aud_str += &format!("{} ", aud);
+            }
+
+            insert_form(
+                &mut form_body,
+                "audience",
+                Some(aud_str.trim_end().to_string()),
+            );
+        }
         insert_form(&mut form_body, "claims_locales", body.claims_locales);
         insert_form(
             &mut form_body,
@@ -2065,7 +2130,18 @@ impl Client {
         insert_form(&mut form_body, "request_uri", body.request_uri);
         insert_form(&mut form_body, "request", body.request);
         insert_form(&mut form_body, "response_mode", body.response_mode);
-        insert_form(&mut form_body, "response_type", body.response_type);
+        if let Some(res_arr) = body.response_type {
+            let mut res_str = String::new();
+            for res in res_arr {
+                res_str += &format!("{} ", res);
+            }
+
+            insert_form(
+                &mut form_body,
+                "response_type",
+                Some(res_str.trim_end().to_string()),
+            );
+        }
         insert_form(&mut form_body, "scope", body.scope);
         insert_form(&mut form_body, "state", body.state);
         insert_form(&mut form_body, "ui_locales", body.ui_locales);

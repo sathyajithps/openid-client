@@ -19,7 +19,7 @@ use serde_json::{json, Value};
 use url::Url;
 
 use crate::{
-    helpers::{decode_jwt, get_jwk_thumbprint_s256, now, random, validate_hash, Names},
+    helpers::{decode_jwt, get_jwk_thumbprint_s256, random, validate_hash, Names},
     http::request_async,
     tokenset::TokenSet,
     types::{
@@ -111,7 +111,7 @@ impl Client {
         let mut new_params = AuthorizationParameters {
             client_id: Some(self.client_id.clone()),
             scope: Some("openid".to_string()),
-            response_type: self.resolve_response_type(),
+            response_type: self.resolve_response_type().map(|x| vec![x]),
             redirect_uri: self.resolve_redirect_uri(),
             ..Default::default()
         };
@@ -376,17 +376,20 @@ impl Client {
                 Ok(request)
             }
             "private_key_jwt" | "client_secret_jwt" => {
-                let iat = SystemTime::now();
-                let exp =
-                    iat.checked_add(Duration::from_secs(60))
-                        .ok_or(OidcClientError::new_error(
-                            "error while adding seconds to iat",
-                            None,
-                        ))?;
+                let iat = (self.now)();
+                let exp = iat + 60;
                 let mut jwt_payload = JwtPayload::new();
 
-                jwt_payload.set_issued_at(&iat);
-                jwt_payload.set_expires_at(&exp);
+                if let Some(i) = SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(iat as u64))
+                {
+                    jwt_payload.set_issued_at(&i);
+                }
+
+                if let Some(e) = SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(exp as u64))
+                {
+                    jwt_payload.set_expires_at(&e);
+                }
+
                 jwt_payload.set_jwt_id(&random());
                 jwt_payload.set_issuer(&self.client_id);
                 jwt_payload.set_subject(&self.client_id);
@@ -681,8 +684,14 @@ impl Client {
 
             let header = josekit::jwt::decode_header(jwe).unwrap();
 
-            let kid = header.claim("kid").unwrap().as_str().map(|x| x.to_owned());
-            let alg = header.claim("alg").unwrap().as_str().map(|x| x.to_owned());
+            let kid = match header.claim("kid") {
+                Some(Value::String(k)) => Some(k.to_owned()),
+                _ => None,
+            };
+            let alg = match header.claim("alg") {
+                Some(Value::String(a)) => Some(a.to_owned()),
+                _ => None,
+            };
 
             let keys = jwks.get(alg, Some("enc".to_string()), kid)?;
 
@@ -693,7 +702,7 @@ impl Client {
                         plain_text = String::from_utf8(bytes).ok();
                         break;
                     }
-                    _ => continue,
+                    Err(e) => println!("{:?}", e),
                 }
             }
         } else {
@@ -772,7 +781,7 @@ impl Client {
             .as_ref()
             .map_or(false, |x| x.issuer == "https://self-issued.me");
 
-        let timestamp = now();
+        let timestamp = (self.now)();
         let decoded_jwt = match decode_jwt(jwt) {
             Ok(t) => t,
             Err(err) => {
@@ -1190,7 +1199,7 @@ impl Client {
         if let Some(id_token) = token_set.get_id_token() {
             let expected_alg = self.id_token_signed_response_alg.clone();
 
-            let timestamp = now();
+            let timestamp = (self.now)();
 
             let (payload, header, key) = self
                 .validate_jwt_async(&id_token, &expected_alg, None)

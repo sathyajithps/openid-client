@@ -205,7 +205,7 @@ fn allows_to_overwrite_the_defaults() {
 
     let auth_params = AuthorizationParameters {
         scope: Some("openid offline_access".to_string()),
-        response_type: Some("id_token".to_string()),
+        response_type: Some(vec!["id_token".to_string()]),
         nonce: Some("foobar".to_string()),
         redirect_uri: Some("https://rp.example.com/cb".to_string()),
         ..Default::default()
