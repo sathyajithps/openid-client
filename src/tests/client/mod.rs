@@ -61,4 +61,13 @@ mod client_par_tests;
 #[cfg(test)]
 mod client_signed_encrypted_responses;
 
+#[cfg(test)]
+mod client_implicit_kid_tests;
+
+#[cfg(test)]
+mod client_self_issued_tests;
+
+#[cfg(test)]
+mod client_mtls_tests;
+
 pub mod helpers;

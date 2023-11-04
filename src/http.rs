@@ -7,7 +7,10 @@ use crate::{
         StandardBodyError,
     },
 };
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    Identity,
+};
 use serde_json::Value;
 use url::Url;
 
@@ -24,7 +27,7 @@ pub async fn request_async(
             headers.append(
                 "User-Agent",
                 HeaderValue::from_static(
-                    "openid-client/0.0.36-dev (https://github.com/sathyajithps/openid-client)",
+                    "openid-client/0.0.37-dev (https://github.com/sathyajithps/openid-client)",
                 ),
             );
             RequestOptions {
@@ -44,6 +47,29 @@ pub async fn request_async(
     if options.danger_accept_invalid_certs {
         client_builder = client_builder.danger_accept_invalid_certs(true);
     }
+
+    if request.mtls
+        && (options.client_crt.is_none() || options.client_key.is_none())
+        && options.client_pkcs_12.is_none()
+    {
+        return Err(OidcClientError::new_type_error(
+            "mutual-TLS certificate and key not set",
+            None,
+        ));
+    }
+
+    if let (Some(crt), Some(key)) = (options.client_crt, options.client_key) {
+        if let Ok(identity) = Identity::from_pkcs8_pem(crt.as_bytes(), key.as_bytes()) {
+            client_builder = client_builder.identity(identity);
+        }
+    };
+
+    if let Some(pfx) = options.client_pkcs_12 {
+        let pass = options.client_pkcs_12_passphrase.unwrap_or_default();
+        if let Ok(identity) = Identity::from_pkcs12_der(&pfx, &pass) {
+            client_builder = client_builder.identity(identity);
+        }
+    };
 
     let client = client_builder
         .build()

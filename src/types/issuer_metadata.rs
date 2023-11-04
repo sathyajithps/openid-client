@@ -55,8 +55,6 @@ pub struct IssuerMetadata {
     /// List of JWS signing algorithms supported by the revocation endpoint for the signature of the
     /// JWT that the client uses to authenticate.
     pub revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
-    /// List of JWS signing algorithms supported by the Authorization Server for signing [Request Object](https://openid.net/specs/openid-connect-core-1_0.html#RequestObject).
-    pub request_object_signing_alg_values_supported: Option<Vec<String>>,
     /// Alternative endpoints that can be used by a client with mTLS to access. See [MtlsEndpoints]
     pub mtls_endpoint_aliases: Option<MtlsEndpoints>,
     /// OP support of returning the OP id in auth response. [RFC](https://www.ietf.org/archive/id/draft-meyerzuselhausen-oauth-iss-auth-resp-02.html#name-providing-the-issuer-identi)

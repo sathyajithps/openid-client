@@ -210,7 +210,7 @@ pub struct RequestOptions {
     /// ### Client certificate in pkcs 12 format `.p12` or `.pfx`
     /// Make sure to pass `client_pkcs_12_passphrase` if the
     /// certificate is protected.
-    pub client_pkcs_12: Option<String>,
+    pub client_pkcs_12: Option<Vec<u8>>,
     /// Passphrase for pkcs_12 certificate
     pub client_pkcs_12_passphrase: Option<String>,
     /// ### Server certificate in pem format
