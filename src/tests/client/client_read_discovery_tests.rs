@@ -258,6 +258,9 @@ mod http_options {
                 test_header: Some("testHeader".to_string()),
                 test_header_value: Some("testHeaderValue".to_string()),
                 test_server_port: Some(mock_http_server.port()),
+                crt: None,
+                key: None,
+                pfx: None,
             })),
             false,
         )

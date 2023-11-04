@@ -287,6 +287,9 @@ mod http_options {
                 test_header: Some("custom".to_string()),
                 test_header_value: Some("foo".to_string()),
                 test_server_port: Some(mock_http_server.port()),
+                crt: None,
+                key: None,
+                pfx: None,
             })),
         )
         .await;

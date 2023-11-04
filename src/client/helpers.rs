@@ -315,6 +315,7 @@ impl Client {
         }
 
         req.method = Method::POST;
+        req.mtls = mtls;
 
         request_async(req, &mut self.request_interceptor).await
     }
@@ -1030,10 +1031,12 @@ impl Client {
                         ));
                     }
 
-                    // Shoud not throw an error
-                    let jwk_json = sub_jwk.as_str().unwrap();
+                    // Shoud not throw an error?
+                    let jwk_json = serde_json::to_string(&sub_jwk).or(Err(
+                        OidcClientError::new_error("Error while serializing sub_jwk", None),
+                    ))?;
 
-                    let mut jwk = Jwk::from_bytes(jwk_json).map_err(|_| {
+                    let mut jwk = Jwk::from_bytes(jwk_json.as_bytes()).map_err(|_| {
                         let mut extra_data = HashMap::<String, Value>::new();
                         extra_data.insert("jwt".to_string(), json!(jwt));
 
@@ -1085,7 +1088,7 @@ impl Client {
                         None,
                     ))?;
 
-            if get_jwk_thumbprint_s256(jwk_str)? != payload_sub {
+            if get_jwk_thumbprint_s256(&jwk_str)? != payload_sub {
                 let mut extra_data = HashMap::<String, Value>::new();
                 extra_data.insert("jwt".to_string(), json!(jwt));
 
