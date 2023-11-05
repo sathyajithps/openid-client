@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// # AuthorizationParameters
@@ -51,18 +51,18 @@ pub struct AuthorizationParameters {
     /// [Response Type](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
     pub response_type: Option<Vec<String>>,
     /// [Scope](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub scope: Option<String>,
+    pub scope: Option<Vec<String>>,
     /// [State Parameter](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
     pub state: Option<String>,
     /// Preferred [language script](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest) for UI
     pub ui_locales: Option<String>,
     /// Other fields
-    pub other: Option<HashMap<String, String>>,
+    pub other: HashMap<String, String>,
 }
 
 /// # ClaimParamValue
 /// Value for each [ClaimParam]
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum ClaimParamValue {
     /// Null (null) value
@@ -73,19 +73,19 @@ pub enum ClaimParamValue {
 
 /// # ClaimParam
 /// The value of `claims` of [AuthorizationParameters]
-#[derive(Serialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ClaimParam {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Claims structure of `id_token`
     pub id_token: Option<HashMap<String, ClaimParamValue>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     /// Claims structure of `userinfo` that will be returned
     pub userinfo: Option<HashMap<String, ClaimParamValue>>,
 }
 
 /// # ClaimsParameterMember
 /// Customizing the claims from `claims` of [AuthorizationParameters]
-#[derive(Serialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ClaimsParameterMember {
     /// Marks as essential or not
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -103,7 +103,7 @@ pub struct ClaimsParameterMember {
 
 /// # ResourceParam
 /// Value types for `resource` of [AuthorizationParameters]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ResourceParam {
     /// Resource value as string

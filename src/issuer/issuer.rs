@@ -21,6 +21,7 @@ pub struct Issuer {
     pub(crate) issuer: String,
     /// OpenID Connect [Authorization Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint).
     pub(crate) authorization_endpoint: Option<String>,
+    pub(crate) device_authorization_endpoint: Option<String>,
     /// OpenID Connect [Token Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#TokenEndpoint).
     pub(crate) token_endpoint: Option<String>,
     /// URL of the authorization server's JWK Set. [See](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
@@ -120,6 +121,7 @@ impl Default for Issuer {
             pushed_authorization_request_endpoint: None,
             require_pushed_authorization_requests: false,
             now,
+            device_authorization_endpoint: None,
         }
     }
 }
@@ -327,6 +329,7 @@ impl Issuer {
             pushed_authorization_request_endpoint: metadata.pushed_authorization_request_endpoint,
             require_pushed_authorization_requests: metadata.require_pushed_authorization_requests,
             now,
+            device_authorization_endpoint: metadata.device_authorization_endpoint,
         }
     }
 }
@@ -902,6 +905,7 @@ impl Clone for Issuer {
                 .clone(),
             require_pushed_authorization_requests: self.require_pushed_authorization_requests,
             now,
+            device_authorization_endpoint: self.device_authorization_endpoint.clone(),
         }
     }
 }

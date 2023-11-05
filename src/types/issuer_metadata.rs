@@ -26,6 +26,8 @@ pub struct IssuerMetadata {
     pub issuer: String,
     /// Authorization Endpoint. [RFC6749 - Authorization Endpoint](https://www.rfc-editor.org/rfc/rfc6749#section-3.1).
     pub authorization_endpoint: Option<String>,
+    ///  Device authorization endpoint
+    pub device_authorization_endpoint: Option<String>,
     /// Endpoint to obtain the access/refresh/id tokens. [RFC6749 - Token Endpoint](https://www.rfc-editor.org/rfc/rfc6749#section-3.2).
     pub token_endpoint: Option<String>,
     /// URL of the authorization server's JWK Set. [See](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
