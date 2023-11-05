@@ -12,4 +12,8 @@ pub mod client_get_set;
 /// Implementaion of RP Client methods
 pub mod client_impl;
 
+/// Device flow handle returned from [Client::device_authorization_async]
+pub mod device_flow_handle;
+
 pub use client::Client;
+pub use device_flow_handle::DeviceFlowHandle;

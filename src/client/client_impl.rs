@@ -15,9 +15,11 @@ use crate::http::request_async;
 use crate::jwks::jwks::CustomJwk;
 use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
-    CallbackExtras, CallbackParams, IntrospectionParams, OAuthCallbackChecks, OpenIDCallbackChecks,
-    PushedAuthorizationRequestParams, RefreshTokenRequestParams, Request, RequestResourceParams,
-    Response, RevokeRequestParams, UserinfoRequestParams,
+    CallbackExtras, CallbackParams, ClaimParam, DeviceAuthorizationExtras,
+    DeviceAuthorizationParams, DeviceAuthorizationResponse, IntrospectionParams,
+    OAuthCallbackChecks, OpenIDCallbackChecks, PushedAuthorizationRequestParams,
+    RefreshTokenRequestParams, Request, RequestResourceParams, Response, RevokeRequestParams,
+    UserinfoRequestParams,
 };
 use crate::{
     helpers::convert_json_to,
@@ -28,7 +30,7 @@ use crate::{
     },
 };
 
-use super::Client;
+use super::{Client, DeviceFlowHandle};
 
 /// Implementation for Client
 impl Client {
@@ -69,10 +71,8 @@ impl Client {
 
         params = self.authorization_params(params);
 
-        if let Some(other) = params.other {
-            for (k, v) in other {
-                query_params.entry(k).or_insert(v);
-            }
+        for (k, v) in params.other {
+            query_params.entry(k).or_insert(v);
         }
 
         insert_query(&mut query_params, "client_id", params.client_id);
@@ -123,7 +123,19 @@ impl Client {
             );
         }
 
-        insert_query(&mut query_params, "scope", params.scope);
+        if let Some(scope_arr) = params.scope {
+            let mut scope_str = String::new();
+            for scope in scope_arr {
+                scope_str += &format!("{} ", scope);
+            }
+
+            insert_query(
+                &mut query_params,
+                "scope",
+                Some(scope_str.trim_end().to_string()),
+            );
+        }
+
         insert_query(&mut query_params, "state", params.state);
         insert_query(&mut query_params, "ui_locales", params.ui_locales);
 
@@ -293,10 +305,8 @@ impl Client {
 
         params = self.authorization_params(params);
 
-        if let Some(other) = params.other {
-            for (k, v) in other {
-                query_params.insert(k, v);
-            }
+        for (k, v) in params.other {
+            query_params.insert(k, v);
         }
 
         insert_query(&mut query_params, "client_id", params.client_id);
@@ -343,7 +353,20 @@ impl Client {
                 Some(res_str.trim_end().to_string()),
             );
         }
-        insert_query(&mut query_params, "scope", params.scope);
+
+        if let Some(scope_arr) = params.scope {
+            let mut scope_str = String::new();
+            for scope in scope_arr {
+                scope_str += &format!("{} ", scope);
+            }
+
+            insert_query(
+                &mut query_params,
+                "scope",
+                Some(scope_str.trim_end().to_string()),
+            );
+        }
+
         insert_query(&mut query_params, "state", params.state);
         insert_query(&mut query_params, "ui_locales", params.ui_locales);
 
@@ -2092,10 +2115,8 @@ impl Client {
 
         let mut form_body = HashMap::new();
 
-        if let Some(other) = body.other {
-            for (k, v) in other {
-                form_body.insert(k, json!(v));
-            }
+        for (k, v) in body.other {
+            form_body.insert(k, json!(v));
         }
 
         insert_form(&mut form_body, "client_id", body.client_id);
@@ -2142,7 +2163,20 @@ impl Client {
                 Some(res_str.trim_end().to_string()),
             );
         }
-        insert_form(&mut form_body, "scope", body.scope);
+
+        if let Some(scope_arr) = body.scope {
+            let mut scope_str = String::new();
+            for scope in scope_arr {
+                scope_str += &format!("{} ", scope);
+            }
+
+            insert_form(
+                &mut form_body,
+                "scope",
+                Some(scope_str.trim_end().to_string()),
+            );
+        }
+
         insert_form(&mut form_body, "state", body.state);
         insert_form(&mut form_body, "ui_locales", body.ui_locales);
 
@@ -2204,6 +2238,259 @@ impl Client {
         }
 
         Ok(body_obj)
+    }
+
+    /// # Device Authorization Grant
+    /// Performs a Device Authorization Grant at `device_authorization_request_endpoint`.
+    ///
+    /// `params` : See [DeviceAuthorizationParams]
+    /// `extras` : See [DeviceAuthorizationExtras]
+    pub async fn device_authorization_async(
+        &mut self,
+        params: DeviceAuthorizationParams,
+        extras: Option<DeviceAuthorizationExtras>,
+    ) -> Result<DeviceFlowHandle, OidcClientError> {
+        let issuer = match self.issuer.as_ref() {
+            Some(iss) => iss,
+            None => return Err(OidcClientError::new_type_error("Issuer is required", None)),
+        };
+
+        if issuer.token_endpoint.is_none() {
+            return Err(OidcClientError::new_type_error(
+                "token_endpoint must be configured on the issuer",
+                None,
+            ));
+        }
+
+        if issuer.device_authorization_endpoint.is_none() {
+            return Err(OidcClientError::new_type_error(
+                "device_authorization_endpoint must be configured on the issuer",
+                None,
+            ));
+        }
+
+        let mut auth_params = AuthorizationParameters {
+            client_id: Some(self.client_id.clone()),
+            ..Default::default()
+        };
+
+        if let Some(client_id) = params.client_id {
+            auth_params.client_id = Some(client_id);
+        }
+
+        if let Some(scope) = params.scope {
+            auth_params.scope = Some(scope);
+        }
+
+        for (k, v) in params.other {
+            if k == "redirect_uri" || k == "response_type" || k == "client_id" || k == "scope" {
+                continue;
+            } else if k == "audience" {
+                if let Some(audience) = v.as_array() {
+                    if !audience.is_empty() {
+                        let mut aud_arr = vec![];
+                        for aud in audience {
+                            if let Some(a) = aud.as_str() {
+                                aud_arr.push(a.to_string());
+                            }
+                        }
+
+                        auth_params.audience = Some(aud_arr);
+                    }
+                }
+            } else if k == "claims" {
+                if let Ok(claims) = serde_json::from_value::<ClaimParam>(v.clone()) {
+                    auth_params.claims = Some(claims);
+                }
+            } else if k == "acr_values" {
+                if let Some(acr_values) = v.as_str() {
+                    auth_params.acr_values = Some(acr_values.to_string());
+                }
+            } else if k == "claims_locales" {
+                if let Some(claims_locales) = v.as_str() {
+                    auth_params.claims_locales = Some(claims_locales.to_string());
+                }
+            } else if k == "client_id" {
+                if let Some(client_id) = v.as_str() {
+                    auth_params.client_id = Some(client_id.to_string());
+                }
+            } else if k == "code_challenge_method" {
+                if let Some(code_challenge_method) = v.as_str() {
+                    auth_params.code_challenge_method = Some(code_challenge_method.to_string());
+                }
+            } else if k == "code_challenge" {
+                if let Some(code_challenge) = v.as_str() {
+                    auth_params.code_challenge = Some(code_challenge.to_string());
+                }
+            } else if k == "display" {
+                if let Some(display) = v.as_str() {
+                    auth_params.display = Some(display.to_string());
+                }
+            } else if k == "id_token_hint" {
+                if let Some(id_token_hint) = v.as_str() {
+                    auth_params.id_token_hint = Some(id_token_hint.to_string());
+                }
+            } else if k == "login_hint" {
+                if let Some(login_hint) = v.as_str() {
+                    auth_params.login_hint = Some(login_hint.to_string());
+                }
+            } else if k == "max_age" {
+                if let Some(max_age) = v.as_str() {
+                    auth_params.max_age = Some(max_age.to_string());
+                }
+            } else if k == "nonce" {
+                if let Some(nonce) = v.as_str() {
+                    auth_params.nonce = Some(nonce.to_string());
+                }
+            } else if k == "prompt" {
+                if let Some(prompt) = v.as_str() {
+                    auth_params.prompt = Some(prompt.to_string());
+                }
+            } else if k == "registration" {
+                if let Some(registration) = v.as_str() {
+                    auth_params.registration = Some(registration.to_string());
+                }
+            } else if k == "request_uri" {
+                if let Some(request_uri) = v.as_str() {
+                    auth_params.request_uri = Some(request_uri.to_string());
+                }
+            } else if k == "request" {
+                if let Some(request) = v.as_str() {
+                    auth_params.request = Some(request.to_string());
+                }
+            } else if k == "resource" {
+                if let Ok(resource) = serde_json::from_value::<ResourceParam>(v.clone()) {
+                    auth_params.resource = Some(resource);
+                }
+            } else if k == "response_mode" {
+                if let Some(response_mode) = v.as_str() {
+                    auth_params.response_mode = Some(response_mode.to_string());
+                }
+            } else if k == "state" {
+                if let Some(state) = v.as_str() {
+                    auth_params.state = Some(state.to_string());
+                }
+            } else if k == "ui_locales" {
+                if let Some(ui_locales) = v.as_str() {
+                    auth_params.ui_locales = Some(ui_locales.to_string());
+                }
+            } else {
+                auth_params.other.insert(k, get_serde_value_as_string(&v)?);
+            }
+        }
+
+        let body = self.authorization_params(auth_params);
+
+        let mut form_body = HashMap::new();
+
+        for (k, v) in body.other {
+            form_body.insert(k, json!(v));
+        }
+
+        insert_form(&mut form_body, "client_id", body.client_id);
+        insert_form(&mut form_body, "acr_values", body.acr_values);
+        if let Some(aud_arr) = body.audience {
+            let mut aud_str = String::new();
+            for aud in aud_arr {
+                aud_str += &format!("{} ", aud);
+            }
+
+            insert_form(
+                &mut form_body,
+                "audience",
+                Some(aud_str.trim_end().to_string()),
+            );
+        }
+        insert_form(&mut form_body, "claims_locales", body.claims_locales);
+        insert_form(
+            &mut form_body,
+            "code_challenge_method",
+            body.code_challenge_method,
+        );
+        insert_form(&mut form_body, "code_challenge", body.code_challenge);
+        insert_form(&mut form_body, "display", body.display);
+        insert_form(&mut form_body, "id_token_hint", body.id_token_hint);
+        insert_form(&mut form_body, "login_hint", body.login_hint);
+        insert_form(&mut form_body, "max_age", body.max_age);
+        insert_form(&mut form_body, "nonce", body.nonce);
+        insert_form(&mut form_body, "prompt", body.prompt);
+        insert_form(&mut form_body, "redirect_uri", body.redirect_uri);
+        insert_form(&mut form_body, "registration", body.registration);
+        insert_form(&mut form_body, "request_uri", body.request_uri);
+        insert_form(&mut form_body, "request", body.request);
+        insert_form(&mut form_body, "response_mode", body.response_mode);
+        if let Some(res_arr) = body.response_type {
+            let mut res_str = String::new();
+            for res in res_arr {
+                res_str += &format!("{} ", res);
+            }
+
+            insert_form(
+                &mut form_body,
+                "response_type",
+                Some(res_str.trim_end().to_string()),
+            );
+        }
+
+        if let Some(scope_arr) = body.scope {
+            let mut scope_str = String::new();
+            for scope in scope_arr {
+                scope_str += &format!("{} ", scope);
+            }
+
+            insert_form(
+                &mut form_body,
+                "scope",
+                Some(scope_str.trim_end().to_string()),
+            );
+        }
+
+        insert_form(&mut form_body, "state", body.state);
+        insert_form(&mut form_body, "ui_locales", body.ui_locales);
+
+        if let Some(c) = &body.claims {
+            if let Ok(v) = serde_json::to_value(c) {
+                form_body.insert("claims".to_string(), v);
+            }
+        }
+
+        let req = Request {
+            form: Some(form_body),
+            expect_body: true,
+            expect_body_to_be_json: true,
+            ..Default::default()
+        };
+
+        let auth_post_params = AuthenticationPostParams {
+            client_assertion_payload: extras
+                .as_ref()
+                .and_then(|x| x.client_assertion_payload.clone()),
+            endpoint_auth_method: Some("token".to_string()),
+            ..Default::default()
+        };
+
+        let res = self
+            .authenticated_post_async("device_authorization", req, auth_post_params)
+            .await?;
+
+        let device_res = res
+            .body
+            .as_ref()
+            .and_then(|x| convert_json_to::<DeviceAuthorizationResponse>(x).ok())
+            .ok_or(OidcClientError::new_type_error(
+                &format!(
+                    "could not convert response body to device authorization response: {}",
+                    res.body.clone().unwrap_or_default()
+                ),
+                Some(res),
+            ))?;
+
+        Ok(DeviceFlowHandle::new(
+            self.clone(),
+            device_res,
+            extras,
+            params.max_age,
+        ))
     }
 }
 

@@ -204,7 +204,7 @@ fn allows_to_overwrite_the_defaults() {
     let clients = setup_clients();
 
     let auth_params = AuthorizationParameters {
-        scope: Some("openid offline_access".to_string()),
+        scope: Some(vec!["openid".to_string(), "offline_access".to_string()]),
         response_type: Some(vec!["id_token".to_string()]),
         nonce: Some("foobar".to_string()),
         redirect_uri: Some("https://rp.example.com/cb".to_string()),
@@ -239,7 +239,7 @@ fn allows_any_other_params_to_be_provide_too() {
 
     let auth_params = AuthorizationParameters {
         state: Some("state".to_string()),
-        other: Some(other),
+        other,
         ..Default::default()
     };
 

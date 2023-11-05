@@ -110,7 +110,7 @@ impl Client {
     ) -> AuthorizationParameters {
         let mut new_params = AuthorizationParameters {
             client_id: Some(self.client_id.clone()),
-            scope: Some("openid".to_string()),
+            scope: Some(vec!["openid".to_string()]),
             response_type: self.resolve_response_type().map(|x| vec![x]),
             redirect_uri: self.resolve_redirect_uri(),
             ..Default::default()
@@ -185,15 +185,7 @@ impl Client {
         if params.ui_locales.is_some() {
             new_params.ui_locales = params.ui_locales;
         }
-
-        if let Some(other) = params.other {
-            let mut new_other: HashMap<String, String> = HashMap::new();
-            for (k, v) in other {
-                new_other.insert(k, v);
-            }
-
-            new_params.other = Some(new_other);
-        }
+        new_params.other = params.other;
 
         new_params
     }
@@ -286,6 +278,9 @@ impl Client {
                 "token" => aliases.and_then(|a| a.token_endpoint.as_ref()),
                 "introspection" => aliases.and_then(|a| a.introspection_endpoint.as_ref()),
                 "revocation" => aliases.and_then(|a| a.revocation_endpoint.as_ref()),
+                "device_authorization" => {
+                    aliases.and_then(|a| a.device_authorization_endpoint.as_ref())
+                }
                 _ => return Err(OidcClientError::new_error("unknown endpoint", None)),
             };
         }
@@ -295,6 +290,7 @@ impl Client {
                 "token" => issuer.token_endpoint.as_ref(),
                 "introspection" => issuer.introspection_endpoint.as_ref(),
                 "revocation" => issuer.revocation_endpoint.as_ref(),
+                "device_authorization" => issuer.device_authorization_endpoint.as_ref(),
                 "pushed_authorization_request" => {
                     issuer.pushed_authorization_request_endpoint.as_ref()
                 }

@@ -70,4 +70,7 @@ mod client_self_issued_tests;
 #[cfg(test)]
 mod client_mtls_tests;
 
+#[cfg(test)]
+mod client_device_flow_tests;
+
 pub mod helpers;

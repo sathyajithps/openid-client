@@ -40,6 +40,7 @@
 //! - [client::Client::userinfo_async]
 //! - [client::Client::request_object_async]
 //! - [client::Client::pushed_authorization_request_async]
+//! - [client::Client::device_authorization_async]
 //!
 //! ### Client Read
 //! - [client::Client::from_uri_async]

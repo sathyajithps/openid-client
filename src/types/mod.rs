@@ -8,6 +8,10 @@ mod client_metadata;
 mod client_options;
 mod client_registration_options;
 mod decoded_token;
+mod device_authorization_extras;
+mod device_authorization_params;
+mod device_authorization_response;
+mod device_flow_poll_response;
 mod end_session_parameters;
 mod errors;
 mod http;
@@ -32,6 +36,10 @@ pub use client_metadata::ClientMetadata;
 pub use client_options::ClientOptions;
 pub use client_registration_options::ClientRegistrationOptions;
 pub(crate) use decoded_token::DecodedToken;
+pub use device_authorization_extras::DeviceAuthorizationExtras;
+pub use device_authorization_params::DeviceAuthorizationParams;
+pub use device_authorization_response::DeviceAuthorizationResponse;
+pub use device_flow_poll_response::DeviceFlowGrantResponse;
 pub use end_session_parameters::EndSessionParameters;
 pub use errors::{
     Error, ErrorWithResponse, OidcClientError, RPError, StandardBodyError, TypeError,
