@@ -114,6 +114,7 @@ impl DeviceFlowHandle {
                 .extras
                 .as_ref()
                 .and_then(|x| x.client_assertion_payload.clone()),
+            dpop: self.extras.as_ref().and_then(|x| x.dpop.clone()),
             ..Default::default()
         };
 
@@ -134,7 +135,7 @@ impl DeviceFlowHandle {
 
         self.last_requested = (self.now)();
 
-        let mut token_set = match self.client.grant_async(body, params).await {
+        let mut token_set = match self.client.grant_async(body, params, true).await {
             Ok(t) => t,
             Err(e) => {
                 match &e {

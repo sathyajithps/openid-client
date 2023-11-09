@@ -15,6 +15,8 @@ use reqwest::{
     StatusCode,
 };
 
+use super::dpop_nonce_cache::DPoPNonceCache;
+
 /// # Client instance
 #[derive(Debug)]
 pub struct Client {
@@ -134,6 +136,9 @@ pub struct Client {
     pub(crate) clock_tolerance: Duration,
     pub(crate) is_fapi: bool,
     pub(crate) now: fn() -> i64,
+    pub(crate) dpop_nonce_cache: DPoPNonceCache,
+    /// A boolean value specifying whether the client always uses DPoP for token requests. If omitted, the default value is false.
+    pub(crate) dpop_bound_access_tokens: Option<bool>,
 }
 
 impl Client {
@@ -196,6 +201,8 @@ impl Client {
             clock_tolerance: Duration::from_secs(0),
             is_fapi: false,
             now,
+            dpop_nonce_cache: DPoPNonceCache::new(),
+            dpop_bound_access_tokens: None,
         }
     }
 
@@ -539,7 +546,7 @@ impl Client {
             ..Request::default()
         };
 
-        let res = request_async(req, &mut interceptor).await?;
+        let res = request_async(&req, &mut interceptor).await?;
 
         let client_metadata = convert_json_to::<ClientMetadata>(res.body.as_ref().unwrap())
             .map_err(|_| {
@@ -733,7 +740,7 @@ impl Client {
             ..Request::default()
         };
 
-        let response = request_async(req, &mut interceptor).await?;
+        let response = request_async(&req, &mut interceptor).await?;
 
         let client_metadata = convert_json_to::<ClientMetadata>(response.body.as_ref().unwrap())
             .map_err(|_| {
@@ -811,6 +818,7 @@ impl Client {
             authorization_signed_response_alg: self.authorization_signed_response_alg.clone(),
             authorization_encrypted_response_alg: self.authorization_encrypted_response_alg.clone(),
             authorization_encrypted_response_enc: self.authorization_encrypted_response_enc.clone(),
+            dpop_bound_access_tokens: self.dpop_bound_access_tokens,
             other_fields: self.other_fields.clone(),
         }
     }
@@ -896,6 +904,8 @@ impl Clone for Client {
             clock_tolerance: self.clock_tolerance,
             is_fapi: self.is_fapi,
             now: self.now,
+            dpop_nonce_cache: self.dpop_nonce_cache.clone(),
+            dpop_bound_access_tokens: self.dpop_bound_access_tokens,
         }
     }
 }

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use josekit::jwk::Jwk;
 use serde_json::Value;
 
 /// # DeviceAuthorizationExtras
@@ -11,4 +12,7 @@ pub struct DeviceAuthorizationExtras {
     /// Extra client assertion payload parameters to be sent as part of a client JWT assertion.
     /// This is only used when the client's token_endpoint_auth_method is either client_secret_jwt or private_key_jwt
     pub client_assertion_payload: Option<HashMap<String, Value>>,
+    /// When provided the client will send a DPoP Proof JWT.
+    /// The DPoP Proof JWT's algorithm is determined automatically based on the type of key and the issuer metadata.
+    pub dpop: Option<Jwk>,
 }

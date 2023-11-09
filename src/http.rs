@@ -15,19 +15,19 @@ use serde_json::Value;
 use url::Url;
 
 pub async fn request_async(
-    request: Request,
+    request: &Request,
     interceptor: &mut Option<RequestInterceptor>,
 ) -> Result<Response, OidcClientError> {
     let mut url = Url::parse(&request.url).unwrap();
 
     let options = match interceptor {
-        Some(i) => i.intercept(&request),
+        Some(i) => i.intercept(request),
         None => {
             let mut headers = HeaderMap::new();
             headers.append(
                 "User-Agent",
                 HeaderValue::from_static(
-                    "openid-client/0.0.38-dev (https://github.com/sathyajithps/openid-client)",
+                    "openid-client/0.0.39-dev (https://github.com/sathyajithps/openid-client)",
                 ),
             );
             RequestOptions {
@@ -75,12 +75,12 @@ pub async fn request_async(
         .build()
         .map_err(|_| OidcClientError::new_error("error when building reqwest client", None))?;
 
+    let mut headers = combine_and_create_new_header_map(&request.headers, &options.headers);
+
     let mut req = client
         .request(request.method.clone(), url)
         .query(&request.get_reqwest_query())
         .timeout(options.timeout);
-
-    let mut headers = combine_and_create_new_header_map(&request.headers, &options.headers);
 
     if let Some(json_body) = &request.json {
         match serde_json::to_string(json_body) {
@@ -153,7 +153,7 @@ pub async fn request_async(
         }
     };
 
-    process_response(response, &request)
+    process_response(response, request)
 }
 
 fn lookup_resolve(mut l: Box<dyn Lookup>, url: &mut Url) -> Result<(), OidcClientError> {
@@ -240,11 +240,16 @@ fn return_error_if_not_expected_status(
                     sbe.state,
                     Some(response),
                 ));
-            } else if let Some(header_value) = response.headers.get("www-authenticate") {
-                if request.bearer {
-                    parse_www_authenticate_error(header_value, &response)?;
-                }
             }
+        }
+
+        if let Some((_, header_value)) = response
+            .headers
+            .iter()
+            .find(|(x, _)| x.as_str().to_lowercase() == "www-authenticate")
+        {
+            // check if bearer or dpop auth?
+            parse_www_authenticate_error(header_value, &response)?;
         }
 
         return Err(OidcClientError::new_op_error(
