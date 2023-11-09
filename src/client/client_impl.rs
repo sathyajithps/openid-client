@@ -11,7 +11,6 @@ use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
 use crate::helpers::{get_serde_value_as_string, random};
-use crate::http::request_async;
 use crate::jwks::jwks::CustomJwk;
 use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
@@ -451,10 +450,12 @@ impl Client {
     ///
     ///    let token_set = client.grant(body, AuthenticationPostParams::default()).await.unwrap();
     /// ```
+    #[async_recursion::async_recursion(? Send)]
     pub async fn grant_async(
         &mut self,
         body: HashMap<String, Value>,
         params: AuthenticationPostParams,
+        retry: bool,
     ) -> Result<TokenSet, OidcClientError> {
         let issuer = self.issuer.as_ref().ok_or(OidcClientError::new_error(
             "Issuer is required for authenticated_post",
@@ -473,9 +474,27 @@ impl Client {
             ..Default::default()
         };
 
-        let response = self
+        let response = match self
             .authenticated_post_async("token", req, params.clone())
-            .await?;
+            .await
+        {
+            Ok(r) => r,
+            Err(OidcClientError::OPError(e, Some(res))) => {
+                if retry && e.error == "use_dpop_nonce" {
+                    return self.grant_async(body.clone(), params.clone(), false).await;
+                }
+
+                return Err(OidcClientError::new_op_error(
+                    e.error,
+                    e.error_description,
+                    e.error_uri,
+                    e.state,
+                    e.scope,
+                    Some(res),
+                ));
+            }
+            Err(e) => return Err(e),
+        };
 
         let body = response.body.clone().ok_or(OidcClientError::new_error(
             "body expected in grant response",
@@ -778,7 +797,9 @@ impl Client {
                 None => {}
             };
 
-            let mut token_set = self.grant_async(exchange_body, auth_post_params).await?;
+            let mut token_set = self
+                .grant_async(exchange_body, auth_post_params, true)
+                .await?;
 
             if token_set.get_id_token().is_some_and(|x| !x.is_empty()) {
                 let mut extra_data: HashMap<String, Value> = HashMap::new();
@@ -1216,7 +1237,9 @@ impl Client {
                 None => {}
             };
 
-            let mut token_set = self.grant_async(exchange_body, auth_post_params).await?;
+            let mut token_set = self
+                .grant_async(exchange_body, auth_post_params, true)
+                .await?;
 
             token_set = self.decrypt_id_token(token_set)?;
             token_set = self
@@ -1356,7 +1379,7 @@ impl Client {
     ///
     /// - `resource_url` : Url of the resource server
     /// - `token` : Token to authenticate the resource fetch request
-    /// - `token_type` : Type of the `token`. Eg: `access_token`
+    /// - `token_type` : Type of the `token`. Eg: `Bearer`, `DPoP`
     /// - `retry` : Whether to retry if the request failed or not
     /// - `params` : See [RequestResourceParams]
     #[async_recursion::async_recursion(? Send)]
@@ -1368,7 +1391,11 @@ impl Client {
         retry: bool,
         mut params: RequestResourceParams,
     ) -> Result<Response, OidcClientError> {
-        let tt = token_type.unwrap_or("Bearer".to_string());
+        let tt = if params.dpop.is_some() {
+            "DPoP".to_string()
+        } else {
+            token_type.unwrap_or("Bearer".to_string())
+        };
 
         if !params
             .headers
@@ -1393,9 +1420,11 @@ impl Client {
             ..Default::default()
         };
 
-        match request_async(req, &mut self.request_interceptor).await {
+        match self
+            .instance_request_async(req, params.dpop.as_ref(), Some(&token.to_string()))
+            .await
+        {
             Ok(r) => Ok(r),
-            // TODO: revisit when implementing the dpop
             Err(OidcClientError::OPError(e, Some(res))) => {
                 if retry && e.error == "use_dpop_nonce" {
                     if let Some(header_val) = res.headers.get("www-authenticate") {
@@ -1554,11 +1583,14 @@ impl Client {
         body.insert("refresh_token".to_string(), json!(refresh_token));
 
         let auth_post_params = AuthenticationPostParams {
-            client_assertion_payload: params.and_then(|x| x.client_assertion_payload),
+            client_assertion_payload: params
+                .as_ref()
+                .and_then(|x| x.client_assertion_payload.clone()),
+            dpop: params.and_then(|x| x.dpop),
             ..Default::default()
         };
 
-        let mut new_token_set = self.grant_async(body, auth_post_params).await?;
+        let mut new_token_set = self.grant_async(body, auth_post_params, true).await?;
 
         if let Some(id_token) = new_token_set.get_id_token() {
             new_token_set = self.decrypt_id_token(new_token_set)?;
@@ -1793,6 +1825,7 @@ impl Client {
             bearer: true,
             expect_body_to_be_json: !jwt,
             body,
+            dpop: options.dpop,
         };
 
         let res = self
@@ -1800,7 +1833,7 @@ impl Client {
                 url.as_str(),
                 &access_token,
                 token_set.get_token_type(),
-                false,
+                true,
                 req_res_params,
             )
             .await?;
@@ -2466,7 +2499,7 @@ impl Client {
                 .as_ref()
                 .and_then(|x| x.client_assertion_payload.clone()),
             endpoint_auth_method: Some("token".to_string()),
-            ..Default::default()
+            dpop: None,
         };
 
         let res = self

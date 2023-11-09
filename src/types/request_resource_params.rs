@@ -1,3 +1,4 @@
+use josekit::jwk::Jwk;
 use reqwest::{header::HeaderMap, Method};
 
 /// # RequestResourceParams
@@ -14,4 +15,7 @@ pub struct RequestResourceParams {
     pub bearer: bool,
     /// Checks if the body should be of type json
     pub expect_body_to_be_json: bool,
+    /// When provided the client will send a DPoP Proof JWT.
+    /// The DPoP Proof JWT's algorithm is determined automatically based on the type of key and the issuer metadata.
+    pub dpop: Option<Jwk>,
 }

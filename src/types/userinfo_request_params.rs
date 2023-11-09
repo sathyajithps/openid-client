@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use josekit::jwk::Jwk;
 use reqwest::Method;
 use serde_json::Value;
 
@@ -12,6 +13,9 @@ pub struct UserinfoRequestParams {
     pub via: String,
     /// Additional params to sent with the userinfo request
     pub params: Option<HashMap<String, Value>>,
+    /// When provided the client will send a DPoP Proof JWT.
+    /// The DPoP Proof JWT's algorithm is determined automatically based on the type of key and the issuer metadata.
+    pub dpop: Option<Jwk>,
 }
 
 impl Default for UserinfoRequestParams {
@@ -20,6 +24,7 @@ impl Default for UserinfoRequestParams {
             method: Method::GET,
             via: "header".to_string(),
             params: None,
+            dpop: None,
         }
     }
 }

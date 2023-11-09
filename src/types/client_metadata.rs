@@ -167,6 +167,9 @@ pub struct ClientMetadata {
     /// also be provided.
     /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
     pub authorization_encrypted_response_enc: Option<String>,
+    /// A boolean value specifying whether the client always uses DPoP for token requests. If omitted, the default value is false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dpop_bound_access_tokens: Option<bool>,
     /// Extra key values
     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
     pub other_fields: HashMap<String, serde_json::Value>,

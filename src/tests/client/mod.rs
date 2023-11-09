@@ -73,4 +73,7 @@ mod client_mtls_tests;
 #[cfg(test)]
 mod client_device_flow_tests;
 
+#[cfg(test)]
+mod client_dpop_tests;
+
 pub mod helpers;

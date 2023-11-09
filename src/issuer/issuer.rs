@@ -447,7 +447,7 @@ impl Issuer {
             ..Request::default()
         };
 
-        let res = request_async(req, &mut interceptor).await?;
+        let res = request_async(&req, &mut interceptor).await?;
 
         let issuer_metadata = match convert_json_to::<IssuerMetadata>(res.body.as_ref().unwrap()) {
             Ok(metadata) => metadata,
@@ -554,7 +554,7 @@ impl Issuer {
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_webfinger_request(input)?;
 
-        let res = request_async(req, &mut interceptor).await?;
+        let res = request_async(&req, &mut interceptor).await?;
 
         let expected_issuer = Self::process_webfinger_response(res)?;
 

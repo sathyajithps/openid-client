@@ -74,7 +74,7 @@ impl KeyStore {
             ..Default::default()
         };
 
-        let res = request_async(req, &mut self.interceptor).await?;
+        let res = request_async(&req, &mut self.interceptor).await?;
 
         let jwks_body = res.body.as_ref();
         match jwks_body {

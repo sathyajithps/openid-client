@@ -37,6 +37,7 @@ lazy_static! {
     static ref AGCMCBC_REGEX: Regex = Regex::new(r"^A(\d{3})(?:GCM|CBC-HS(\d{3}))$").unwrap();
     static ref HS_REGEX: Regex = Regex::new("^HS(?:256|384|512)").unwrap();
     static ref EXPECTED_ALG_REGEX: Regex = Regex::new("^(?:RSA|ECDH)").unwrap();
+    static ref NQCHAR_REGEX: Regex = Regex::new(r"^[\x21\x23-\x5B\x5D-\x7E]+$").unwrap();
 }
 
 impl Client {
@@ -313,7 +314,8 @@ impl Client {
         req.method = Method::POST;
         req.mtls = mtls;
 
-        request_async(req, &mut self.request_interceptor).await
+        self.instance_request_async(req, params.dpop.as_ref(), None)
+            .await
     }
 
     pub(crate) fn auth_for(
@@ -1517,6 +1519,212 @@ impl Client {
         self.validate_jwt_async(body, &userinfo_signed_response_alg, Some(&[]))
             .await
     }
+
+    pub(crate) async fn instance_request_async(
+        &mut self,
+        mut req: Request,
+        dpop: Option<&Jwk>,
+        access_token: Option<&String>,
+    ) -> Result<Response, OidcClientError> {
+        self.generate_dpop_header(&mut req, dpop, access_token)?;
+
+        let res = match request_async(&req, &mut self.request_interceptor).await {
+            Ok(r) => r,
+            Err(e) => match &e {
+                OidcClientError::RPError(_, Some(r))
+                | OidcClientError::TypeError(_, Some(r))
+                | OidcClientError::OPError(_, Some(r))
+                | OidcClientError::Error(_, Some(r)) => {
+                    self.extract_server_dpop_nonce(&req.url, r);
+                    return Err(e);
+                }
+
+                _ => return Err(e),
+            },
+        };
+
+        self.extract_server_dpop_nonce(&req.url, &res);
+
+        Ok(res)
+    }
+
+    pub(crate) fn dpop_proof(
+        &self,
+        payload: Value,
+        private_key_input: &Jwk,
+        access_token: Option<&String>,
+    ) -> Result<String, OidcClientError> {
+        let mut payload_obj = match payload {
+            Value::Object(obj) => obj,
+            _ => {
+                return Err(OidcClientError::new_type_error(
+                    "payload must be a plain object",
+                    None,
+                ))
+            }
+        };
+
+        if !private_key_input.is_private_key() || private_key_input.key_type() == "oct" {
+            return Err(OidcClientError::new_type_error(
+                "dpop option must be a private key",
+                None,
+            ));
+        }
+
+        let alg = match private_key_input.key_type().to_lowercase().as_str() {
+            "okp" => "EdDSA",
+            "ec" => determine_ec_algorithm(private_key_input)?,
+            "rsa" | "rsa-pss" => {
+                private_key_input
+                    .algorithm()
+                    .ok_or(OidcClientError::new_type_error(
+                        "alg not present in private_key_input",
+                        None,
+                    ))?
+            }
+            _ => {
+                return Err(OidcClientError::new_type_error(
+                    "unsupported DPoP private key asymmetric key type",
+                    None,
+                ))
+            }
+        };
+
+        if let Some(dsavs) = self
+            .issuer
+            .as_ref()
+            .and_then(|x| x.dpop_signing_alg_values_supported.as_ref())
+        {
+            if !dsavs.contains(&alg.to_string()) {
+                return Err(OidcClientError::new_type_error(
+                    "unsupported DPoP signing algorithm",
+                    None,
+                ));
+            }
+        }
+
+        if !payload_obj.contains_key("ath") {
+            if let Some(at) = access_token {
+                let ath = base64_url::encode(&Sha256::digest(at)[..].to_vec());
+                payload_obj.insert("ath".to_string(), json!(ath));
+            }
+        }
+
+        let mut jwt_payload = match JwtPayload::from_map(payload_obj) {
+            Ok(p) => p,
+            Err(_) => {
+                return Err(OidcClientError::new_error(
+                    "Error while converting serde_json::Value to JwtPayload",
+                    None,
+                ))
+            }
+        };
+
+        jwt_payload
+            .set_claim("iat", Some(json!((self.now)())))
+            .map_err(|_| OidcClientError::new_error("invalid iat", None))?;
+        jwt_payload
+            .set_claim("jti", Some(json!(random())))
+            .map_err(|_| OidcClientError::new_error("invalid jti", None))?;
+
+        let mut jwt_header = JwsHeader::new();
+
+        jwt_header.set_algorithm(alg);
+        jwt_header.set_token_type("dpop+jwt");
+        jwt_header
+            .set_claim("jwk", Some(get_jwk(private_key_input)))
+            .map_err(|_| OidcClientError::new_error("invalid jwk", None))?;
+
+        let signer = private_key_input.to_signer()?;
+
+        josekit::jwt::encode_with_signer(&jwt_payload, &jwt_header, &*signer)
+            .map_err(|_| OidcClientError::new_error("error while signing jwt", None))
+    }
+
+    pub(crate) fn generate_dpop_header(
+        &mut self,
+        request: &mut Request,
+        dpop: Option<&Jwk>,
+        access_token: Option<&String>,
+    ) -> Result<(), OidcClientError> {
+        if let Some(dpop) = dpop.as_ref() {
+            if let Some(htu) = get_dpop_htu(&request.url) {
+                let htm = request.method.as_str().to_string();
+
+                let mut payload = json!({"htu": htu, "htm": htm});
+                if let Some(nonce) = self.dpop_nonce_cache.cache.get(&htu) {
+                    payload["nonce"] = json!(nonce);
+                }
+
+                let dpop_header = self.dpop_proof(payload, dpop, access_token)?;
+
+                if let Ok(dpop_header_val) = HeaderValue::from_str(&dpop_header) {
+                    request.headers.insert("DPoP", dpop_header_val);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn extract_server_dpop_nonce(&mut self, url: &str, res: &Response) {
+        if let Some(cache_key) = get_dpop_htu(url) {
+            if let Some(dpop_nonce) = res.headers.get("dpop-nonce").and_then(|x| x.to_str().ok()) {
+                if NQCHAR_REGEX.is_match(dpop_nonce) {
+                    self.dpop_nonce_cache
+                        .cache
+                        .insert(cache_key, dpop_nonce.to_string());
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn get_dpop_htu(url_str: &str) -> Option<String> {
+    Url::parse(url_str)
+        .ok()
+        .map(|x| x.origin().ascii_serialization() + x.path())
+}
+
+fn determine_ec_algorithm(private_key_input: &Jwk) -> Result<&'static str, OidcClientError> {
+    match private_key_input.curve() {
+        Some("P-256") => Ok("ES256"),
+        Some("secp256k1") => Ok("ES256K"),
+        Some("P-384") => Ok("ES384"),
+        Some("P-512") => Ok("ES512"),
+        _ => Err(OidcClientError::new_type_error(
+            "unsupported DPoP private key curve",
+            None,
+        )),
+    }
+}
+
+fn get_jwk(jwk: &Jwk) -> Value {
+    // TODO: validate?
+    let mut pub_jwk = json!({});
+
+    if let Some(kty) = jwk.parameter("kty") {
+        pub_jwk["kty"] = kty.to_owned();
+    }
+    if let Some(crv) = jwk.parameter("crv") {
+        pub_jwk["crv"] = crv.to_owned();
+    }
+    if let Some(x) = jwk.parameter("x") {
+        pub_jwk["x"] = x.to_owned();
+    }
+    if let Some(y) = jwk.parameter("y") {
+        pub_jwk["y"] = y.to_owned();
+    }
+    if let Some(e) = jwk.parameter("e") {
+        pub_jwk["e"] = e.to_owned();
+    }
+    if let Some(e) = jwk.parameter("e") {
+        pub_jwk["e"] = e.to_owned();
+    }
+    if let Some(n) = jwk.parameter("n") {
+        pub_jwk["n"] = n.to_owned();
+    }
+
+    pub_jwk
 }
 
 fn verify_presence(payload: &JwtPayload, jwt: &str, prop: &str) -> Result<(), OidcClientError> {
