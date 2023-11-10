@@ -15,8 +15,6 @@ use crate::{
 
 /// [Issuer]'s Keystore methods
 impl Issuer {
-    // TODO: Remove
-    #[allow(dead_code)]
     pub(crate) async fn query_keystore_async(
         &mut self,
         mut query: QueryKeyStore,

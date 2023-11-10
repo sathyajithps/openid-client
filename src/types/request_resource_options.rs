@@ -4,7 +4,7 @@ use reqwest::{header::HeaderMap, Method};
 /// # RequestResourceParams
 /// Parameters for the `request_resource_async` method in Client
 #[derive(Default, Clone)]
-pub struct RequestResourceParams {
+pub struct RequestResourceOptions {
     /// Request method
     pub method: Method,
     /// Header to send with the request

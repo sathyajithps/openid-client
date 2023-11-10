@@ -9,7 +9,7 @@ use crate::{
     tokenset::{TokenSet, TokenSetParams},
     types::{
         CallbackParams, ClientMetadata, IssuerMetadata, OAuthCallbackChecks, OpenIDCallbackChecks,
-        UserinfoRequestParams,
+        UserinfoOptions,
     },
 };
 
@@ -106,7 +106,7 @@ async fn handles_signed_and_encrypted_id_tokens_from_implicit_and_code_responses
 
     let _ = client
         .callback_async(
-            Some("https://oidc-client.dev/cb".to_string()),
+            Some("https://oidc-client.dev/cb"),
             params,
             Some(checks),
             None,
@@ -221,17 +221,17 @@ async fn handles_encrypted_but_not_signed_responses_too() {
     token_set.now = || 1473076413;
 
     let payload = client
-        .userinfo_async(&token_set, UserinfoRequestParams::default())
+        .userinfo_async(&token_set, UserinfoOptions::default())
         .await
         .unwrap();
 
     assert_eq!(
-        payload.claim("email").unwrap().as_str().unwrap(),
+        payload.get("email").unwrap().as_str().unwrap(),
         "johndoe@example.com"
     );
 
     assert_eq!(
-        payload.claim("sub").unwrap().as_str().unwrap(),
+        payload.get("sub").unwrap().as_str().unwrap(),
         "0aa66887-8c86-4f3b-b521-5a00e01799ca"
     );
 }
@@ -281,7 +281,7 @@ async fn verifies_no_invalid_unsigned_plain_json_jwe_payloads_get_through() {
     token_set.now = || 1473076413;
 
     let err = client
-        .userinfo_async(&token_set, UserinfoRequestParams::default())
+        .userinfo_async(&token_set, UserinfoOptions::default())
         .await
         .unwrap_err();
 
@@ -337,7 +337,7 @@ async fn handles_valid_but_no_object_top_level_unsigned_plain_json_jwe_payloads(
     token_set.now = || 1473076413;
 
     let err = client
-        .userinfo_async(&token_set, UserinfoRequestParams::default())
+        .userinfo_async(&token_set, UserinfoOptions::default())
         .await
         .unwrap_err();
 
@@ -399,7 +399,7 @@ async fn handles_symmetric_encryption() {
 
     let _ = client
         .callback_async(
-            Some("https://oidc-client.dev/cb".to_string()),
+            Some("https://oidc-client.dev/cb"),
             params,
             Some(checks),
             None,

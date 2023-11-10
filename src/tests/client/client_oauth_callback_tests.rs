@@ -82,7 +82,7 @@ async fn does_an_authorization_code_grant_with_code_and_redirect_uri() {
 
     let token_set = client
         .oauth_callback_async(
-            Some("https://rp.example.com/cb".to_string()),
+            Some("https://rp.example.com/cb"),
             callback_params,
             None,
             None,
@@ -321,7 +321,7 @@ mod jarm_response_mode {
 
         let _ = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 callback_params,
                 Some(checks),
                 None,
@@ -438,7 +438,7 @@ mod jarm_response_mode {
 
         let _ = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 callback_params,
                 Some(checks),
                 None,
@@ -464,7 +464,7 @@ mod jarm_response_mode {
 
         let err = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 callback_params,
                 Some(checks),
                 None,
@@ -524,7 +524,7 @@ mod jarm_response_mode {
 
         let err = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 callback_params,
                 Some(checks),
                 None,
@@ -555,12 +555,7 @@ mod cannot_be_used_for_id_token_responses {
         };
 
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
-                params,
-                None,
-                None,
-            )
+            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
             .await
             .unwrap_err();
 
@@ -580,12 +575,7 @@ mod cannot_be_used_for_id_token_responses {
         };
 
         let tokens = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
-                params,
-                None,
-                None,
-            )
+            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
             .await
             .unwrap();
 
@@ -629,12 +619,7 @@ mod cannot_be_used_for_id_token_responses {
         };
 
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
-                params,
-                None,
-                None,
-            )
+            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
             .await
             .unwrap_err();
 
@@ -679,12 +664,7 @@ mod cannot_be_used_for_id_token_responses {
         };
 
         let tokens = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
-                params,
-                None,
-                None,
-            )
+            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
             .await
             .unwrap();
 
@@ -716,7 +696,7 @@ mod response_type_checks {
 
         let err = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -747,7 +727,7 @@ mod response_type_checks {
 
         let err = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -781,7 +761,7 @@ mod response_type_checks {
 
         let err = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -813,7 +793,7 @@ mod response_type_checks {
 
         let err = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -845,7 +825,7 @@ mod response_type_checks {
 
         let err = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -872,12 +852,7 @@ async fn rejects_with_op_error_when_part_of_the_response() {
     };
 
     let err = client
-        .oauth_callback_async(
-            Some("https://rp.example.com/cb".to_string()),
-            params,
-            None,
-            None,
-        )
+        .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
         .await
         .unwrap_err();
 
@@ -902,12 +877,7 @@ mod state_checks {
         };
 
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
-                params,
-                None,
-                None,
-            )
+            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
             .await
             .unwrap_err();
 
@@ -930,7 +900,7 @@ mod state_checks {
 
         let err = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 Default::default(),
                 Some(checks),
                 None,
@@ -962,7 +932,7 @@ mod state_checks {
 
         let err = client
             .oauth_callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,

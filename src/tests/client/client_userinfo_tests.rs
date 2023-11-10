@@ -1,7 +1,7 @@
 use crate::issuer::Issuer;
 use crate::tests::test_interceptors::get_default_test_interceptor;
 use crate::tokenset::{TokenSet, TokenSetParams};
-use crate::types::{ClientMetadata, IssuerMetadata, UserinfoRequestParams};
+use crate::types::{ClientMetadata, IssuerMetadata, UserinfoOptions};
 use httpmock::{Method, MockServer};
 use serde_json::json;
 use std::collections::HashMap;
@@ -48,7 +48,7 @@ async fn takes_a_token_set() {
     let token_set = TokenSet::new(token_set_params);
 
     let _ = client
-        .userinfo_async(&token_set, UserinfoRequestParams::default())
+        .userinfo_async(&token_set, UserinfoOptions::default())
         .await
         .unwrap();
 
@@ -83,7 +83,7 @@ async fn only_get_and_post_is_supported() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let mut options = UserinfoRequestParams::default();
+    let mut options = UserinfoOptions::default();
 
     options.method = reqwest::Method::PUT;
 
@@ -141,7 +141,7 @@ async fn takes_a_token_set_with_token() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let options = UserinfoRequestParams::default();
+    let options = UserinfoOptions::default();
 
     let _ = client.userinfo_async(&token_set, options).await.unwrap();
 
@@ -188,7 +188,7 @@ async fn takes_a_token_set_and_validates_the_subject_in_id_token_is_the_same_in_
 
     let token_set = TokenSet::new(token_set_params);
 
-    let options = UserinfoRequestParams::default();
+    let options = UserinfoOptions::default();
 
     let err = client
         .userinfo_async(&token_set, options)
@@ -230,7 +230,7 @@ async fn validates_an_access_token_is_present_in_the_tokenset() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let options = UserinfoRequestParams::default();
+    let options = UserinfoOptions::default();
 
     let err = client
         .userinfo_async(&token_set, options)
@@ -288,7 +288,7 @@ async fn can_do_a_post_call() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let mut options = UserinfoRequestParams::default();
+    let mut options = UserinfoOptions::default();
     options.method = reqwest::Method::POST;
 
     let _ = client.userinfo_async(&token_set, options).await;
@@ -339,7 +339,7 @@ async fn can_submit_access_token_in_a_body_when_post() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let mut options = UserinfoRequestParams::default();
+    let mut options = UserinfoOptions::default();
     options.method = reqwest::Method::POST;
     options.via = "body".to_string();
 
@@ -391,7 +391,7 @@ async fn can_add_extra_params_in_a_body_when_post() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let mut options = UserinfoRequestParams::default();
+    let mut options = UserinfoOptions::default();
     options.method = reqwest::Method::POST;
     options.via = "body".to_string();
     let mut params = HashMap::new();
@@ -445,7 +445,7 @@ async fn can_add_extra_params_in_a_body_when_post_but_via_header() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let mut options = UserinfoRequestParams::default();
+    let mut options = UserinfoOptions::default();
     options.method = reqwest::Method::POST;
 
     let mut params = HashMap::new();
@@ -496,7 +496,7 @@ async fn can_add_extra_params_in_a_query_when_non_post() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let mut options = UserinfoRequestParams::default();
+    let mut options = UserinfoOptions::default();
 
     let mut params = HashMap::new();
     params.insert("foo".to_string(), json!("bar"));
@@ -532,7 +532,7 @@ async fn can_only_submit_access_token_in_a_body_when_post() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let mut options = UserinfoRequestParams::default();
+    let mut options = UserinfoOptions::default();
 
     options.method = reqwest::Method::GET;
     options.via = "body".to_string();
@@ -585,7 +585,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let options = UserinfoRequestParams::default();
+    let options = UserinfoOptions::default();
 
     let err = client
         .userinfo_async(&token_set, options)
@@ -643,7 +643,7 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
 
     let token_set = TokenSet::new(token_set_params);
 
-    let options = UserinfoRequestParams::default();
+    let options = UserinfoOptions::default();
 
     let err = client
         .userinfo_async(&token_set, options)
@@ -698,7 +698,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let options = UserinfoRequestParams::default();
+    let options = UserinfoOptions::default();
 
     let err = client
         .userinfo_async(&token_set, options)
@@ -752,7 +752,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
 
     let token_set = TokenSet::new(token_set_params);
 
-    let options = UserinfoRequestParams::default();
+    let options = UserinfoOptions::default();
 
     let err = client
         .userinfo_async(&token_set, options)
@@ -767,9 +767,9 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
 
 #[cfg(test)]
 mod signed_response_content_type_application_jwt {
+
     use super::*;
     use crate::helpers::now;
-    use std::time::UNIX_EPOCH;
 
     #[tokio::test]
     async fn decodes_and_validates_the_jwt_userinfo() {
@@ -818,34 +818,18 @@ mod signed_response_content_type_application_jwt {
 
         let token_set = TokenSet::new(token_set_params);
 
-        let options = UserinfoRequestParams::default();
+        let options = UserinfoOptions::default();
 
         let payload = client.userinfo_async(&token_set, options).await.unwrap();
 
-        assert_eq!("https://op.example.com", payload.issuer().unwrap());
-        assert_eq!("foobar", payload.subject().unwrap());
         assert_eq!(
-            "foobar",
-            payload.audience().unwrap().first().unwrap().to_string()
+            "https://op.example.com",
+            payload.get("iss").unwrap().as_str().unwrap()
         );
-        assert_eq!(
-            exp,
-            payload
-                .expires_at()
-                .unwrap()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64
-        );
-        assert_eq!(
-            iat,
-            payload
-                .issued_at()
-                .unwrap()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64
-        );
+        assert_eq!("foobar", payload.get("sub").unwrap().as_str().unwrap());
+        assert_eq!("foobar", payload.get("aud").unwrap().as_str().unwrap());
+        assert_eq!(exp, payload.get("exp").unwrap().as_i64().unwrap());
+        assert_eq!(iat, payload.get("iat").unwrap().as_i64().unwrap());
     }
 
     #[tokio::test]
@@ -892,7 +876,7 @@ mod signed_response_content_type_application_jwt {
 
         let token_set = TokenSet::new(token_set_params);
 
-        let options = UserinfoRequestParams::default();
+        let options = UserinfoOptions::default();
 
         let err = client
             .userinfo_async(&token_set, options)
@@ -945,7 +929,7 @@ mod signed_response_content_type_application_jwt {
 
         let token_set = TokenSet::new(token_set_params);
 
-        let options = UserinfoRequestParams::default();
+        let options = UserinfoOptions::default();
 
         let err = client
             .userinfo_async(&token_set, options)

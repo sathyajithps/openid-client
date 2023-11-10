@@ -16,7 +16,7 @@ use url::Url;
 
 pub async fn request_async(
     request: &Request,
-    interceptor: &mut Option<RequestInterceptor>,
+    interceptor: Option<&mut RequestInterceptor>,
 ) -> Result<Response, OidcClientError> {
     let mut url = Url::parse(&request.url).unwrap();
 
@@ -27,7 +27,7 @@ pub async fn request_async(
             headers.append(
                 "User-Agent",
                 HeaderValue::from_static(
-                    "openid-client/0.0.39-dev (https://github.com/sathyajithps/openid-client)",
+                    "openid-client/0.0.40-alpha (https://github.com/sathyajithps/openid-client)",
                 ),
             );
             RequestOptions {

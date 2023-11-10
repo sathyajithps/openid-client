@@ -14,7 +14,7 @@ use crate::{
         get_default_test_interceptor_with_pfx,
     },
     tokenset::{TokenSet, TokenSetParams},
-    types::{ClientMetadata, IssuerMetadata, MtlsEndpoints, UserinfoRequestParams},
+    types::{ClientMetadata, IssuerMetadata, MtlsEndpoints, UserinfoOptions},
 };
 
 fn get_clients(port: Option<u16>) -> (Client, Client) {
@@ -152,14 +152,14 @@ async fn requires_mtls_for_userinfo_when_tls_client_certificate_bound_access_tok
     let token = TokenSet::new(token_params);
 
     client
-        .userinfo_async(&token, UserinfoRequestParams::default())
+        .userinfo_async(&token, UserinfoOptions::default())
         .await
         .unwrap();
 
     client.request_interceptor = get_default_test_interceptor(Some(mock_http_server.port()));
 
     let err = client
-        .userinfo_async(&token, UserinfoRequestParams::default())
+        .userinfo_async(&token, UserinfoOptions::default())
         .await
         .unwrap_err();
 
@@ -210,17 +210,11 @@ async fn requires_mtls_for_revocation_authentication_when_revocation_endpoint_au
 
     let (mut client, _) = get_clients(Some(mock_http_server.port()));
 
-    client
-        .revoke_async("foo".to_string(), None, None)
-        .await
-        .unwrap();
+    client.revoke_async("foo", None, None).await.unwrap();
 
     client.request_interceptor = get_default_test_interceptor(Some(mock_http_server.port()));
 
-    let err = client
-        .revoke_async("foo".to_string(), None, None)
-        .await
-        .unwrap_err();
+    let err = client.revoke_async("foo", None, None).await.unwrap_err();
 
     assert!(err.is_type_error());
     assert_eq!(
@@ -251,14 +245,14 @@ async fn works_with_a_pkcs_12_file_and_a_passphrase() {
     let token = TokenSet::new(token_params);
 
     client
-        .userinfo_async(&token, UserinfoRequestParams::default())
+        .userinfo_async(&token, UserinfoOptions::default())
         .await
         .unwrap();
 
     client.request_interceptor = get_default_test_interceptor(Some(mock_http_server.port()));
 
     let err = client
-        .userinfo_async(&token, UserinfoRequestParams::default())
+        .userinfo_async(&token, UserinfoOptions::default())
         .await
         .unwrap_err();
 

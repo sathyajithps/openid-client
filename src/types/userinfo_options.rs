@@ -6,7 +6,7 @@ use serde_json::Value;
 
 /// # UserinfoRequestParams
 /// Parameters for customizing Userinfo request
-pub struct UserinfoRequestParams {
+pub struct UserinfoOptions {
     /// Request method
     pub method: Method,
     /// How to send the access token. Valid values: `header` or `body` (POST request)
@@ -18,7 +18,7 @@ pub struct UserinfoRequestParams {
     pub dpop: Option<Jwk>,
 }
 
-impl Default for UserinfoRequestParams {
+impl Default for UserinfoOptions {
     fn default() -> Self {
         Self {
             method: Method::GET,

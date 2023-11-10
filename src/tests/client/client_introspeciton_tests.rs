@@ -114,7 +114,7 @@ async fn posts_the_token_and_a_hint_in_a_body() {
         .unwrap();
 
     let _ = client
-        .introspect_async("tokenValue", Some("access_token".to_string()), None)
+        .introspect_async("tokenValue", Some("access_token"), None)
         .await
         .unwrap();
 

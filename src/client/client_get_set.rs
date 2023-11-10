@@ -118,41 +118,6 @@ impl Client {
         self.response_type.clone()
     }
 
-    /// Get application type
-    pub fn get_application_type(&self) -> Option<String> {
-        self.application_type.clone()
-    }
-
-    /// Get contacts
-    pub fn get_contacts(&self) -> Option<Vec<String>> {
-        Some(self.contacts.clone()?.to_vec())
-    }
-
-    /// Get client name
-    pub fn get_client_name(&self) -> Option<String> {
-        self.client_name.clone()
-    }
-
-    /// Get logo uri
-    pub fn get_logo_uri(&self) -> Option<String> {
-        self.logo_uri.clone()
-    }
-
-    /// Get client uri
-    pub fn get_client_uri(&self) -> Option<String> {
-        self.client_uri.clone()
-    }
-
-    /// Get policy uri
-    pub fn get_policy_uri(&self) -> Option<String> {
-        self.policy_uri.clone()
-    }
-
-    /// Get tos uri
-    pub fn get_tos_uri(&self) -> Option<String> {
-        self.tos_uri.clone()
-    }
-
     /// Get jwks uri
     pub fn get_jwks_uri(&self) -> Option<String> {
         self.jwks_uri.clone()

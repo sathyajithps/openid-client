@@ -65,20 +65,6 @@ pub struct Client {
     pub(crate) response_types: Vec<String>,
     /// [Grant Types](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) grant_types: Vec<String>,
-    /// [Application Type](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub(crate) application_type: Option<String>,
-    /// [Contacts](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub(crate) contacts: Option<Vec<String>>,
-    /// [Client Name](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub(crate) client_name: Option<String>,
-    /// [Logo Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub(crate) logo_uri: Option<String>,
-    /// [Client Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub(crate) client_uri: Option<String>,
-    /// [Policy Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub(crate) policy_uri: Option<String>,
-    /// [Tos Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    pub(crate) tos_uri: Option<String>,
     /// [Jwks Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) jwks_uri: Option<String>,
     /// [JWKS](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
@@ -161,13 +147,6 @@ impl Client {
             response_type: None,
             response_types: vec!["code".to_string()],
             grant_types: vec!["authorization_code".to_string()],
-            application_type: None,
-            contacts: None,
-            client_name: None,
-            logo_uri: None,
-            client_uri: None,
-            policy_uri: None,
-            tos_uri: None,
             jwks_uri: None,
             jwks: None,
             sector_identifier_uri: None,
@@ -239,10 +218,6 @@ impl Client {
         let mut client = Self {
             client_id: metadata.client_id.unwrap(),
             client_secret: metadata.client_secret,
-            logo_uri: metadata.logo_uri,
-            tos_uri: metadata.tos_uri,
-            client_uri: metadata.client_uri,
-            policy_uri: metadata.policy_uri,
             sector_identifier_uri: metadata.sector_identifier_uri,
             subject_type: metadata.subject_type,
             registration_access_token: metadata.registration_access_token,
@@ -546,7 +521,7 @@ impl Client {
             ..Request::default()
         };
 
-        let res = request_async(&req, &mut interceptor).await?;
+        let res = request_async(&req, interceptor.as_mut()).await?;
 
         let client_metadata = convert_json_to::<ClientMetadata>(res.body.as_ref().unwrap())
             .map_err(|_| {
@@ -740,7 +715,7 @@ impl Client {
             ..Request::default()
         };
 
-        let response = request_async(&req, &mut interceptor).await?;
+        let response = request_async(&req, interceptor.as_mut()).await?;
 
         let client_metadata = convert_json_to::<ClientMetadata>(response.body.as_ref().unwrap())
             .map_err(|_| {
@@ -787,13 +762,6 @@ impl Client {
             response_type: self.response_type.clone(),
             response_types: Some(self.response_types.clone()),
             grant_types: Some(self.grant_types.clone()),
-            application_type: self.application_type.clone(),
-            contacts: self.contacts.clone(),
-            client_name: self.client_name.clone(),
-            logo_uri: self.logo_uri.clone(),
-            client_uri: self.client_uri.clone(),
-            policy_uri: self.policy_uri.clone(),
-            tos_uri: self.tos_uri.clone(),
             jwks_uri: self.jwks_uri.clone(),
             jwks: self.jwks.clone(),
             sector_identifier_uri: self.sector_identifier_uri.clone(),
@@ -863,13 +831,6 @@ impl Clone for Client {
             response_type: self.response_type.clone(),
             response_types: self.response_types.clone(),
             grant_types: self.grant_types.clone(),
-            application_type: self.application_type.clone(),
-            contacts: self.contacts.clone(),
-            client_name: self.client_name.clone(),
-            logo_uri: self.logo_uri.clone(),
-            client_uri: self.client_uri.clone(),
-            policy_uri: self.policy_uri.clone(),
-            tos_uri: self.tos_uri.clone(),
             jwks_uri: self.jwks_uri.clone(),
             jwks: self.jwks.clone(),
             sector_identifier_uri: self.sector_identifier_uri.clone(),

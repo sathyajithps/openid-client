@@ -1,6 +1,5 @@
 use josekit::jwe::JweHeader;
 use josekit::jws::JwsHeader;
-use josekit::jwt::JwtPayload;
 use josekit::{jwe, jws};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -15,10 +14,9 @@ use crate::jwks::jwks::CustomJwk;
 use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
     CallbackExtras, CallbackParams, ClaimParam, DeviceAuthorizationExtras,
-    DeviceAuthorizationParams, DeviceAuthorizationResponse, IntrospectionParams,
-    OAuthCallbackChecks, OpenIDCallbackChecks, PushedAuthorizationRequestParams,
-    RefreshTokenRequestParams, Request, RequestResourceParams, Response, RevokeRequestParams,
-    UserinfoRequestParams,
+    DeviceAuthorizationParams, DeviceAuthorizationResponse, GrantExtras, IntrospectionExtras,
+    OAuthCallbackChecks, OpenIDCallbackChecks, PushedAuthorizationRequestExtras,
+    RefreshTokenExtras, Request, RequestResourceOptions, Response, RevokeExtras, UserinfoOptions,
 };
 use crate::{
     helpers::convert_json_to,
@@ -59,7 +57,7 @@ impl Client {
     /// ```
     pub fn authorization_url(
         &self,
-        mut params: AuthorizationParameters,
+        mut parameters: AuthorizationParameters,
     ) -> Result<Url, OidcClientError> {
         let mut authorization_endpiont = self.get_auth_endpoint()?;
 
@@ -68,16 +66,16 @@ impl Client {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        params = self.authorization_params(params);
+        parameters = self.authorization_params(&parameters);
 
-        for (k, v) in params.other {
+        for (k, v) in parameters.other {
             query_params.entry(k).or_insert(v);
         }
 
-        insert_query(&mut query_params, "client_id", params.client_id);
-        insert_query(&mut query_params, "acr_values", params.acr_values);
+        insert_query(&mut query_params, "client_id", parameters.client_id);
+        insert_query(&mut query_params, "acr_values", parameters.acr_values);
 
-        if let Some(aud_arr) = params.audience {
+        if let Some(aud_arr) = parameters.audience {
             let mut aud_str = String::new();
             for aud in aud_arr {
                 aud_str += &format!("{} ", aud);
@@ -90,26 +88,34 @@ impl Client {
             );
         }
 
-        insert_query(&mut query_params, "claims_locales", params.claims_locales);
+        insert_query(
+            &mut query_params,
+            "claims_locales",
+            parameters.claims_locales,
+        );
         insert_query(
             &mut query_params,
             "code_challenge_method",
-            params.code_challenge_method,
+            parameters.code_challenge_method,
         );
-        insert_query(&mut query_params, "code_challenge", params.code_challenge);
-        insert_query(&mut query_params, "display", params.display);
-        insert_query(&mut query_params, "id_token_hint", params.id_token_hint);
-        insert_query(&mut query_params, "login_hint", params.login_hint);
-        insert_query(&mut query_params, "max_age", params.max_age);
-        insert_query(&mut query_params, "nonce", params.nonce);
-        insert_query(&mut query_params, "prompt", params.prompt);
-        insert_query(&mut query_params, "redirect_uri", params.redirect_uri);
-        insert_query(&mut query_params, "registration", params.registration);
-        insert_query(&mut query_params, "request_uri", params.request_uri);
-        insert_query(&mut query_params, "request", params.request);
-        insert_query(&mut query_params, "response_mode", params.response_mode);
+        insert_query(
+            &mut query_params,
+            "code_challenge",
+            parameters.code_challenge,
+        );
+        insert_query(&mut query_params, "display", parameters.display);
+        insert_query(&mut query_params, "id_token_hint", parameters.id_token_hint);
+        insert_query(&mut query_params, "login_hint", parameters.login_hint);
+        insert_query(&mut query_params, "max_age", parameters.max_age);
+        insert_query(&mut query_params, "nonce", parameters.nonce);
+        insert_query(&mut query_params, "prompt", parameters.prompt);
+        insert_query(&mut query_params, "redirect_uri", parameters.redirect_uri);
+        insert_query(&mut query_params, "registration", parameters.registration);
+        insert_query(&mut query_params, "request_uri", parameters.request_uri);
+        insert_query(&mut query_params, "request", parameters.request);
+        insert_query(&mut query_params, "response_mode", parameters.response_mode);
 
-        if let Some(res_arr) = params.response_type {
+        if let Some(res_arr) = parameters.response_type {
             let mut res_str = String::new();
             for res in res_arr {
                 res_str += &format!("{} ", res);
@@ -122,7 +128,7 @@ impl Client {
             );
         }
 
-        if let Some(scope_arr) = params.scope {
+        if let Some(scope_arr) = parameters.scope {
             let mut scope_str = String::new();
             for scope in scope_arr {
                 scope_str += &format!("{} ", scope);
@@ -135,10 +141,10 @@ impl Client {
             );
         }
 
-        insert_query(&mut query_params, "state", params.state);
-        insert_query(&mut query_params, "ui_locales", params.ui_locales);
+        insert_query(&mut query_params, "state", parameters.state);
+        insert_query(&mut query_params, "ui_locales", parameters.ui_locales);
 
-        if let Some(c) = &params.claims {
+        if let Some(c) = &parameters.claims {
             if let Ok(s) = serde_json::to_string(c) {
                 query_params.insert("claims".to_string(), s);
             }
@@ -152,7 +158,7 @@ impl Client {
             new_query_params.append_pair(query, value);
         }
 
-        if let Some(r) = &params.resource {
+        if let Some(r) = &parameters.resource {
             match r {
                 ResourceParam::String(string) => {
                     new_query_params.append_pair("resource", string);
@@ -197,7 +203,7 @@ impl Client {
     /// ```
     pub fn end_session_url(
         &self,
-        mut params: EndSessionParameters,
+        mut parameters: EndSessionParameters,
     ) -> Result<Url, OidcClientError> {
         let mut end_session_endpoint = match &self.issuer {
             Some(i) => match &i.end_session_endpoint {
@@ -220,8 +226,8 @@ impl Client {
             None => return Err(OidcClientError::new_error("issuer is empty", None)),
         };
 
-        if params.client_id.is_none() {
-            params.client_id = Some(self.client_id.clone());
+        if parameters.client_id.is_none() {
+            parameters.client_id = Some(self.client_id.clone());
         }
 
         let mut post_logout: Option<String> = None;
@@ -234,7 +240,7 @@ impl Client {
             }
         }
 
-        if let Some(plu) = params.post_logout_redirect_uri {
+        if let Some(plu) = parameters.post_logout_redirect_uri {
             post_logout = Some(plu);
         }
 
@@ -243,17 +249,17 @@ impl Client {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        if let Some(other) = params.other {
+        if let Some(other) = parameters.other {
             for (k, v) in other {
                 query_params.entry(k).or_insert_with(|| v.to_string());
             }
         }
 
-        insert_query(&mut query_params, "client_id", params.client_id);
+        insert_query(&mut query_params, "client_id", parameters.client_id);
         insert_query(&mut query_params, "post_logout_redirect_uri", post_logout);
-        insert_query(&mut query_params, "id_token_hint", params.id_token_hint);
-        insert_query(&mut query_params, "logout_hint", params.logout_hint);
-        insert_query(&mut query_params, "state", params.state);
+        insert_query(&mut query_params, "id_token_hint", parameters.id_token_hint);
+        insert_query(&mut query_params, "logout_hint", parameters.logout_hint);
+        insert_query(&mut query_params, "state", parameters.state);
 
         let mut new_query_params = form_urlencoded::Serializer::new(String::new());
 
@@ -302,7 +308,7 @@ impl Client {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        params = self.authorization_params(params);
+        params = self.authorization_params(&params);
 
         for (k, v) in params.other {
             query_params.insert(k, v);
@@ -454,7 +460,7 @@ impl Client {
     pub async fn grant_async(
         &mut self,
         body: HashMap<String, Value>,
-        params: AuthenticationPostParams,
+        extras: GrantExtras,
         retry: bool,
     ) -> Result<TokenSet, OidcClientError> {
         let issuer = self.issuer.as_ref().ok_or(OidcClientError::new_error(
@@ -474,14 +480,20 @@ impl Client {
             ..Default::default()
         };
 
+        let auth_post_params = AuthenticationPostParams {
+            client_assertion_payload: extras.client_assertion_payload.as_ref(),
+            dpop: extras.dpop.as_ref(),
+            endpoint_auth_method: extras.endpoint_auth_method.as_deref(),
+        };
+
         let response = match self
-            .authenticated_post_async("token", req, params.clone())
+            .authenticated_post_async("token", req, auth_post_params.clone())
             .await
         {
             Ok(r) => r,
             Err(OidcClientError::OPError(e, Some(res))) => {
                 if retry && e.error == "use_dpop_nonce" {
-                    return self.grant_async(body.clone(), params.clone(), false).await;
+                    return self.grant_async(body, extras, false).await;
                 }
 
                 return Err(OidcClientError::new_op_error(
@@ -553,17 +565,17 @@ impl Client {
     /// ```
     pub async fn oauth_callback_async(
         &mut self,
-        redirect_uri: Option<String>,
-        mut params: CallbackParams,
+        redirect_uri: Option<&str>,
+        mut parameters: CallbackParams,
         checks: Option<OAuthCallbackChecks>,
         extras: Option<CallbackExtras>,
     ) -> Result<TokenSet, OidcClientError> {
         let checks = checks.unwrap_or_default();
 
-        if checks.jarm.is_some_and(|x| x) && params.response.is_none() {
+        if checks.jarm.is_some_and(|x| x) && parameters.response.is_none() {
             let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-            if let Ok(p) = serde_json::to_value(params) {
+            if let Ok(p) = serde_json::to_value(parameters) {
                 extra_data.insert("params".to_string(), p);
             };
 
@@ -576,23 +588,23 @@ impl Client {
                 None,
                 Some(extra_data),
             ));
-        } else if let Some(response) = &params.response {
+        } else if let Some(response) = &parameters.response {
             let decrypted = self.decrypt_jarm(response)?;
             let payload = self.validate_jarm_async(&decrypted).await?;
-            params = CallbackParams::from_jwt_payload(&payload);
+            parameters = CallbackParams::from_jwt_payload(&payload);
         }
 
-        if params.state.is_some() && checks.state.is_none() {
+        if parameters.state.is_some() && checks.state.is_none() {
             return Err(OidcClientError::new_type_error(
                 "checks.state argument is missing",
                 None,
             ));
         }
 
-        if params.state.is_none() && checks.state.is_some() {
+        if parameters.state.is_none() && checks.state.is_some() {
             let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-            if let Ok(p) = serde_json::to_value(params) {
+            if let Ok(p) = serde_json::to_value(parameters) {
                 extra_data.insert("params".to_string(), p);
             };
 
@@ -607,13 +619,13 @@ impl Client {
             ));
         }
 
-        if params.state != checks.state {
+        if parameters.state != checks.state {
             let checks_state = checks.state.clone();
-            let params_state = params.state.clone();
+            let params_state = parameters.state.clone();
 
             let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-            if let Ok(p) = serde_json::to_value(params) {
+            if let Ok(p) = serde_json::to_value(parameters) {
                 extra_data.insert("params".to_string(), p);
             };
 
@@ -637,7 +649,7 @@ impl Client {
             None => return Err(OidcClientError::new_type_error("Issuer is required", None)),
         };
 
-        if params.iss.is_some() {
+        if parameters.iss.is_some() {
             if issuer.issuer.is_empty() {
                 return Err(OidcClientError::new_type_error(
                     "issuer must be configured on the issuer",
@@ -645,11 +657,11 @@ impl Client {
                 ));
             }
 
-            let params_iss = params.iss.clone().unwrap();
+            let params_iss = parameters.iss.clone().unwrap();
             if params_iss != issuer.issuer {
                 let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-                if let Ok(p) = serde_json::to_value(params) {
+                if let Ok(p) = serde_json::to_value(parameters) {
                     extra_data.insert("params".to_string(), p);
                 };
 
@@ -665,12 +677,12 @@ impl Client {
         } else if issuer
             .authorization_response_iss_parameter_supported
             .is_some_and(|x| x)
-            && params.id_token.is_none()
-            && params.response.is_none()
+            && parameters.id_token.is_none()
+            && parameters.response.is_none()
         {
             let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-            if let Ok(p) = serde_json::to_value(params) {
+            if let Ok(p) = serde_json::to_value(parameters) {
                 extra_data.insert("params".to_string(), p);
             };
 
@@ -681,21 +693,21 @@ impl Client {
             ));
         }
 
-        if params.error.is_some() {
+        if parameters.error.is_some() {
             return Err(OidcClientError::new_op_error(
-                params.error.unwrap(),
-                params.error_description,
-                params.error_uri,
+                parameters.error.unwrap(),
+                parameters.error_description,
+                parameters.error_uri,
                 None,
                 None,
                 None,
             ));
         }
 
-        if params.id_token.as_ref().is_some_and(|x| !x.is_empty()) {
+        if parameters.id_token.as_ref().is_some_and(|x| !x.is_empty()) {
             let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-            if let Ok(p) = serde_json::to_value(params) {
+            if let Ok(p) = serde_json::to_value(parameters) {
                 extra_data.insert("params".to_string(), p);
             };
 
@@ -706,18 +718,18 @@ impl Client {
             ));
         }
 
-        params.id_token = None;
+        parameters.id_token = None;
 
         if checks.response_type.is_some() {
             for res_type in checks.response_type.as_ref().unwrap().split(' ') {
                 if res_type == "none"
-                    && (params.code.is_some()
-                        || params.id_token.is_some()
-                        || params.access_token.is_some())
+                    && (parameters.code.is_some()
+                        || parameters.id_token.is_some()
+                        || parameters.access_token.is_some())
                 {
                     let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-                    if let Ok(p) = serde_json::to_value(params) {
+                    if let Ok(p) = serde_json::to_value(parameters) {
                         extra_data.insert("params".to_string(), p);
                     };
 
@@ -735,22 +747,22 @@ impl Client {
                 if res_type == "code" || res_type == "token" {
                     let mut message = "";
 
-                    if res_type == "code" && params.code.is_none() {
+                    if res_type == "code" && parameters.code.is_none() {
                         message = "code missing from response";
                     }
 
-                    if res_type == "token" && params.access_token.is_none() {
+                    if res_type == "token" && parameters.access_token.is_none() {
                         message = "access_token missing from response";
                     }
 
-                    if res_type == "token" && params.token_type.is_none() {
+                    if res_type == "token" && parameters.token_type.is_none() {
                         message = "token_type missing from response";
                     }
 
                     if !message.is_empty() {
                         let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-                        if let Ok(p) = serde_json::to_value(params) {
+                        if let Ok(p) = serde_json::to_value(parameters) {
                             extra_data.insert("params".to_string(), p);
                         };
 
@@ -768,7 +780,7 @@ impl Client {
             }
         }
 
-        if params.code.is_some() {
+        if parameters.code.is_some() {
             let mut exchange_body = match extras.as_ref() {
                 Some(e) => e
                     .exchange_body
@@ -778,8 +790,8 @@ impl Client {
             };
 
             exchange_body.insert("grant_type".to_string(), json!("authorization_code"));
-            exchange_body.insert("code".to_string(), json!(params.code.as_ref().unwrap()));
-            if let Some(ru) = redirect_uri.as_ref() {
+            exchange_body.insert("code".to_string(), json!(parameters.code.as_ref().unwrap()));
+            if let Some(ru) = redirect_uri {
                 exchange_body.insert("redirect_uri".to_string(), json!(ru));
             };
 
@@ -787,24 +799,22 @@ impl Client {
                 exchange_body.insert("code_verifier".to_string(), json!(cv));
             };
 
-            let mut auth_post_params = AuthenticationPostParams::default();
+            let mut grant_extras = GrantExtras::default();
 
             match &extras {
                 Some(e) => {
-                    auth_post_params.client_assertion_payload = e.client_assertion_payload.clone();
-                    auth_post_params.dpop = e.dpop.clone();
+                    grant_extras.client_assertion_payload = e.client_assertion_payload.clone();
+                    grant_extras.dpop = e.dpop.clone();
                 }
                 None => {}
             };
 
-            let mut token_set = self
-                .grant_async(exchange_body, auth_post_params, true)
-                .await?;
+            let mut token_set = self.grant_async(exchange_body, grant_extras, true).await?;
 
             if token_set.get_id_token().is_some_and(|x| !x.is_empty()) {
                 let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-                if let Ok(p) = serde_json::to_value(params) {
+                if let Ok(p) = serde_json::to_value(parameters) {
                     extra_data.insert("params".to_string(), p);
                 };
 
@@ -820,16 +830,16 @@ impl Client {
             return Ok(token_set);
         }
 
-        let mut other_fields = match params.other {
+        let mut other_fields = match parameters.other {
             Some(o) => o.clone(),
             None => HashMap::new(),
         };
 
-        if let Some(state) = &params.state {
+        if let Some(state) = &parameters.state {
             other_fields.insert("state".to_string(), json!(state));
         }
 
-        if let Some(code) = &params.code {
+        if let Some(code) = &parameters.code {
             other_fields.insert("code".to_string(), json!(code));
         }
 
@@ -853,14 +863,14 @@ impl Client {
             Some(s) => s.as_str().map(|f| f.to_owned()),
             None => None,
         };
-        let expires_in = match params.expires_in {
+        let expires_in = match parameters.expires_in {
             Some(exp_in) => exp_in.parse::<i64>().ok(),
             None => None,
         };
 
         let token_params = TokenSetParams {
-            access_token: params.access_token,
-            id_token: params.id_token,
+            access_token: parameters.access_token,
+            id_token: parameters.id_token,
             expires_in,
             expires_at,
             scope,
@@ -931,8 +941,8 @@ impl Client {
     /// ```
     pub async fn callback_async(
         &mut self,
-        redirect_uri: Option<String>,
-        mut params: CallbackParams,
+        redirect_uri: Option<&str>,
+        mut parameters: CallbackParams,
         checks: Option<OpenIDCallbackChecks>,
         extras: Option<CallbackExtras>,
     ) -> Result<TokenSet, OidcClientError> {
@@ -940,10 +950,10 @@ impl Client {
 
         let oauth_checks = checks.oauth_checks.clone().unwrap_or_default();
 
-        if oauth_checks.jarm.is_some_and(|x| x) && params.response.is_none() {
+        if oauth_checks.jarm.is_some_and(|x| x) && parameters.response.is_none() {
             let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-            if let Ok(p) = serde_json::to_value(params) {
+            if let Ok(p) = serde_json::to_value(parameters) {
                 extra_data.insert("params".to_string(), p);
             };
 
@@ -956,27 +966,27 @@ impl Client {
                 None,
                 Some(extra_data),
             ));
-        } else if let Some(response) = &params.response {
+        } else if let Some(response) = &parameters.response {
             let decrypted = self.decrypt_jarm(response)?;
             let payload = self.validate_jarm_async(&decrypted).await?;
-            params = CallbackParams::from_jwt_payload(&payload);
+            parameters = CallbackParams::from_jwt_payload(&payload);
         }
 
         if self.default_max_age.is_some() && checks.max_age.is_none() {
             checks.max_age = self.default_max_age;
         }
 
-        if params.state.is_some() && oauth_checks.state.is_none() {
+        if parameters.state.is_some() && oauth_checks.state.is_none() {
             return Err(OidcClientError::new_type_error(
                 "checks.state argument is missing",
                 None,
             ));
         }
 
-        if params.state.is_none() && oauth_checks.state.is_some() {
+        if parameters.state.is_none() && oauth_checks.state.is_some() {
             let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-            if let Ok(p) = serde_json::to_value(params) {
+            if let Ok(p) = serde_json::to_value(parameters) {
                 extra_data.insert("params".to_string(), p);
             };
 
@@ -991,13 +1001,13 @@ impl Client {
             ));
         }
 
-        if params.state != oauth_checks.state {
+        if parameters.state != oauth_checks.state {
             let checks_state = oauth_checks.state.clone();
-            let params_state = params.state.clone();
+            let params_state = parameters.state.clone();
 
             let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-            if let Ok(p) = serde_json::to_value(params) {
+            if let Ok(p) = serde_json::to_value(parameters) {
                 extra_data.insert("params".to_string(), p);
             };
 
@@ -1021,7 +1031,7 @@ impl Client {
             None => return Err(OidcClientError::new_type_error("Issuer is required", None)),
         };
 
-        if params.iss.is_some() {
+        if parameters.iss.is_some() {
             if issuer.issuer.is_empty() {
                 return Err(OidcClientError::new_type_error(
                     "issuer must be configured on the issuer",
@@ -1029,11 +1039,11 @@ impl Client {
                 ));
             }
 
-            let params_iss = params.iss.clone().unwrap();
+            let params_iss = parameters.iss.clone().unwrap();
             if params_iss != issuer.issuer {
                 let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-                if let Ok(p) = serde_json::to_value(params) {
+                if let Ok(p) = serde_json::to_value(parameters) {
                     extra_data.insert("params".to_string(), p);
                 };
 
@@ -1049,12 +1059,12 @@ impl Client {
         } else if issuer
             .authorization_response_iss_parameter_supported
             .is_some_and(|x| x)
-            && params.id_token.is_none()
-            && params.response.is_none()
+            && parameters.id_token.is_none()
+            && parameters.response.is_none()
         {
             let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-            if let Ok(p) = serde_json::to_value(params) {
+            if let Ok(p) = serde_json::to_value(parameters) {
                 extra_data.insert("params".to_string(), p);
             };
 
@@ -1065,11 +1075,11 @@ impl Client {
             ));
         }
 
-        if params.error.is_some() {
+        if parameters.error.is_some() {
             return Err(OidcClientError::new_op_error(
-                params.error.unwrap(),
-                params.error_description,
-                params.error_uri,
+                parameters.error.unwrap(),
+                parameters.error_description,
+                parameters.error_uri,
                 None,
                 None,
                 None,
@@ -1079,13 +1089,13 @@ impl Client {
         if oauth_checks.response_type.is_some() {
             for res_type in oauth_checks.response_type.as_ref().unwrap().split(' ') {
                 if res_type == "none"
-                    && (params.code.is_some()
-                        || params.id_token.is_some()
-                        || params.access_token.is_some())
+                    && (parameters.code.is_some()
+                        || parameters.id_token.is_some()
+                        || parameters.access_token.is_some())
                 {
                     let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-                    if let Ok(p) = serde_json::to_value(params) {
+                    if let Ok(p) = serde_json::to_value(parameters) {
                         extra_data.insert("params".to_string(), p);
                     };
 
@@ -1101,26 +1111,26 @@ impl Client {
                 } else if res_type == "code" || res_type == "token" || res_type == "id_token" {
                     let mut message = "";
 
-                    if res_type == "code" && params.code.is_none() {
+                    if res_type == "code" && parameters.code.is_none() {
                         message = "code missing from response";
                     }
 
-                    if res_type == "token" && params.access_token.is_none() {
+                    if res_type == "token" && parameters.access_token.is_none() {
                         message = "access_token missing from response";
                     }
 
-                    if res_type == "token" && params.token_type.is_none() {
+                    if res_type == "token" && parameters.token_type.is_none() {
                         message = "token_type missing from response";
                     }
 
-                    if res_type == "id_token" && params.id_token.is_none() {
+                    if res_type == "id_token" && parameters.id_token.is_none() {
                         message = "id_token missing from response";
                     }
 
                     if !message.is_empty() {
                         let mut extra_data: HashMap<String, Value> = HashMap::new();
 
-                        if let Ok(p) = serde_json::to_value(params) {
+                        if let Ok(p) = serde_json::to_value(parameters) {
                             extra_data.insert("params".to_string(), p);
                         };
 
@@ -1138,17 +1148,17 @@ impl Client {
             }
         }
 
-        if params.id_token.as_ref().is_some_and(|x| !x.is_empty()) {
-            let mut other_fields = match &params.other {
+        if parameters.id_token.as_ref().is_some_and(|x| !x.is_empty()) {
+            let mut other_fields = match &parameters.other {
                 Some(o) => o.clone(),
                 None => HashMap::new(),
             };
 
-            if let Some(state) = &params.state {
+            if let Some(state) = &parameters.state {
                 other_fields.insert("state".to_string(), json!(state));
             }
 
-            if let Some(code) = &params.code {
+            if let Some(code) = &parameters.code {
                 other_fields.insert("code".to_string(), json!(code));
             }
 
@@ -1172,14 +1182,14 @@ impl Client {
                 Some(s) => s.as_str().map(|f| f.to_owned()),
                 None => None,
             };
-            let expires_in = match &params.expires_in {
+            let expires_in = match &parameters.expires_in {
                 Some(exp_in) => exp_in.parse::<i64>().ok(),
                 None => None,
             };
 
             let token_params = TokenSetParams {
-                access_token: params.access_token.clone(),
-                id_token: params.id_token.clone(),
+                access_token: parameters.access_token.clone(),
+                id_token: parameters.id_token.clone(),
                 expires_in,
                 expires_at,
                 scope,
@@ -1203,12 +1213,12 @@ impl Client {
                 )
                 .await?;
 
-            if params.code.is_none() {
+            if parameters.code.is_none() {
                 return Ok(token_set);
             }
         }
 
-        if params.code.is_some() {
+        if parameters.code.is_some() {
             let mut exchange_body = match extras.as_ref() {
                 Some(e) => e
                     .exchange_body
@@ -1218,8 +1228,8 @@ impl Client {
             };
 
             exchange_body.insert("grant_type".to_string(), json!("authorization_code"));
-            exchange_body.insert("code".to_string(), json!(params.code.as_ref().unwrap()));
-            if let Some(ru) = redirect_uri.as_ref() {
+            exchange_body.insert("code".to_string(), json!(parameters.code.as_ref().unwrap()));
+            if let Some(ru) = redirect_uri {
                 exchange_body.insert("redirect_uri".to_string(), json!(ru));
             };
 
@@ -1227,19 +1237,17 @@ impl Client {
                 exchange_body.insert("code_verifier".to_string(), json!(cv));
             };
 
-            let mut auth_post_params = AuthenticationPostParams::default();
+            let mut grant_extras = GrantExtras::default();
 
             match &extras {
                 Some(e) => {
-                    auth_post_params.client_assertion_payload = e.client_assertion_payload.clone();
-                    auth_post_params.dpop = e.dpop.clone();
+                    grant_extras.client_assertion_payload = e.client_assertion_payload.clone();
+                    grant_extras.dpop = e.dpop.clone();
                 }
                 None => {}
             };
 
-            let mut token_set = self
-                .grant_async(exchange_body, auth_post_params, true)
-                .await?;
+            let mut token_set = self.grant_async(exchange_body, grant_extras, true).await?;
 
             token_set = self.decrypt_id_token(token_set)?;
             token_set = self
@@ -1252,23 +1260,23 @@ impl Client {
                 )
                 .await?;
 
-            if params.session_state.is_some() {
-                token_set.set_session_state(params.session_state);
+            if parameters.session_state.is_some() {
+                token_set.set_session_state(parameters.session_state);
             }
 
             return Ok(token_set);
         }
 
-        let mut other_fields = match &params.other {
+        let mut other_fields = match &parameters.other {
             Some(o) => o.clone(),
             None => HashMap::new(),
         };
 
-        if let Some(state) = params.state {
+        if let Some(state) = parameters.state {
             other_fields.insert("state".to_string(), json!(state));
         }
 
-        if let Some(code) = params.code {
+        if let Some(code) = parameters.code {
             other_fields.insert("code".to_string(), json!(code));
         }
 
@@ -1292,14 +1300,14 @@ impl Client {
             Some(s) => s.as_str().map(|f| f.to_owned()),
             None => None,
         };
-        let expires_in = match params.expires_in {
+        let expires_in = match parameters.expires_in {
             Some(exp_in) => exp_in.parse::<i64>().ok(),
             None => None,
         };
 
         let token_params = TokenSetParams {
-            access_token: params.access_token,
-            id_token: params.id_token,
+            access_token: parameters.access_token,
+            id_token: parameters.id_token,
             expires_in,
             expires_at,
             scope,
@@ -1317,12 +1325,12 @@ impl Client {
     ///
     /// - `token` : The token to introspect
     /// - `token_type_hint` : Type of the token passed in `token`. Usually `access_token` or `refresh_token`
-    /// - `params`: See [IntrospectionParams]
+    /// - `extras`: See [IntrospectionExtras]
     pub async fn introspect_async(
         &mut self,
         token: &str,
-        token_type_hint: Option<String>,
-        params: Option<IntrospectionParams>,
+        token_type_hint: Option<&str>,
+        extras: Option<IntrospectionExtras>,
     ) -> Result<Response, OidcClientError> {
         let issuer = match self.issuer.as_ref() {
             Some(iss) => iss,
@@ -1344,17 +1352,11 @@ impl Client {
             form.insert("token_type_hint".to_string(), json!(hint));
         }
 
-        let mut client_assertion_payload = None;
-
-        if let Some(p) = params {
-            if let Some(body) = p.introspect_body {
+        if let Some(p) = &extras {
+            if let Some(body) = &p.introspect_body {
                 for (k, v) in body {
-                    form.insert(k, v);
+                    form.insert(k.to_owned(), v.to_owned());
                 }
-            }
-
-            if let Some(cap) = p.client_assertion_payload {
-                client_assertion_payload = Some(cap);
             }
         }
 
@@ -1367,7 +1369,9 @@ impl Client {
             "introspection",
             req,
             AuthenticationPostParams {
-                client_assertion_payload,
+                client_assertion_payload: extras
+                    .as_ref()
+                    .and_then(|x| x.client_assertion_payload.as_ref()),
                 ..Default::default()
             },
         )
@@ -1378,50 +1382,50 @@ impl Client {
     /// Performs a request to fetch using the access token at `resource_url`.
     ///
     /// - `resource_url` : Url of the resource server
-    /// - `token` : Token to authenticate the resource fetch request
+    /// - `access_token` : Token to authenticate the resource fetch request
     /// - `token_type` : Type of the `token`. Eg: `Bearer`, `DPoP`
     /// - `retry` : Whether to retry if the request failed or not
-    /// - `params` : See [RequestResourceParams]
+    /// - `options` : See [RequestResourceOptions]
     #[async_recursion::async_recursion(? Send)]
     pub async fn request_resource_async(
         &mut self,
         resource_url: &str,
-        token: &str,
-        token_type: Option<String>,
+        access_token: &str,
+        token_type: Option<&'async_recursion str>,
         retry: bool,
-        mut params: RequestResourceParams,
+        mut options: RequestResourceOptions,
     ) -> Result<Response, OidcClientError> {
-        let tt = if params.dpop.is_some() {
-            "DPoP".to_string()
+        let tt = if options.dpop.is_some() {
+            "DPoP"
         } else {
-            token_type.unwrap_or("Bearer".to_string())
+            token_type.unwrap_or("Bearer")
         };
 
-        if !params
+        if !options
             .headers
             .iter()
             .any(|(k, _)| k.as_str().to_lowercase() == "authorization")
         {
-            if let Ok(header_val) = HeaderValue::from_str(&format!("{} {}", tt, token)) {
-                params.headers.insert("Authorization", header_val);
+            if let Ok(header_val) = HeaderValue::from_str(&format!("{tt} {access_token}")) {
+                options.headers.insert("Authorization", header_val);
             }
         }
 
         let req = Request {
-            method: params.method.clone(),
-            body: params.body.clone(),
+            method: options.method.clone(),
+            body: options.body.clone(),
             url: resource_url.to_string(),
             mtls: self
                 .tls_client_certificate_bound_access_tokens
                 .is_some_and(|x| x),
-            headers: params.headers.clone(),
-            bearer: params.bearer,
-            expect_body_to_be_json: params.expect_body_to_be_json,
+            headers: options.headers.clone(),
+            bearer: options.bearer,
+            expect_body_to_be_json: options.expect_body_to_be_json,
             ..Default::default()
         };
 
         match self
-            .instance_request_async(req, params.dpop.as_ref(), Some(&token.to_string()))
+            .instance_request_async(req, options.dpop.as_ref(), Some(&access_token.to_string()))
             .await
         {
             Ok(r) => Ok(r),
@@ -1435,10 +1439,10 @@ impl Client {
                                 return self
                                     .request_resource_async(
                                         resource_url,
-                                        token,
+                                        access_token,
                                         Some(tt),
                                         false,
-                                        params.clone(),
+                                        options.clone(),
                                     )
                                     .await;
                             }
@@ -1555,11 +1559,11 @@ impl Client {
     /// Performs a Token Refresh request at Issuer's `token_endpoint`
     ///
     /// - `token_set` : [TokenSet] with refresh token that will be used to perform the request
-    /// - `params` : See [RefreshTokenRequestParams]
+    /// - `params` : See [RefreshTokenExtras]
     pub async fn refresh_async(
         &mut self,
         token_set: TokenSet,
-        params: Option<RefreshTokenRequestParams>,
+        extras: Option<RefreshTokenExtras>,
     ) -> Result<TokenSet, OidcClientError> {
         let refresh_token = match token_set.get_refresh_token() {
             Some(rt) => rt,
@@ -1573,7 +1577,7 @@ impl Client {
 
         let mut body = HashMap::new();
 
-        if let Some(exchange_payload) = params.as_ref().and_then(|x| x.exchange_body.as_ref()) {
+        if let Some(exchange_payload) = extras.as_ref().and_then(|x| x.exchange_body.as_ref()) {
             for (k, v) in exchange_payload {
                 body.insert(k.to_owned(), v.to_owned());
             }
@@ -1582,15 +1586,15 @@ impl Client {
         body.insert("grant_type".to_string(), json!("refresh_token"));
         body.insert("refresh_token".to_string(), json!(refresh_token));
 
-        let auth_post_params = AuthenticationPostParams {
-            client_assertion_payload: params
+        let grant_extras = GrantExtras {
+            client_assertion_payload: extras
                 .as_ref()
-                .and_then(|x| x.client_assertion_payload.clone()),
-            dpop: params.and_then(|x| x.dpop),
-            ..Default::default()
+                .and_then(|x| x.client_assertion_payload.to_owned()),
+            dpop: extras.as_ref().and_then(|x| x.dpop.to_owned()),
+            endpoint_auth_method: None,
         };
 
-        let mut new_token_set = self.grant_async(body, auth_post_params, true).await?;
+        let mut new_token_set = self.grant_async(body, grant_extras, true).await?;
 
         if let Some(id_token) = new_token_set.get_id_token() {
             new_token_set = self.decrypt_id_token(new_token_set)?;
@@ -1626,13 +1630,13 @@ impl Client {
     /// Performs a token revocation at Issuer's `revocation_endpoint`
     ///
     /// - `token` : The token to be revoked
-    /// - `hint` : Hint to which type of token is being revoked
-    /// - `params` : See [RevokeRequestParams]
+    /// - `token_type_hint` : Hint to which type of token is being revoked
+    /// - `extras` : See [RevokeExtras]
     pub async fn revoke_async(
         &mut self,
-        token: String,
-        hint: Option<String>,
-        params: Option<RevokeRequestParams>,
+        token: &str,
+        token_type_hint: Option<&str>,
+        extras: Option<RevokeExtras>,
     ) -> Result<Response, OidcClientError> {
         let issuer = match self.issuer.as_ref() {
             Some(iss) => iss,
@@ -1650,13 +1654,13 @@ impl Client {
 
         form.insert("token".to_string(), json!(token));
 
-        if let Some(h) = hint {
+        if let Some(h) = token_type_hint {
             form.insert("token_type_hint".to_string(), json!(h));
         }
 
         let mut client_assertion_payload = None;
 
-        if let Some(p) = params {
+        if let Some(p) = extras {
             if let Some(body) = p.revocation_body {
                 for (k, v) in body {
                     form.insert(k, v);
@@ -1678,7 +1682,7 @@ impl Client {
             "revocation",
             req,
             AuthenticationPostParams {
-                client_assertion_payload,
+                client_assertion_payload: client_assertion_payload.as_ref(),
                 ..Default::default()
             },
         )
@@ -1689,12 +1693,12 @@ impl Client {
     /// Performs userinfo request at Issuer's `userinfo` endpoint.
     ///
     /// - `token_set` : [TokenSet] with `access_token` that will be used to perform the request
-    /// - `options` : See [UserinfoRequestParams]
+    /// - `options` : See [UserinfoOptions]
     pub async fn userinfo_async(
         &mut self,
         token_set: &TokenSet,
-        options: UserinfoRequestParams,
-    ) -> Result<JwtPayload, OidcClientError> {
+        options: UserinfoOptions,
+    ) -> Result<Value, OidcClientError> {
         let issuer = match self.issuer.as_ref() {
             Some(iss) => iss,
             None => return Err(OidcClientError::new_type_error("Issuer is required", None)),
@@ -1819,7 +1823,7 @@ impl Client {
             body = Some(form_encoded_body);
         }
 
-        let req_res_params = RequestResourceParams {
+        let req_res_params = RequestResourceOptions {
             method: options.method,
             headers: req.headers,
             bearer: true,
@@ -1832,7 +1836,7 @@ impl Client {
             .request_resource_async(
                 url.as_str(),
                 &access_token,
-                token_set.get_token_type(),
+                token_set.get_token_type().as_deref(),
                 true,
                 req_res_params,
             )
@@ -1872,9 +1876,9 @@ impl Client {
 
                 if self.userinfo_signed_response_alg.is_none() {
                     if let Ok(Value::Object(json_res)) = serde_json::from_str::<Value>(&userinfo) {
-                        let mut payload = JwtPayload::new();
+                        let mut payload = json!({});
                         for (k, v) in json_res {
-                            payload.set_claim(&k, Some(v)).unwrap_or_default();
+                            payload[k] = v;
                         }
                         payload
                     } else {
@@ -1889,7 +1893,11 @@ impl Client {
                         ));
                     }
                 } else {
-                    let (payload, _, _) = self.validate_jwt_userinfo_async(&userinfo).await?;
+                    let (jwt_payload, _, _) = self.validate_jwt_userinfo_async(&userinfo).await?;
+                    let mut payload = json!({});
+                    for (k, v) in jwt_payload.claims_set() {
+                        payload[k] = v.clone();
+                    }
                     payload
                 }
             }
@@ -1905,9 +1913,9 @@ impl Client {
                     .to_owned();
 
                 if let Ok(Value::Object(json_res)) = serde_json::from_str::<Value>(&body) {
-                    let mut payload = JwtPayload::new();
+                    let mut payload = json!({});
                     for (k, v) in json_res {
-                        payload.set_claim(&k, Some(v)).unwrap_or_default();
+                        payload[k] = v;
                     }
                     payload
                 } else {
@@ -1928,7 +1936,7 @@ impl Client {
             if let Some(Value::String(expected_sub)) =
                 token_set.claims().as_ref().and_then(|x| x.get("sub"))
             {
-                if let Some(new_sub) = payload.subject() {
+                if let Some(Value::String(new_sub)) = payload.get("sub") {
                     if expected_sub != new_sub {
                         let mut extra_data: HashMap<String, Value> = HashMap::new();
 
@@ -2117,12 +2125,12 @@ impl Client {
     ///
     /// Performs a PAR on the `pushed_authorization_request_endpoint`
     ///
-    /// - `params` : See [AuthorizationParameters]
-    /// - `par_params` : See [PushedAuthorizationRequestParams]
+    /// - `parameters` : See [AuthorizationParameters]
+    /// - `extras` : See [PushedAuthorizationRequestExtras]
     pub async fn pushed_authorization_request_async(
         &mut self,
-        params: Option<AuthorizationParameters>,
-        par_params: Option<PushedAuthorizationRequestParams>,
+        parameters: Option<AuthorizationParameters>,
+        extras: Option<PushedAuthorizationRequestExtras>,
     ) -> Result<Value, OidcClientError> {
         let issuer = match self.issuer.as_ref() {
             Some(iss) => iss,
@@ -2136,12 +2144,12 @@ impl Client {
             ));
         }
 
-        let auth_params = params.unwrap_or_default();
+        let auth_params = parameters.unwrap_or_default();
 
         let mut body = if auth_params.request.is_some() {
             auth_params
         } else {
-            self.authorization_params(auth_params)
+            self.authorization_params(&auth_params)
         };
 
         body.client_id = Some(self.client_id.clone());
@@ -2226,9 +2234,13 @@ impl Client {
             ..Default::default()
         };
 
+        let client_assertion_payload = extras
+            .as_ref()
+            .and_then(|x| x.client_assertion_payload.as_ref());
+
         let params = AuthenticationPostParams {
-            client_assertion_payload: par_params.and_then(|x| x.client_assertion_payload),
-            endpoint_auth_method: Some("token".to_string()),
+            client_assertion_payload,
+            endpoint_auth_method: Some("token"),
             ..Default::default()
         };
 
@@ -2412,7 +2424,7 @@ impl Client {
             }
         }
 
-        let body = self.authorization_params(auth_params);
+        let body = self.authorization_params(&auth_params);
 
         let mut form_body = HashMap::new();
 
@@ -2497,8 +2509,8 @@ impl Client {
         let auth_post_params = AuthenticationPostParams {
             client_assertion_payload: extras
                 .as_ref()
-                .and_then(|x| x.client_assertion_payload.clone()),
-            endpoint_auth_method: Some("token".to_string()),
+                .and_then(|x| x.client_assertion_payload.as_ref()),
+            endpoint_auth_method: Some("token"),
             dpop: None,
         };
 
