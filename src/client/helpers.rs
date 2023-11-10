@@ -107,7 +107,7 @@ impl Client {
 
     pub(crate) fn authorization_params(
         &self,
-        params: AuthorizationParameters,
+        params: &AuthorizationParameters,
     ) -> AuthorizationParameters {
         let mut new_params = AuthorizationParameters {
             client_id: Some(self.client_id.clone()),
@@ -118,75 +118,75 @@ impl Client {
         };
 
         if params.client_id.is_some() {
-            new_params.client_id = params.client_id;
+            new_params.client_id = params.client_id.to_owned();
         }
         if params.acr_values.is_some() {
-            new_params.acr_values = params.acr_values;
+            new_params.acr_values = params.acr_values.to_owned();
         }
         if params.audience.is_some() {
-            new_params.audience = params.audience;
+            new_params.audience = params.audience.to_owned();
         }
         if params.claims.is_some() {
-            new_params.claims = params.claims;
+            new_params.claims = params.claims.to_owned();
         }
         if params.claims_locales.is_some() {
-            new_params.claims_locales = params.claims_locales;
+            new_params.claims_locales = params.claims_locales.to_owned();
         }
         if params.code_challenge_method.is_some() {
-            new_params.code_challenge_method = params.code_challenge_method;
+            new_params.code_challenge_method = params.code_challenge_method.to_owned();
         }
         if params.code_challenge.is_some() {
-            new_params.code_challenge = params.code_challenge;
+            new_params.code_challenge = params.code_challenge.to_owned();
         }
         if params.display.is_some() {
-            new_params.display = params.display;
+            new_params.display = params.display.to_owned();
         }
         if params.id_token_hint.is_some() {
-            new_params.id_token_hint = params.id_token_hint;
+            new_params.id_token_hint = params.id_token_hint.to_owned();
         }
         if params.login_hint.is_some() {
-            new_params.login_hint = params.login_hint;
+            new_params.login_hint = params.login_hint.to_owned();
         }
         if params.max_age.is_some() {
-            new_params.max_age = params.max_age;
+            new_params.max_age = params.max_age.to_owned();
         }
         if params.nonce.is_some() {
-            new_params.nonce = params.nonce;
+            new_params.nonce = params.nonce.to_owned();
         }
         if params.prompt.is_some() {
-            new_params.prompt = params.prompt;
+            new_params.prompt = params.prompt.to_owned();
         }
         if params.redirect_uri.is_some() {
-            new_params.redirect_uri = params.redirect_uri;
+            new_params.redirect_uri = params.redirect_uri.to_owned();
         }
         if params.registration.is_some() {
-            new_params.registration = params.registration;
+            new_params.registration = params.registration.to_owned();
         }
         if params.request_uri.is_some() {
-            new_params.request_uri = params.request_uri;
+            new_params.request_uri = params.request_uri.to_owned();
         }
         if params.request.is_some() {
-            new_params.request = params.request;
+            new_params.request = params.request.to_owned();
         }
         if params.response_mode.is_some() {
-            new_params.response_mode = params.response_mode;
+            new_params.response_mode = params.response_mode.to_owned();
         }
         if params.response_type.is_some() {
-            new_params.response_type = params.response_type;
+            new_params.response_type = params.response_type.to_owned();
         }
         if params.resource.is_some() {
-            new_params.resource = params.resource;
+            new_params.resource = params.resource.to_owned();
         }
         if params.scope.is_some() {
-            new_params.scope = params.scope;
+            new_params.scope = params.scope.to_owned();
         }
         if params.state.is_some() {
-            new_params.state = params.state;
+            new_params.state = params.state.to_owned();
         }
         if params.ui_locales.is_some() {
-            new_params.ui_locales = params.ui_locales;
+            new_params.ui_locales = params.ui_locales.to_owned();
         }
-        new_params.other = params.other;
+        new_params.other = params.other.to_owned();
 
         new_params
     }
@@ -231,23 +231,20 @@ impl Client {
         Ok(authorization_endpiont)
     }
 
-    pub(crate) async fn authenticated_post_async(
+    pub(crate) async fn authenticated_post_async<'a>(
         &mut self,
         endpoint: &str,
         mut req: Request,
-        params: AuthenticationPostParams,
+        params: AuthenticationPostParams<'a>,
     ) -> Result<Response, OidcClientError> {
-        let endpoint_auth_method = params.endpoint_auth_method.unwrap_or(endpoint.to_string());
+        let endpoint_auth_method = params.endpoint_auth_method.unwrap_or(endpoint);
 
-        let auth_request = self.auth_for(
-            &endpoint_auth_method,
-            params.client_assertion_payload.as_ref(),
-        )?;
+        let auth_request = self.auth_for(endpoint_auth_method, params.client_assertion_payload)?;
 
         req.merge_form(&auth_request);
         req.merge_headers(&auth_request);
 
-        let auth_method = match endpoint_auth_method.as_str() {
+        let auth_method = match endpoint_auth_method {
             "token" => Some(&self.token_endpoint_auth_method),
             "introspection" => self.introspection_endpoint_auth_method.as_ref(),
             "revocation" => self.revocation_endpoint_auth_method.as_ref(),
@@ -314,8 +311,7 @@ impl Client {
         req.method = Method::POST;
         req.mtls = mtls;
 
-        self.instance_request_async(req, params.dpop.as_ref(), None)
-            .await
+        self.instance_request_async(req, params.dpop, None).await
     }
 
     pub(crate) fn auth_for(
@@ -1528,7 +1524,7 @@ impl Client {
     ) -> Result<Response, OidcClientError> {
         self.generate_dpop_header(&mut req, dpop, access_token)?;
 
-        let res = match request_async(&req, &mut self.request_interceptor).await {
+        let res = match request_async(&req, self.request_interceptor.as_mut()).await {
             Ok(r) => r,
             Err(e) => match &e {
                 OidcClientError::RPError(_, Some(r))

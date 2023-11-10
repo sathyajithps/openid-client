@@ -51,10 +51,7 @@ async fn posts_the_token_in_a_body_and_returns_none() {
         .client(client_metadata, None, None, None, false)
         .unwrap();
 
-    let res = client
-        .revoke_async("tokenValue".to_string(), None, None)
-        .await
-        .unwrap();
+    let res = client.revoke_async("tokenValue", None, None).await.unwrap();
 
     assert!(res.body.is_none());
 }
@@ -108,11 +105,7 @@ async fn posts_the_token_and_a_hint_in_a_body() {
         .unwrap();
 
     let result = client
-        .revoke_async(
-            "tokenValue".to_string(),
-            Some("access_token".to_string()),
-            None,
-        )
+        .revoke_async("tokenValue", Some("access_token"), None)
         .await;
 
     assert!(result.is_ok());
@@ -148,7 +141,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
         .unwrap();
 
     let err = client
-        .revoke_async("tokenValue".to_string(), None, None)
+        .revoke_async("tokenValue", None, None)
         .await
         .unwrap_err();
 
@@ -192,7 +185,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
         .unwrap();
 
     let err = client
-        .revoke_async("tokenValue".to_string(), None, None)
+        .revoke_async("tokenValue", None, None)
         .await
         .unwrap_err();
 
@@ -236,9 +229,7 @@ async fn completely_ignores_the_response_even_invalid_or_html_one() {
         .client(client_metadata, None, None, None, false)
         .unwrap();
 
-    let result = client
-        .revoke_async("tokenValue".to_string(), None, None)
-        .await;
+    let result = client.revoke_async("tokenValue", None, None).await;
 
     assert!(result.is_ok());
 }
@@ -271,9 +262,7 @@ async fn handles_empty_bodies() {
         .client(client_metadata, None, None, None, false)
         .unwrap();
 
-    let result = client
-        .revoke_async("tokenValue".to_string(), None, None)
-        .await;
+    let result = client.revoke_async("tokenValue", None, None).await;
 
     assert!(result.is_ok());
 }

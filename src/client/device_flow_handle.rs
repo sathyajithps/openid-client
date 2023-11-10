@@ -3,8 +3,8 @@ use std::{cmp::max, collections::HashMap, num::Wrapping};
 use serde_json::json;
 
 use crate::types::{
-    AuthenticationPostParams, DeviceAuthorizationExtras, DeviceAuthorizationResponse,
-    DeviceFlowGrantResponse, OidcClientError,
+    DeviceAuthorizationExtras, DeviceAuthorizationResponse, DeviceFlowGrantResponse, GrantExtras,
+    OidcClientError,
 };
 
 use super::Client;
@@ -109,12 +109,12 @@ impl DeviceFlowHandle {
             return Ok(DeviceFlowGrantResponse::Debounced);
         }
 
-        let params = AuthenticationPostParams {
+        let extras = GrantExtras {
             client_assertion_payload: self
                 .extras
                 .as_ref()
-                .and_then(|x| x.client_assertion_payload.clone()),
-            dpop: self.extras.as_ref().and_then(|x| x.dpop.clone()),
+                .and_then(|x| x.client_assertion_payload.to_owned()),
+            dpop: self.extras.as_ref().and_then(|x| x.dpop.to_owned()),
             ..Default::default()
         };
 
@@ -135,7 +135,7 @@ impl DeviceFlowHandle {
 
         self.last_requested = (self.now)();
 
-        let mut token_set = match self.client.grant_async(body, params, true).await {
+        let mut token_set = match self.client.grant_async(body, extras, true).await {
             Ok(t) => t,
             Err(e) => {
                 match &e {

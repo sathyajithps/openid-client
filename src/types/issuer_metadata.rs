@@ -20,7 +20,7 @@ pub struct MtlsEndpoints {
 
 /// # IssuerMetadata
 /// Metadata about the OIDC Authorization Server. [OIDC Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationResponse).
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct IssuerMetadata {
     /// Issuer url. [RFC8414 - Obtaining Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html#section-3).
     pub issuer: String,

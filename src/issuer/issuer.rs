@@ -17,69 +17,36 @@ use super::keystore::KeyStore;
 /// Holds all the discovered values from the OIDC Issuer
 #[derive(Debug)]
 pub struct Issuer {
-    /// Discovered issuer uri.
     pub(crate) issuer: String,
-    /// OpenID Connect [Authorization Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint).
     pub(crate) authorization_endpoint: Option<String>,
     pub(crate) device_authorization_endpoint: Option<String>,
-    /// OpenID Connect [Token Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#TokenEndpoint).
     pub(crate) token_endpoint: Option<String>,
-    /// URL of the authorization server's JWK Set. [See](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
     pub(crate) jwks_uri: Option<String>,
-    /// OpenID Connect [Userinfo Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo).
     pub(crate) userinfo_endpoint: Option<String>,
-    /// Endpoint for revoking refresh tokes and access tokens. [Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
     pub(crate) revocation_endpoint: Option<String>,
-    /// Claims supported by the Authorization Server
     pub(crate) claims_parameter_supported: Option<bool>,
-    /// OAuth 2.0 Grant Types supported by the Authorization Server. [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591).
     pub(crate) grant_types_supported: Option<Vec<String>>,
-    /// Indicates whether request object is supported by Authorization Server. [OIDC Request Object](https://openid.net/specs/openid-connect-core-1_0.html#RequestObject).
     pub(crate) request_parameter_supported: Option<bool>,
-    /// Indicates whether request object by reference is supported by Authorization Server. [OIDC Request Object by Reference](https://openid.net/specs/openid-connect-core-1_0.html#RequestUriParameter).
     pub(crate) request_uri_parameter_supported: Option<bool>,
-    /// Whether a request uri has to be pre registered with Authorization Server.
     pub(crate) require_request_uri_registration: Option<bool>,
-    /// OAuth 2.0 Response Mode values that Authorization Server supports. [Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
     pub(crate) response_modes_supported: Option<Vec<String>>,
-    /// Claim Types supported. [OIDC Claim types](https://openid.net/specs/openid-connect-core-1_0.html#ClaimTypes).
     pub(crate) claim_types_supported: Vec<String>,
-    /// Client Authentication methods supported by Token Endpoint. [Client Authentication](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication)
     pub(crate) token_endpoint_auth_methods_supported: Option<Vec<String>>,
-    /// List of JWS signing algorithms supported by the token endpoint for the signature of
-    /// the JWT that the client uses to authenticate.
     pub(crate) token_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
-    /// List of client [authentication methods](https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#token-endpoint-auth-method) supported by the Authorization Server.
     pub(crate) introspection_endpoint_auth_methods_supported: Option<Vec<String>>,
-    /// List of JWS signing algorithms supported by the introspection endpoint for the signature of
-    /// the JWT that the client uses to authenticate.
     pub(crate) introspection_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
-    /// List of client [authentication methods](https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#token-endpoint-auth-method) supported by the Authorization Server.
     pub(crate) revocation_endpoint_auth_methods_supported: Option<Vec<String>>,
-    /// List of JWS signing algorithms supported by the revocation endpoint for the signature of the
-    /// JWT that the client uses to authenticate.
     pub(crate) revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
-    /// [End session endpoint](https://openid.net/specs/openid-connect-rpinitiated-1_0.html#OPMetadata)
     pub(crate) end_session_endpoint: Option<String>,
-    /// Extra key values
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
-    /// Keystore
     pub(crate) keystore: Option<KeyStore>,
-    /// See [MtlsEndpoints]
     pub(crate) mtls_endpoint_aliases: Option<MtlsEndpoints>,
-    /// [Token introspection endpoint](https://www.rfc-editor.org/rfc/rfc7662)
-    pub introspection_endpoint: Option<String>,
-    /// Client registration endpoint
+    pub(crate) introspection_endpoint: Option<String>,
     pub(crate) registration_endpoint: Option<String>,
-    /// OP support of returning the OP id in auth response. [RFC](https://www.ietf.org/archive/id/draft-meyerzuselhausen-oauth-iss-auth-resp-02.html#name-providing-the-issuer-identi)
     pub(crate) authorization_response_iss_parameter_supported: Option<bool>,
-    /// A JSON array containing a list of the JWS alg values supported by the authorization server for DPoP proof JWTs
     pub(crate) dpop_signing_alg_values_supported: Option<Vec<String>>,
-    /// The URL of the pushed authorization request endpoint at which client can post an authorization request to exchange for a "request_uri" value usable at the authorization server.  
-    pub pushed_authorization_request_endpoint: Option<String>,
-    /// Boolean parameter indicating whether the authorization server accepts authorization request data only via PAR.  If omitted, the default value is "false".
-    pub require_pushed_authorization_requests: bool,
-    /// Request interceptor used for every request
+    pub(crate) pushed_authorization_request_endpoint: Option<String>,
+    pub(crate) require_pushed_authorization_requests: bool,
     pub(crate) request_interceptor: Option<RequestInterceptor>,
     pub(crate) now: fn() -> i64,
 }
@@ -447,7 +414,7 @@ impl Issuer {
             ..Request::default()
         };
 
-        let res = request_async(&req, &mut interceptor).await?;
+        let res = request_async(&req, interceptor.as_mut()).await?;
 
         let issuer_metadata = match convert_json_to::<IssuerMetadata>(res.body.as_ref().unwrap()) {
             Ok(metadata) => metadata,
@@ -554,7 +521,7 @@ impl Issuer {
     ) -> Result<Issuer, OidcClientError> {
         let req = Self::build_webfinger_request(input)?;
 
-        let res = request_async(&req, &mut interceptor).await?;
+        let res = request_async(&req, interceptor.as_mut()).await?;
 
         let expected_issuer = Self::process_webfinger_response(res)?;
 

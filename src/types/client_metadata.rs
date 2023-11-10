@@ -69,27 +69,6 @@ pub struct ClientMetadata {
     /// [Grant Types](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grant_types: Option<Vec<String>>,
-    /// [Application Type](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub application_type: Option<String>,
-    /// [Contacts](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contacts: Option<Vec<String>>,
-    /// [Client Name](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_name: Option<String>,
-    /// [Logo Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub logo_uri: Option<String>,
-    /// [Client Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_uri: Option<String>,
-    /// [Policy Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy_uri: Option<String>,
-    /// [Tos Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tos_uri: Option<String>,
     /// [Jwks Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jwks_uri: Option<String>,

@@ -84,7 +84,7 @@ async fn does_an_authorization_code_grant_with_code_and_redirect_uri() {
 
     let _ = client
         .callback_async(
-            Some("https://rp.example.com/cb".to_string()),
+            Some("https://rp.example.com/cb"),
             callback_params,
             None,
             None,
@@ -113,7 +113,7 @@ async fn resolves_a_tokenset_with_just_a_state_for_response_type_none() {
 
     let token_set = client
         .callback_async(
-            Some("https://rp.example.com/cb".to_string()),
+            Some("https://rp.example.com/cb"),
             callback_params,
             Some(checks),
             None,
@@ -143,12 +143,7 @@ async fn rejects_with_op_error_when_part_of_the_response() {
     };
 
     let err = client
-        .callback_async(
-            Some("https://rp.example.com/cb".to_string()),
-            params,
-            None,
-            None,
-        )
+        .callback_async(Some("https://rp.example.com/cb"), params, None, None)
         .await
         .unwrap_err();
 
@@ -173,12 +168,7 @@ mod state_checks {
         };
 
         let err = client
-            .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
-                params,
-                None,
-                None,
-            )
+            .callback_async(Some("https://rp.example.com/cb"), params, None, None)
             .await
             .unwrap_err();
 
@@ -204,7 +194,7 @@ mod state_checks {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 Default::default(),
                 Some(checks),
                 None,
@@ -239,7 +229,7 @@ mod state_checks {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -366,7 +356,7 @@ mod jarm_response_mode {
 
         let _ = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 callback_params,
                 Some(checks),
                 None,
@@ -486,7 +476,7 @@ mod jarm_response_mode {
 
         let _ = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 callback_params,
                 Some(checks),
                 None,
@@ -515,7 +505,7 @@ mod jarm_response_mode {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 callback_params,
                 Some(checks),
                 None,
@@ -578,7 +568,7 @@ mod jarm_response_mode {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 callback_params,
                 Some(checks),
                 None,
@@ -622,7 +612,7 @@ mod response_type_checks {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -657,7 +647,7 @@ mod response_type_checks {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -695,7 +685,7 @@ mod response_type_checks {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -733,7 +723,7 @@ mod response_type_checks {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -768,7 +758,7 @@ mod response_type_checks {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -803,7 +793,7 @@ mod response_type_checks {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,
@@ -838,7 +828,7 @@ mod response_type_checks {
 
         let err = client
             .callback_async(
-                Some("https://rp.example.com/cb".to_string()),
+                Some("https://rp.example.com/cb"),
                 params,
                 Some(checks),
                 None,

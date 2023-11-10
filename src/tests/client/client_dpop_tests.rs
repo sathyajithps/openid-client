@@ -18,9 +18,9 @@ use crate::{
     tests::test_interceptors::get_default_test_interceptor,
     tokenset::{TokenSet, TokenSetParams},
     types::{
-        AuthenticationPostParams, CallbackExtras, CallbackParams, ClientMetadata,
-        DeviceAuthorizationExtras, DeviceAuthorizationParams, IssuerMetadata,
-        RefreshTokenRequestParams, RequestResourceParams, UserinfoRequestParams,
+        CallbackExtras, CallbackParams, ClientMetadata, DeviceAuthorizationExtras,
+        DeviceAuthorizationParams, GrantExtras, IssuerMetadata, RefreshTokenExtras,
+        RequestResourceOptions, UserinfoOptions,
     },
 };
 
@@ -223,7 +223,7 @@ async fn is_enabled_for_userinfo() {
     };
     let token_set = TokenSet::new(token_params);
 
-    let options = UserinfoRequestParams {
+    let options = UserinfoOptions {
         dpop: Some(get_rsa_private_key()),
         ..Default::default()
     };
@@ -330,14 +330,14 @@ async fn handles_dpop_nonce_in_userinfo() {
 
     let key = get_rsa_private_key();
 
-    let options = UserinfoRequestParams {
+    let options = UserinfoOptions {
         dpop: Some(key.clone()),
         ..Default::default()
     };
 
     client.userinfo_async(&token_set, options).await.unwrap();
 
-    let options2 = UserinfoRequestParams {
+    let options2 = UserinfoOptions {
         dpop: Some(key.clone()),
         ..Default::default()
     };
@@ -348,7 +348,7 @@ async fn handles_dpop_nonce_in_userinfo() {
 
     other.insert("only_for_fail_test".to_string(), json!("doesntaffecttest"));
 
-    let options3 = UserinfoRequestParams {
+    let options3 = UserinfoOptions {
         dpop: Some(key.clone()),
         params: Some(other),
         ..Default::default()
@@ -441,7 +441,7 @@ async fn handles_dpop_nonce_in_grant() {
 
     let key = get_rsa_private_key();
 
-    let params = AuthenticationPostParams {
+    let extras = GrantExtras {
         dpop: Some(key.clone()),
         ..Default::default()
     };
@@ -450,21 +450,18 @@ async fn handles_dpop_nonce_in_grant() {
 
     body.insert("grant_type".to_string(), json!("client_credentials"));
     client
-        .grant_async(body.clone(), params.clone(), true)
+        .grant_async(body.clone(), extras.clone(), true)
         .await
         .unwrap();
 
     client
-        .grant_async(body.clone(), params.clone(), true)
+        .grant_async(body.clone(), extras.clone(), true)
         .await
         .unwrap();
 
     body.insert("fail_case".to_string(), json!("shouldnotaffect"));
 
-    let err = client
-        .grant_async(body.clone(), params.clone(), true)
-        .await
-        .unwrap_err();
+    let err = client.grant_async(body, extras, true).await.unwrap_err();
 
     assert!(err.is_op_error());
     assert_eq!("invalid_dpop_proof", err.op_error().error.error);
@@ -548,7 +545,7 @@ async fn handles_dpop_nonce_in_request_resource() {
 
     let key = get_rsa_private_key();
 
-    let options = RequestResourceParams {
+    let options = RequestResourceOptions {
         dpop: Some(key.clone()),
         ..Default::default()
     };
@@ -564,7 +561,7 @@ async fn handles_dpop_nonce_in_request_resource() {
         .await
         .unwrap();
 
-    let options2 = RequestResourceParams {
+    let options2 = RequestResourceOptions {
         dpop: Some(key.clone()),
         ..Default::default()
     };
@@ -580,7 +577,7 @@ async fn handles_dpop_nonce_in_request_resource() {
         .await
         .unwrap();
 
-    let options3 = RequestResourceParams {
+    let options3 = RequestResourceOptions {
         dpop: Some(key.clone()),
         body: Some("fail_case_should_not_affect".to_string()),
         ..Default::default()
@@ -642,7 +639,7 @@ async fn is_enabled_for_request_resource() {
 
     let (_, mut client) = get_client(Some(mock_http_server.port()));
 
-    let options = RequestResourceParams {
+    let options = RequestResourceOptions {
         dpop: Some(get_rsa_private_key()),
         method: Method::POST,
         ..Default::default()
@@ -676,7 +673,7 @@ async fn is_enabled_for_grant() {
 
     let (_, mut client) = get_client(Some(mock_http_server.port()));
 
-    let options = AuthenticationPostParams {
+    let extra = GrantExtras {
         dpop: Some(get_rsa_private_key()),
         ..Default::default()
     };
@@ -685,7 +682,7 @@ async fn is_enabled_for_grant() {
 
     body.insert("grant_type".to_string(), json!("client_credentials"));
 
-    client.grant_async(body, options, true).await.unwrap();
+    client.grant_async(body, extra, true).await.unwrap();
 }
 
 #[tokio::test]
@@ -710,7 +707,7 @@ async fn is_enabled_for_refresh() {
     };
     let token_set = TokenSet::new(token_params);
 
-    let params = RefreshTokenRequestParams {
+    let params = RefreshTokenExtras {
         dpop: Some(get_rsa_private_key()),
         client_assertion_payload: None,
         exchange_body: None,

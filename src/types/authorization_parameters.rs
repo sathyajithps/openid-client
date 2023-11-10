@@ -62,7 +62,7 @@ pub struct AuthorizationParameters {
 
 /// # ClaimParamValue
 /// Value for each [ClaimParam]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum ClaimParamValue {
     /// Null (null) value
@@ -73,7 +73,7 @@ pub enum ClaimParamValue {
 
 /// # ClaimParam
 /// The value of `claims` of [AuthorizationParameters]
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ClaimParam {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Claims structure of `id_token`
@@ -85,7 +85,7 @@ pub struct ClaimParam {
 
 /// # ClaimsParameterMember
 /// Customizing the claims from `claims` of [AuthorizationParameters]
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ClaimsParameterMember {
     /// Marks as essential or not
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -103,7 +103,7 @@ pub struct ClaimsParameterMember {
 
 /// # ResourceParam
 /// Value types for `resource` of [AuthorizationParameters]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum ResourceParam {
     /// Resource value as string
