@@ -51,7 +51,7 @@ fn get_clients(port: Option<u16>) -> (Client, Client) {
             get_default_test_interceptor_with_crt_key(port),
             None,
             None,
-            false,
+            None,
         )
         .unwrap();
 
@@ -65,7 +65,7 @@ fn get_clients(port: Option<u16>) -> (Client, Client) {
     };
 
     let jwt_auth_client = issuer
-        .client(jwt_client_metadata, None, None, None, false)
+        .client(jwt_client_metadata, None, None, None, None)
         .unwrap();
 
     (client, jwt_auth_client)

@@ -17,10 +17,9 @@ async fn asserts_the_issuer_has_a_registration_endpoint() {
 
     let issuer = Issuer::new(issuer_metadata, None);
 
-    let client_error =
-        Client::register_async(&issuer, ClientMetadata::default(), None, None, false)
-            .await
-            .unwrap_err();
+    let client_error = Client::register_async(&issuer, ClientMetadata::default(), None, None, None)
+        .await
+        .unwrap_err();
 
     assert_eq!(
         "registration_endpoint must be configured on the issuer",
@@ -75,7 +74,7 @@ async fn accepts_and_assigns_the_registered_metadata() {
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
-        false,
+        None,
     )
     .await
     .unwrap();
@@ -113,7 +112,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
-        false,
+        None,
     )
     .await
     .unwrap_err();
@@ -159,7 +158,7 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
-        false,
+        None,
     )
     .await
     .unwrap_err();
@@ -202,7 +201,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
-        false,
+        None,
     )
     .await
     .unwrap_err();
@@ -245,7 +244,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
         ClientMetadata::default(),
         None,
         get_default_test_interceptor(Some(mock_http_server.port())),
-        false,
+        None,
     )
     .await
     .unwrap_err();
@@ -324,7 +323,7 @@ mod with_key_store_as_an_option {
             ClientMetadata::default(),
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
-            false,
+            None,
         )
         .await
         .unwrap();
@@ -381,7 +380,7 @@ mod with_key_store_as_an_option {
             client_metadata.clone(),
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
-            false,
+            None,
         )
         .await
         .unwrap();
@@ -442,7 +441,7 @@ mod with_key_store_as_an_option {
             client_metadata.clone(),
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
-            false,
+            None,
         )
         .await
         .unwrap();
@@ -473,7 +472,7 @@ mod with_key_store_as_an_option {
             client_metadata.clone(),
             Some(register_options.clone()),
             None,
-            false,
+            None,
         )
         .await
         .unwrap_err();
@@ -507,7 +506,7 @@ mod with_key_store_as_an_option {
             client_metadata.clone(),
             Some(register_options.clone()),
             None,
-            false,
+            None,
         )
         .await
         .unwrap_err();
@@ -568,7 +567,7 @@ mod with_initial_access_token {
             ClientMetadata::default(),
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
-            false,
+            None,
         )
         .await
         .unwrap();
@@ -629,7 +628,7 @@ mod http_options {
                 key: None,
                 pfx: None,
             })),
-            false,
+            None,
         )
         .await
         .unwrap();
@@ -663,7 +662,7 @@ mod dynamic_registration_defaults_not_supported_by_issuer {
         };
 
         let client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
         assert_eq!(
             "client_secret_post".to_string(),

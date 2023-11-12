@@ -12,7 +12,7 @@ use crate::{
     tests::test_interceptors::get_default_test_interceptor,
     tokenset::{TokenSet, TokenSetParams},
     types::{
-        CallbackParams, ClientMetadata, ClientOptions, IssuerMetadata, OAuthCallbackChecks,
+        CallbackParams, ClientMetadata, ClientOptions, Fapi, IssuerMetadata, OAuthCallbackChecks,
         OpenIDCallbackChecks,
     },
 };
@@ -100,7 +100,7 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
     };
 
     let client = issuer
-        .client(client_metadata.clone(), None, None, None, false)
+        .client(client_metadata.clone(), None, None, None, None)
         .unwrap();
 
     let client_3rd_party_options = ClientOptions {
@@ -113,7 +113,7 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
             None,
             None,
             Some(client_3rd_party_options),
-            false,
+            None,
         )
         .unwrap();
 
@@ -130,7 +130,7 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
             None,
             None,
             Some(client_3rd_parties_options),
-            false,
+            None,
         )
         .unwrap();
 
@@ -141,7 +141,7 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
     };
 
     let fapi_client = issuer
-        .client(fapi_client_metadata, None, None, None, true)
+        .client(fapi_client_metadata, None, None, None, Some(Fapi::V1))
         .unwrap();
 
     TestData {
@@ -230,7 +230,7 @@ async fn validates_the_id_token_and_fulfills_with_input_value_when_signed_by_sec
 
     let mut client = test_data
         .issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let key = client.secret_for_alg("HS256").unwrap();
@@ -1253,7 +1253,7 @@ async fn verifies_auth_time_is_present_when_require_auth_time_is_true() {
 
     let mut client = test_data
         .issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let time = now();

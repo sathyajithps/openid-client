@@ -31,6 +31,11 @@ use super::{Client, DeviceFlowHandle};
 
 /// Implementation for Client
 impl Client {
+    /// Returns if the client is fapi or not
+    pub fn is_fapi(&self) -> bool {
+        self.fapi.is_some()
+    }
+
     /// # Authorization Url
     /// Builds an authorization url with respect to the `params`
     ///
@@ -2003,7 +2008,7 @@ impl Client {
 
         request_object["exp"] = json!(unix + 300);
 
-        if self.is_fapi {
+        if self.is_fapi() {
             request_object["nbf"] = json!(unix);
         }
 

@@ -1307,7 +1307,7 @@ impl Client {
 
                 let s_hash = payload.claim("s_hash");
 
-                if self.is_fapi {
+                if self.is_fapi() {
                     let token_set_state = other_fields.get("state");
 
                     if s_hash.is_none() && (token_set_state.is_some() || state.is_some()) {
@@ -1379,7 +1379,7 @@ impl Client {
                 .map(|x| x.as_i64().unwrap_or_default())
                 .unwrap_or_default();
 
-            if self.is_fapi && payload_iat < timestamp - 3600 {
+            if self.is_fapi() && payload_iat < timestamp - 3600 {
                 let mut extra_data = HashMap::<String, Value>::new();
 
                 extra_data.insert("jwt".to_string(), json!(id_token));

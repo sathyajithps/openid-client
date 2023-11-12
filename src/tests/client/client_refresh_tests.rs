@@ -27,7 +27,7 @@ fn get_client(port: Option<u16>) -> Client {
     };
 
     issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap()
 }
 

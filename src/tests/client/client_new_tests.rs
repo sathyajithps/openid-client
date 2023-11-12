@@ -7,7 +7,7 @@ use crate::types::{ClientMetadata, IssuerMetadata};
 fn requires_client_id() {
     let issuer_metadata = IssuerMetadata::default();
     let issuer = Issuer::new(issuer_metadata, None);
-    let client_result = issuer.client(ClientMetadata::default(), None, None, None, false);
+    let client_result = issuer.client(ClientMetadata::default(), None, None, None, None);
 
     assert!(client_result.is_err());
 
@@ -29,7 +29,7 @@ fn accepts_the_recognized_metadata() {
         client_secret: client_secret.clone(),
         ..ClientMetadata::default()
     };
-    let client_result = issuer.client(client_metadata, None, None, None, false);
+    let client_result = issuer.client(client_metadata, None, None, None, None);
 
     assert!(client_result.is_ok());
 
@@ -51,7 +51,7 @@ fn assigns_defaults_to_some_properties() {
         ..ClientMetadata::default()
     };
 
-    let client_result = issuer.client(client_metadata, None, None, None, false);
+    let client_result = issuer.client(client_metadata, None, None, None, None);
 
     assert!(client_result.is_ok());
 
@@ -90,7 +90,7 @@ fn autofills_introspection_endpoint_auth_method() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     assert_eq!(
@@ -126,7 +126,7 @@ fn autofills_revocation_endpoint_auth_method() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     assert_eq!(
@@ -157,7 +157,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_token_endpoint_signing_a
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap_err();
 
     let expected_error = "token_endpoint_auth_signing_alg_values_supported must be configured on the issuer if token_endpoint_auth_signing_alg is not defined on a client";
@@ -182,7 +182,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_introspection_endpoint_s
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap_err();
 
     let expected_error = "introspection_endpoint_auth_signing_alg_values_supported must be configured on the issuer if introspection_endpoint_auth_signing_alg is not defined on a client";
@@ -207,7 +207,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_revocation_endpoint_sign
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap_err();
 
     let expected_error = "revocation_endpoint_auth_signing_alg_values_supported must be configured on the issuer if revocation_endpoint_auth_signing_alg is not defined on a client";
@@ -233,7 +233,7 @@ fn is_able_to_assign_custom_or_non_recognized_properties() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     assert!(client.get_field("foo").is_some());
@@ -252,7 +252,7 @@ fn handles_redirect_uri() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     assert_eq!(redirect_uri(), client.get_redirect_uri().unwrap());
@@ -273,7 +273,7 @@ fn returns_error_if_redirect_uri_and_redirect_uris_are_given() {
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap_err();
 
     assert_eq!(
@@ -295,7 +295,7 @@ fn handles_response_type() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     assert_eq!(response_type(), client.get_response_type().unwrap());
@@ -316,7 +316,7 @@ fn returns_error_if_response_type_and_response_types_are_given() {
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap_err();
 
     assert_eq!(

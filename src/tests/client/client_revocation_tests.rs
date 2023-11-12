@@ -48,7 +48,7 @@ async fn posts_the_token_in_a_body_and_returns_none() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let res = client.revoke_async("tokenValue", None, None).await.unwrap();
@@ -101,7 +101,7 @@ async fn posts_the_token_and_a_hint_in_a_body() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let result = client
@@ -137,7 +137,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let err = client
@@ -181,7 +181,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let err = client
@@ -226,7 +226,7 @@ async fn completely_ignores_the_response_even_invalid_or_html_one() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let result = client.revoke_async("tokenValue", None, None).await;
@@ -259,7 +259,7 @@ async fn handles_empty_bodies() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let result = client.revoke_async("tokenValue", None, None).await;

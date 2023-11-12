@@ -7,7 +7,7 @@ use crate::{
     issuer::Issuer,
     jwks::Jwks,
     tests::test_interceptors::get_default_test_interceptor,
-    types::{ClientMetadata, IssuerMetadata},
+    types::{ClientMetadata, Fapi, IssuerMetadata},
 };
 
 fn get_jwks(key_use: &str, set_alg: bool) -> Jwks {
@@ -44,7 +44,7 @@ async fn verifies_that_keystore_is_set() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let err = client
@@ -76,7 +76,7 @@ async fn verifies_keystore_has_the_appropriate_key() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(jwks), None, false)
+        .client(client_metadata, None, Some(jwks), None, None)
         .unwrap();
 
     let err = client
@@ -102,7 +102,7 @@ async fn sign_alg_none() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -155,7 +155,7 @@ async fn sign_alg_hsxxx() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -208,7 +208,7 @@ async fn sign_alg_rsxxx() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(jwks), None, false)
+        .client(client_metadata, None, Some(jwks), None, None)
         .unwrap();
 
     let signed = client
@@ -273,7 +273,7 @@ async fn encrypts_for_issuer_using_issuers_public_key_explicit_enc() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -318,7 +318,7 @@ async fn encrypts_for_issuer_using_issuers_public_key_default_enc() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -356,7 +356,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_gcmkw() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -395,7 +395,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a128_cbc_hs256()
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -434,7 +434,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a192_cbc_hs384()
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -473,7 +473,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a256_cbc_hs512()
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -511,7 +511,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_defaulted_to_a12
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -549,7 +549,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_pbes2() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -587,7 +587,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_kw() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let signed = client
@@ -622,7 +622,7 @@ async fn throws_on_non_object_inputs() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let err = client.request_object_async(json!(true)).await.unwrap_err();
@@ -656,7 +656,7 @@ async fn fapi_client_includes_nbf_by_default() {
             None,
             Some(Jwks::from(vec![jwk])),
             None,
-            true,
+            Some(Fapi::V1),
         )
         .unwrap();
 
@@ -720,7 +720,7 @@ mod ecryption_where_multiple_keys_match {
         };
 
         let mut client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let signed = client
@@ -766,7 +766,7 @@ mod ecryption_where_multiple_keys_match {
         };
 
         let mut client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let signed = client

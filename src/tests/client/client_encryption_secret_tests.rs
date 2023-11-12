@@ -14,7 +14,7 @@ fn client_encryption_secret_test() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let arr: [u16; 6] = [120, 128, 184, 192, 248, 256];
@@ -36,7 +36,7 @@ fn returns_error_on_invalid_lengths() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let error = client.encryption_secret(1024).unwrap_err();

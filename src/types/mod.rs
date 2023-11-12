@@ -14,6 +14,7 @@ mod device_authorization_response;
 mod device_flow_poll_response;
 mod end_session_parameters;
 mod errors;
+mod fapi;
 mod grant_extras;
 mod http;
 mod introspection_params;
@@ -45,6 +46,7 @@ pub use end_session_parameters::EndSessionParameters;
 pub use errors::{
     Error, ErrorWithResponse, OidcClientError, RPError, StandardBodyError, TypeError,
 };
+pub use fapi::Fapi;
 pub use grant_extras::GrantExtras;
 pub use http::{Interceptor, Lookup, Request, RequestInterceptor, RequestOptions, Response};
 pub use introspection_params::IntrospectionExtras;

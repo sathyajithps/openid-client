@@ -14,7 +14,7 @@ fn secret_alg_test() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let secret = client.secret_for_alg("HS256").unwrap();
@@ -35,7 +35,7 @@ fn returns_error_if_client_secret_is_not_configured() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let error = client.secret_for_alg("HS256").unwrap_err();

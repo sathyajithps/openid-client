@@ -32,7 +32,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let client_with_meta_metadata = ClientMetadata {
@@ -43,7 +43,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_meta = issuer
-        .client(client_with_meta_metadata, None, None, None, false)
+        .client(client_with_meta_metadata, None, None, None, None)
         .unwrap();
 
     let client_with_multiple_metas_metadata = ClientMetadata {
@@ -57,7 +57,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_multiple_metas = issuer
-        .client(client_with_multiple_metas_metadata, None, None, None, false)
+        .client(client_with_multiple_metas_metadata, None, None, None, None)
         .unwrap();
 
     let issuer_metadata_with_query = IssuerMetadata {
@@ -74,7 +74,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_query = issuer_with_query
-        .client(client_with_query_metadata, None, None, None, false)
+        .client(client_with_query_metadata, None, None, None, None)
         .unwrap();
 
     TestClients {
@@ -284,7 +284,7 @@ fn returns_error_if_authorization_endpoint_is_not_configured() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let err = client

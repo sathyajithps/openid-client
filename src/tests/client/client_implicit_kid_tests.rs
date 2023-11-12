@@ -38,7 +38,7 @@ mod no_implicit_key_ids {
         };
 
         let client = issuer
-            .client(client_metadata, None, Some(jwks), None, false)
+            .client(client_metadata, None, Some(jwks), None, None)
             .unwrap();
 
         let request = client.auth_for("token", None).unwrap();
@@ -65,7 +65,7 @@ mod no_implicit_key_ids {
         };
 
         let mut client = issuer
-            .client(client_metadata, None, Some(jwks), None, false)
+            .client(client_metadata, None, Some(jwks), None, None)
             .unwrap();
 
         let jwt = client.request_object_async(json!({})).await.unwrap();
@@ -123,7 +123,7 @@ mod no_implicit_key_ids {
             client_metadata,
             Some(reg_opt),
             get_default_test_interceptor(Some(mock_http_server.port())),
-            false,
+            None,
         )
         .await
         .unwrap();

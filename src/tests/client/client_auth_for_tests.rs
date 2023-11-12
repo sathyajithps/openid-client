@@ -22,7 +22,7 @@ mod when_none {
         };
 
         let client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let request = client.auth_for("token", None).unwrap();
@@ -77,7 +77,7 @@ mod when_client_secret_post {
         };
 
         let client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let request = client.auth_for("token", None).unwrap();
@@ -118,7 +118,7 @@ mod when_client_secret_post {
         };
 
         let client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let err = client.auth_for("token", None).unwrap_err();
@@ -155,7 +155,7 @@ mod when_client_secret_basic {
         };
 
         let client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let request = client.auth_for("token", None).unwrap();
@@ -195,7 +195,7 @@ mod when_client_secret_basic {
         };
 
         let client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let request = client.auth_for("token", None).unwrap();
@@ -236,7 +236,7 @@ mod when_client_secret_basic {
         };
 
         let client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let err = client.auth_for("token", None).unwrap_err();
@@ -287,7 +287,7 @@ mod when_client_secret_jwt {
         };
 
         let client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let mut payload: HashMap<String, Value> = HashMap::new();
@@ -431,7 +431,7 @@ mod when_client_secret_jwt {
         };
 
         let client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let error = client.auth_for("token", None).unwrap_err();
@@ -490,7 +490,7 @@ mod when_private_key_jwt {
             let jwks = Jwks::from(vec![jwk]);
 
             let client = issuer
-                .client(client_metadata, None, Some(jwks), None, false)
+                .client(client_metadata, None, Some(jwks), None, None)
                 .unwrap();
 
             let mut payload: HashMap<String, Value> = HashMap::new();
@@ -635,7 +635,7 @@ mod when_private_key_jwt {
             };
 
             let client = issuer
-                .client(client_metadata, None, None, None, false)
+                .client(client_metadata, None, None, None, None)
                 .unwrap();
 
             let error = client.auth_for("token", None).unwrap_err();
@@ -684,7 +684,7 @@ mod when_private_key_jwt {
             let jwks = Jwks::from(vec![jwk]);
 
             let client = issuer
-                .client(client_metadata, None, Some(jwks), None, false)
+                .client(client_metadata, None, Some(jwks), None, None)
                 .unwrap();
 
             let error = client.auth_for("token", None).unwrap_err();
