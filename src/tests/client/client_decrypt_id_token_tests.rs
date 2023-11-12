@@ -15,7 +15,7 @@ fn to_decrypt_tokenset_id_token_it_must_have_one() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let err = client.decrypt_id_token(TokenSet::default()).unwrap_err();
@@ -39,7 +39,7 @@ fn verifies_the_id_token_using_the_right_alg() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let header = base64_url::encode(r#"{"alg":"RSA1_5","enc":"A128CBC-HS256"}"#);
@@ -75,7 +75,7 @@ fn verifies_the_id_token_is_using_the_right_enc_explicit() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let header = base64_url::encode(r#"{"alg":"RSA-OAEP","enc":"A128GCM"}"#);
@@ -110,7 +110,7 @@ fn verifies_the_id_token_is_using_the_right_enc_default_to() {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let header = base64_url::encode(r#"{"alg":"RSA-OAEP","enc":"A128GCM"}"#);

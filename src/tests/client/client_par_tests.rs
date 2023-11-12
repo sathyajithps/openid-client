@@ -28,7 +28,7 @@ fn get_test_data(port: Option<u16>) -> (Issuer, Client) {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     (issuer, client)
@@ -49,7 +49,7 @@ async fn requires_the_issuer_to_have_pushed_authorization_request_endpoint_decla
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let err = client

@@ -6,7 +6,7 @@ use crate::helpers::{convert_json_to, now, validate_url, webfinger_normalize};
 use crate::http::request_async;
 use crate::jwks::Jwks;
 use crate::types::{
-    ClientMetadata, ClientOptions, IssuerMetadata, MtlsEndpoints, OidcClientError, Request,
+    ClientMetadata, ClientOptions, Fapi, IssuerMetadata, MtlsEndpoints, OidcClientError, Request,
     RequestInterceptor, Response, WebFingerResponse,
 };
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -800,7 +800,7 @@ impl Issuer {
         interceptor: Option<RequestInterceptor>,
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
-        is_fapi: bool,
+        fapi: Option<Fapi>,
     ) -> Result<Client, OidcClientError> {
         let request_interceptor = match (interceptor, &self.request_interceptor) {
             (None, Some(i)) => Some(i.clone_box()),
@@ -816,7 +816,7 @@ impl Issuer {
             request_interceptor,
             jwks,
             client_options,
-            is_fapi,
+            fapi,
         )
     }
 }

@@ -39,7 +39,7 @@ fn setup_client() -> Client {
     };
 
     issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap()
 }
 

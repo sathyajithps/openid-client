@@ -29,7 +29,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let client_with_uri_metadata = ClientMetadata {
@@ -39,7 +39,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_uris = issuer
-        .client(client_with_uri_metadata, None, None, None, false)
+        .client(client_with_uri_metadata, None, None, None, None)
         .unwrap();
 
     let issuer_metadata_with_query = IssuerMetadata {
@@ -55,7 +55,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_query = issuer_with_query
-        .client(client_with_query_metadata, None, None, None, false)
+        .client(client_with_query_metadata, None, None, None, None)
         .unwrap();
 
     let issuer_without_meta = Issuer::new(IssuerMetadata::default(), None);
@@ -66,7 +66,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_without_meta = issuer_without_meta
-        .client(client_without_meta, None, None, None, false)
+        .client(client_without_meta, None, None, None, None)
         .unwrap();
 
     TestClients {

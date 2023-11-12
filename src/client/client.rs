@@ -6,7 +6,7 @@ use crate::{
     issuer::Issuer,
     jwks::Jwks,
     types::{
-        ClientMetadata, ClientOptions, ClientRegistrationOptions, OidcClientError, Request,
+        ClientMetadata, ClientOptions, ClientRegistrationOptions, Fapi, OidcClientError, Request,
         RequestInterceptor,
     },
 };
@@ -20,98 +20,46 @@ use super::dpop_nonce_cache::DPoPNonceCache;
 /// # Client instance
 #[derive(Debug)]
 pub struct Client {
-    /// Client Id
     pub(crate) client_id: String,
-    /// Client secret
     pub(crate) client_secret: Option<String>,
-    /// [Registration Access Token](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) registration_access_token: Option<String>,
-    /// [Registration Client Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) registration_client_uri: Option<String>,
-    /// [Client Id Issued At](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) client_id_issued_at: Option<i64>,
-    /// [Secret Expiry](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    /// Epoch Seconds
     pub(crate) client_secret_expires_at: Option<i64>,
-    /// [Authentication method](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    /// used by the client for authenticating with the OP
     pub(crate) token_endpoint_auth_method: String,
-    /// [Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    /// used for signing the JWT used to authenticate
-    /// the client at the token endpoint.
     pub(crate) token_endpoint_auth_signing_alg: Option<String>,
-    /// [Authentication method](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
-    /// used by the client for introspection endpoint
     pub(crate) introspection_endpoint_auth_method: Option<String>,
-    /// [Algorithm](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
-    /// used for signing the JWT used to authenticate
-    /// the client at the introspection endpoint.
     pub(crate) introspection_endpoint_auth_signing_alg: Option<String>,
-    /// [Authentication method](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
-    /// used by the client for revocation endpoint
     pub(crate) revocation_endpoint_auth_method: Option<String>,
-    /// [Algorithm](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
-    /// used for signing the JWT used to authenticate
-    /// the client at the revocation endpoint.
     pub(crate) revocation_endpoint_auth_signing_alg: Option<String>,
-    /// The [redirect uri](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep)
-    /// where response will be sent
     pub(crate) redirect_uri: Option<String>,
-    /// A list of acceptable [redirect uris](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep)
     pub(crate) redirect_uris: Option<Vec<String>>,
-    /// [Response type](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep) supported by the client.
     pub(crate) response_type: Option<String>,
-    /// List of [Response type](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep) supported by the client
     pub(crate) response_types: Vec<String>,
-    /// [Grant Types](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) grant_types: Vec<String>,
-    /// [Jwks Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) jwks_uri: Option<String>,
-    /// [JWKS](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) jwks: Option<Jwks>,
-    /// [Sector Identifier Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) sector_identifier_uri: Option<String>,
-    /// [Subject Type](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) subject_type: Option<String>,
-    /// [Id Token Signed Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) id_token_signed_response_alg: String,
-    /// [Id Token Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) id_token_encrypted_response_alg: Option<String>,
-    /// [Id Token Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) id_token_encrypted_response_enc: Option<String>,
-    /// [Userinfo Signed Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) userinfo_signed_response_alg: Option<String>,
-    /// [Userinfo Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) userinfo_encrypted_response_alg: Option<String>,
-    /// [Userinfo Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) userinfo_encrypted_response_enc: Option<String>,
-    /// [Request Object Signing Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) request_object_signing_alg: Option<String>,
-    /// [Request Object Encryption Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) request_object_encryption_alg: Option<String>,
-    /// [Request Object Encryption Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) request_object_encryption_enc: Option<String>,
-    /// [Default Max Age](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) default_max_age: Option<u64>,
-    /// [Require Auth Time](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) require_auth_time: Option<bool>,
-    /// [Default Acr Values](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) default_acr_values: Option<Vec<String>>,
-    /// [Initiate Login Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) initiate_login_uri: Option<String>,
-    /// [Request Uris](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
     pub(crate) request_uris: Option<String>,
-    /// [Client's intention to use mutual-TLS client certificate-bound access tokens](https://datatracker.ietf.org/doc/html/rfc8705#name-client-registration-metadata-2)
     pub(crate) tls_client_certificate_bound_access_tokens: Option<bool>,
-    /// Client's allowed redirect uris after a logout
     pub(crate) post_logout_redirect_uris: Option<Vec<String>>,
-    /// [ClientMetadata::authorization_encrypted_response_alg]
     pub(crate) authorization_encrypted_response_alg: Option<String>,
-    /// [ClientMetadata::authorization_encrypted_response_enc]
     pub(crate) authorization_encrypted_response_enc: Option<String>,
-    /// [ClientMetadata::authorization_encrypted_response_alg]
     pub(crate) authorization_signed_response_alg: Option<String>,
-    /// Extra key values
     pub(crate) other_fields: HashMap<String, serde_json::Value>,
     pub(crate) private_jwks: Option<Jwks>,
     pub(crate) request_interceptor: Option<RequestInterceptor>,
@@ -120,10 +68,9 @@ pub struct Client {
     pub(crate) skip_max_age_check: bool,
     pub(crate) skip_nonce_check: bool,
     pub(crate) clock_tolerance: Duration,
-    pub(crate) is_fapi: bool,
+    pub(crate) fapi: Option<Fapi>,
     pub(crate) now: fn() -> i64,
     pub(crate) dpop_nonce_cache: DPoPNonceCache,
-    /// A boolean value specifying whether the client always uses DPoP for token requests. If omitted, the default value is false.
     pub(crate) dpop_bound_access_tokens: Option<bool>,
 }
 
@@ -178,7 +125,7 @@ impl Client {
             skip_max_age_check: false,
             skip_nonce_check: false,
             clock_tolerance: Duration::from_secs(0),
-            is_fapi: false,
+            fapi: None,
             now,
             dpop_nonce_cache: DPoPNonceCache::new(),
             dpop_bound_access_tokens: None,
@@ -196,7 +143,7 @@ impl Client {
         interceptor: Option<RequestInterceptor>,
         jwks: Option<Jwks>,
         options: Option<ClientOptions>,
-        is_fapi: bool,
+        fapi: Option<Fapi>,
     ) -> Result<Self, OidcClientError> {
         let mut valid_client_id = true;
 
@@ -245,7 +192,7 @@ impl Client {
             authorization_encrypted_response_enc: metadata.authorization_encrypted_response_enc,
             authorization_signed_response_alg: metadata.authorization_signed_response_alg,
             other_fields: metadata.other_fields,
-            is_fapi,
+            fapi,
             ..Client::default()
         };
 
@@ -489,7 +436,7 @@ impl Client {
         client_options: Option<ClientOptions>,
         issuer: Option<&Issuer>,
         mut interceptor: Option<RequestInterceptor>,
-        is_fapi: bool,
+        fapi: Option<Fapi>,
     ) -> Result<Self, OidcClientError> {
         Self::jwks_only_private_keys_validation(jwks.as_ref())?;
 
@@ -541,7 +488,7 @@ impl Client {
             interceptor,
             jwks,
             client_options,
-            is_fapi,
+            fapi,
         )
     }
 }
@@ -652,7 +599,7 @@ impl Client {
         mut client_metadata: ClientMetadata,
         register_options: Option<ClientRegistrationOptions>,
         mut interceptor: Option<RequestInterceptor>,
-        is_fapi: bool,
+        fapi: Option<Fapi>,
     ) -> Result<Self, OidcClientError> {
         if issuer.registration_endpoint.is_none() {
             return Err(OidcClientError::new_type_error(
@@ -735,7 +682,7 @@ impl Client {
             interceptor,
             jwks,
             client_options,
-            is_fapi,
+            fapi,
         )
     }
 
@@ -863,7 +810,7 @@ impl Clone for Client {
             skip_max_age_check: self.skip_max_age_check,
             skip_nonce_check: self.skip_nonce_check,
             clock_tolerance: self.clock_tolerance,
-            is_fapi: self.is_fapi,
+            fapi: self.fapi.clone(),
             now: self.now,
             dpop_nonce_cache: self.dpop_nonce_cache.clone(),
             dpop_bound_access_tokens: self.dpop_bound_access_tokens,

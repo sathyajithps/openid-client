@@ -85,7 +85,7 @@ fn get_test_data() -> (Issuer, Client) {
     };
 
     let client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     (issuer, client)

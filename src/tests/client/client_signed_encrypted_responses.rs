@@ -81,7 +81,7 @@ async fn handles_signed_and_encrypted_id_tokens_from_implicit_and_code_responses
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, false)
+        .client(client_metadata, None, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -157,7 +157,7 @@ async fn handles_signed_and_encrypted_id_tokens_from_refresh_grant() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, false)
+        .client(client_metadata, None, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -206,7 +206,7 @@ async fn handles_encrypted_but_not_signed_responses_too() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, false)
+        .client(client_metadata, None, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -266,7 +266,7 @@ async fn verifies_no_invalid_unsigned_plain_json_jwe_payloads_get_through() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, false)
+        .client(client_metadata, None, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -322,7 +322,7 @@ async fn handles_valid_but_no_object_top_level_unsigned_plain_json_jwe_payloads(
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, false)
+        .client(client_metadata, None, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -381,7 +381,7 @@ async fn handles_symmetric_encryption() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, false)
+        .client(client_metadata, None, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;

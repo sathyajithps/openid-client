@@ -35,7 +35,7 @@ async fn takes_a_token_set() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -71,7 +71,7 @@ async fn only_get_and_post_is_supported() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -128,7 +128,7 @@ async fn takes_a_token_set_with_token() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -176,7 +176,7 @@ async fn takes_a_token_set_and_validates_the_subject_in_id_token_is_the_same_in_
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -219,7 +219,7 @@ async fn validates_an_access_token_is_present_in_the_tokenset() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -278,7 +278,7 @@ async fn can_do_a_post_call() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -329,7 +329,7 @@ async fn can_submit_access_token_in_a_body_when_post() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -381,7 +381,7 @@ async fn can_add_extra_params_in_a_body_when_post() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -435,7 +435,7 @@ async fn can_add_extra_params_in_a_body_when_post_but_via_header() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -486,7 +486,7 @@ async fn can_add_extra_params_in_a_query_when_non_post() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -522,7 +522,7 @@ async fn can_only_submit_access_token_in_a_body_when_post() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -575,7 +575,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -633,7 +633,7 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -688,7 +688,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -742,7 +742,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, None, None, false)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let token_set_params = TokenSetParams {
@@ -808,7 +808,7 @@ mod signed_response_content_type_application_jwt {
         };
 
         let mut client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let token_set_params = TokenSetParams {
@@ -866,7 +866,7 @@ mod signed_response_content_type_application_jwt {
         };
 
         let mut client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let token_set_params = TokenSetParams {
@@ -919,7 +919,7 @@ mod signed_response_content_type_application_jwt {
         };
 
         let mut client = issuer
-            .client(client_metadata, None, None, None, false)
+            .client(client_metadata, None, None, None, None)
             .unwrap();
 
         let token_set_params = TokenSetParams {

@@ -28,7 +28,7 @@ fn get_iss_client_iss(port: Option<u16>) -> (Issuer, Client, Issuer) {
             get_default_test_interceptor(port),
             None,
             None,
-            false,
+            None,
         )
         .unwrap();
 
@@ -174,9 +174,7 @@ mod oauth_2_0_authorization_server_issuer_identification {
             ..Default::default()
         };
 
-        let mut client = iss
-            .client(client_metadata, None, None, None, false)
-            .unwrap();
+        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
 
         let token_set = client
             .oauth_callback_async(None, Default::default(), None, None)
@@ -198,9 +196,7 @@ mod oauth_2_0_authorization_server_issuer_identification {
             ..Default::default()
         };
 
-        let mut client = iss
-            .client(client_metadata, None, None, None, false)
-            .unwrap();
+        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
 
         let token_set = client
             .callback_async(None, Default::default(), None, None)
@@ -305,9 +301,7 @@ mod jarm_response_mode {
 
         let response = josekit::jwt::encode_with_signer(&payload, &header, &signer).unwrap();
 
-        let mut client = iss
-            .client(client_metadata, None, None, None, false)
-            .unwrap();
+        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
 
         let callback_params = CallbackParams {
             response: Some(response),
@@ -389,9 +383,7 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let mut client = iss
-            .client(client_metadata, None, None, None, false)
-            .unwrap();
+        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
 
         let secret = client.secret_for_alg("A128GCM").unwrap();
 
@@ -508,9 +500,7 @@ mod jarm_response_mode {
 
         let response = josekit::jwt::encode_with_signer(&payload, &header, &signer).unwrap();
 
-        let mut client = iss
-            .client(client_metadata, None, None, None, false)
-            .unwrap();
+        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
 
         let callback_params = CallbackParams {
             response: Some(response),
