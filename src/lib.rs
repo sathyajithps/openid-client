@@ -49,7 +49,8 @@
 //! - [client::Client::register_async]
 
 pub mod client;
-mod helpers;
+/// Helpers
+pub mod helpers;
 mod http;
 pub mod issuer;
 pub mod jwks;
