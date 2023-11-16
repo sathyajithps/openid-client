@@ -1,20 +1,14 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use josekit::{jws::JwsHeader, jwt::JwtPayload};
-use jwt_compact::jwk::JsonWebKey;
 use lazy_static::lazy_static;
-use rand::Rng;
 use regex::Regex;
 use reqwest::{header::HeaderValue, Url};
-use serde::Deserialize;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
     Shake256,
 };
 
-use crate::types::{DecodedToken, OidcClientError, Response, StandardBodyError};
+use crate::types::{OidcClientError, Response, StandardBodyError};
 
 lazy_static! {
     static ref SCHEME_REGEX: Regex = Regex::new(r"/(/|\\?)/g").unwrap();
@@ -22,23 +16,14 @@ lazy_static! {
 }
 
 pub(crate) fn validate_url(url: &str) -> Result<Url, OidcClientError> {
-    let url_result = Url::parse(url);
-    if url_result.is_err() {
-        return Err(OidcClientError::new_type_error(
-            "only valid absolute URLs can be requested",
-            None,
-        ));
-    }
-    Ok(url_result.unwrap())
-}
-
-pub(crate) fn convert_json_to<T: for<'a> Deserialize<'a>>(plain: &str) -> Result<T, String> {
-    let result: Result<T, _> = serde_json::from_str(plain);
-    if result.is_err() {
-        return Err("Parse Error".to_string());
+    if let Ok(u) = Url::parse(url) {
+        return Ok(u);
     }
 
-    Ok(result.unwrap())
+    Err(OidcClientError::new_type_error(
+        "only valid absolute URLs can be requested",
+        None,
+    ))
 }
 
 fn has_scheme(input: &str) -> bool {
@@ -131,68 +116,6 @@ pub(crate) fn parse_www_authenticate_error(
     }
 
     Ok(())
-}
-
-pub(crate) fn now() -> i64 {
-    let start = SystemTime::now();
-    start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs() as i64
-}
-
-pub(crate) fn random() -> String {
-    let bytes = rand::thread_rng().gen::<[u8; 32]>();
-    base64_url::encode(&bytes)
-}
-
-pub(crate) fn decode_jwt(token: &str) -> Result<DecodedToken, OidcClientError> {
-    let split_token: Vec<&str> = token.split('.').collect();
-
-    if split_token.len() == 5 {
-        return Err(OidcClientError::new_type_error(
-            "encrypted JWTs cannot be decoded",
-            None,
-        ));
-    }
-
-    if split_token.len() != 3 {
-        return Err(OidcClientError::new_error(
-            "JWTs must have three components",
-            None,
-        ));
-    }
-
-    let map_err_decode = |_| OidcClientError::new_error("JWT is malformed", None);
-    let map_err_deserialize = |_| OidcClientError::new_error("JWT is malformed", None);
-    let map_err_jose = |_| OidcClientError::new_error("JWT is malformed", None);
-
-    let header_str = base64_url::decode(split_token[0]).map_err(map_err_decode)?;
-    let payload_str = base64_url::decode(split_token[1]).map_err(map_err_decode)?;
-    let signature = split_token[2].to_string();
-
-    let header = serde_json::from_slice::<Map<String, Value>>(&header_str)
-        .map(JwsHeader::from_map)
-        .map_err(map_err_deserialize)?
-        .map_err(map_err_jose)?;
-
-    let payload = serde_json::from_slice::<Map<String, Value>>(&payload_str)
-        .map(JwtPayload::from_map)
-        .map_err(map_err_deserialize)?
-        .map_err(map_err_jose)?;
-
-    Ok(DecodedToken {
-        header,
-        payload,
-        signature,
-    })
-}
-
-pub(crate) fn get_jwk_thumbprint_s256(jwk_str: &str) -> Result<String, OidcClientError> {
-    let jwk: JsonWebKey<'_> = serde_json::from_str(jwk_str)
-        .map_err(|_| OidcClientError::new_error("Invalid JWK", None))?;
-
-    Ok(base64_url::encode(&jwk.thumbprint::<Sha256>().to_vec()))
 }
 
 fn get_hash(alg: &str, token: &str, curve: Option<&str>) -> Result<Vec<u8>, OidcClientError> {

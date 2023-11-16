@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 
 use crate::{
     client::Client,
-    helpers::{get_jwk_thumbprint_s256, now},
+    helpers::{get_s256_jwk_thumbprint, now},
     issuer::Issuer,
     jwks::jwks::CustomJwk,
     types::{CallbackParams, ClientMetadata, IssuerMetadata},
@@ -24,7 +24,7 @@ fn id_token(claims: Option<Vec<(String, Value)>>, exclude: bool) -> String {
     payload
         .set_claim(
             "sub",
-            Some(json!(get_jwk_thumbprint_s256(
+            Some(json!(get_s256_jwk_thumbprint(
                 &serde_json::to_string(&jwk).unwrap()
             )
             .unwrap())),

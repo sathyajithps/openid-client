@@ -19,7 +19,7 @@ use serde_json::{json, Value};
 use url::Url;
 
 use crate::{
-    helpers::{decode_jwt, get_jwk_thumbprint_s256, random, validate_hash, Names},
+    helpers::{decode_jwt, generate_random, get_s256_jwk_thumbprint, validate_hash, Names},
     http::request_async,
     tokenset::TokenSet,
     types::{
@@ -385,7 +385,7 @@ impl Client {
                     jwt_payload.set_expires_at(&e);
                 }
 
-                jwt_payload.set_jwt_id(&random());
+                jwt_payload.set_jwt_id(&generate_random(None));
                 jwt_payload.set_issuer(&self.client_id);
                 jwt_payload.set_subject(&self.client_id);
 
@@ -1082,7 +1082,7 @@ impl Client {
                         None,
                     ))?;
 
-            if get_jwk_thumbprint_s256(&jwk_str)? != payload_sub {
+            if get_s256_jwk_thumbprint(&jwk_str)? != payload_sub {
                 let mut extra_data = HashMap::<String, Value>::new();
                 extra_data.insert("jwt".to_string(), json!(jwt));
 
@@ -1618,7 +1618,7 @@ impl Client {
             .set_claim("iat", Some(json!((self.now)())))
             .map_err(|_| OidcClientError::new_error("invalid iat", None))?;
         jwt_payload
-            .set_claim("jti", Some(json!(random())))
+            .set_claim("jti", Some(json!(generate_random(None))))
             .map_err(|_| OidcClientError::new_error("invalid jti", None))?;
 
         let mut jwt_header = JwsHeader::new();

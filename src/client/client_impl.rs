@@ -9,7 +9,7 @@ use reqwest::{Method, StatusCode};
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
-use crate::helpers::{get_serde_value_as_string, random};
+use crate::helpers::{generate_random, get_serde_value_as_string};
 use crate::jwks::jwks::CustomJwk;
 use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
@@ -2002,7 +2002,7 @@ impl Client {
 
         request_object["client_id"] = json!(self.client_id);
 
-        request_object["jti"] = json!(random());
+        request_object["jti"] = json!(generate_random(None));
 
         request_object["iat"] = json!(unix);
 

@@ -502,7 +502,7 @@ mod when_private_key_jwt {
         use serde_json::{json, Value};
 
         use crate::{
-            helpers::random,
+            helpers::generate_random,
             issuer::Issuer,
             jwks::Jwks,
             types::{ClientMetadata, IssuerMetadata, Request},
@@ -530,7 +530,7 @@ mod when_private_key_jwt {
             let mut jwk = Jwk::generate_ec_key(EcCurve::P256).unwrap();
 
             jwk.set_algorithm("ES256");
-            jwk.set_key_id(random());
+            jwk.set_key_id(generate_random(None));
 
             let jwks = Jwks::from(vec![jwk]);
 
@@ -698,7 +698,7 @@ mod when_private_key_jwt {
         use josekit::jwk::{alg::ec::EcCurve, Jwk};
 
         use crate::{
-            helpers::random,
+            helpers::generate_random,
             issuer::Issuer,
             jwks::Jwks,
             types::{ClientMetadata, IssuerMetadata},
@@ -724,7 +724,7 @@ mod when_private_key_jwt {
             let mut jwk = Jwk::generate_ec_key(EcCurve::P256).unwrap();
 
             jwk.set_algorithm("ES256");
-            jwk.set_key_id(random());
+            jwk.set_key_id(generate_random(None));
 
             let jwks = Jwks::from(vec![jwk]);
 
