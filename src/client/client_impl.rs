@@ -9,7 +9,10 @@ use reqwest::{Method, StatusCode};
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
-use crate::helpers::{generate_random, get_serde_value_as_string};
+use crate::helpers::{
+    generate_random, get_serde_value_as_string, string_map_to_form_url_encoded,
+    value_map_to_form_url_encoded,
+};
 use crate::jwks::jwks::CustomJwk;
 use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
@@ -310,14 +313,9 @@ impl Client {
         insert_query(&mut query_params, "logout_hint", parameters.logout_hint);
         insert_query(&mut query_params, "state", parameters.state);
 
-        let mut new_query_params = form_urlencoded::Serializer::new(String::new());
-
-        for (query, value) in &query_params {
-            new_query_params.append_pair(query, value);
-        }
-
         if !query_params.is_empty() {
-            end_session_endpoint.set_query(Some(&new_query_params.finish()));
+            let new_query_params = string_map_to_form_url_encoded(&query_params)?;
+            end_session_endpoint.set_query(Some(&new_query_params));
         }
 
         Ok(end_session_endpoint)
@@ -532,7 +530,7 @@ impl Client {
     /// Performs a grant at the `token_endpoint`
     ///
     /// - `body` - HashMap<String, Value> : Request body
-    /// - `params` - [AuthenticationPostParams] : Parameters for customizing auth request
+    /// - `params` - [GrantExtras] : Parameters for customizing auth request
     ///
     /// ### *Example:*
     ///  ```
@@ -552,7 +550,7 @@ impl Client {
     ///
     ///    let body: HashMap<String, Value> = HashMap::new();
     ///
-    ///    let token_set = client.grant(body, AuthenticationPostParams::default()).await.unwrap();
+    ///    let token_set = client.grant(body, GrantExtras::default()).await.unwrap();
     /// ```
     #[async_recursion::async_recursion(? Send)]
     pub async fn grant_async(
@@ -1911,18 +1909,7 @@ impl Client {
 
         let mut body = None;
         if !form_body.is_empty() {
-            let mut form_encoded_body = String::new();
-            for (k, v) in form_body {
-                let v_str = get_serde_value_as_string(&v)?;
-                form_encoded_body += &format!(
-                    "{}={}&",
-                    urlencoding::encode(&k),
-                    urlencoding::encode(&v_str)
-                );
-            }
-
-            form_encoded_body = form_encoded_body.trim_end_matches('&').to_owned();
-            body = Some(form_encoded_body);
+            body = Some(value_map_to_form_url_encoded(&form_body)?);
         }
 
         let req_res_params = RequestResourceOptions {
