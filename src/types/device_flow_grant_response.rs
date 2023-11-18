@@ -1,7 +1,7 @@
 use crate::tokenset::TokenSet;
 
-/// # DeviceFlowPollResponse
-/// Response of the DeviceFlowHandle::poll method
+/// # DeviceFlowGrantResponse
+/// Response of the [`crate::client::device_flow_handle::DeviceFlowHandle::grant_async()`] method
 #[derive(Debug)]
 pub enum DeviceFlowGrantResponse {
     /// Indicates that the AS is being polled much more frequent than allowed
