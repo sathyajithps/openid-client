@@ -11,7 +11,7 @@ mod decoded_token;
 mod device_authorization_extras;
 mod device_authorization_params;
 mod device_authorization_response;
-mod device_flow_poll_response;
+mod device_flow_grant_response;
 mod end_session_parameters;
 mod errors;
 mod fapi;
@@ -40,7 +40,7 @@ pub(crate) use decoded_token::DecodedToken;
 pub use device_authorization_extras::DeviceAuthorizationExtras;
 pub use device_authorization_params::DeviceAuthorizationParams;
 pub use device_authorization_response::DeviceAuthorizationResponse;
-pub use device_flow_poll_response::DeviceFlowGrantResponse;
+pub use device_flow_grant_response::DeviceFlowGrantResponse;
 pub use end_session_parameters::EndSessionParameters;
 pub use errors::{
     Error, ErrorWithResponse, OidcClientError, RPError, StandardBodyError, TypeError,
