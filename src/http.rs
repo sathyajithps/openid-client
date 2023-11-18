@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    helpers::{convert_json_to, get_serde_value_as_string, parse_www_authenticate_error},
+    helpers::{convert_json_to, parse_www_authenticate_error, value_map_to_form_url_encoded},
     types::{
         Lookup, OidcClientError, Request, RequestInterceptor, RequestOptions, Response,
         StandardBodyError,
@@ -104,41 +104,30 @@ pub async fn request_async(
             }
         }
     } else if let Some(form_body) = &request.form {
-        let mut form_encoded_body = String::new();
-        for (k, v) in form_body {
-            let v_str = get_serde_value_as_string(v)?;
-            form_encoded_body += &format!(
-                "{}={}&",
-                urlencoding::encode(k),
-                urlencoding::encode(&v_str)
+        if !form_body.is_empty() {
+            let body = value_map_to_form_url_encoded(form_body)?;
+
+            headers.remove("content-type");
+            headers.insert(
+                "content-type",
+                HeaderValue::from_static("application/x-www-form-urlencoded"),
             );
+
+            if let Ok(content_len_value) = HeaderValue::from_str(&body.as_bytes().len().to_string())
+            {
+                headers.remove("content-length");
+                headers.insert("content-length", content_len_value);
+            }
+
+            req = req.body(body);
         }
-
-        form_encoded_body = form_encoded_body.trim_end_matches('&').to_owned();
-
-        headers.remove("content-type");
-        headers.insert(
-            "content-type",
-            HeaderValue::from_static("application/x-www-form-urlencoded"),
-        );
-
-        headers.remove("content-length");
-        // remove unwrap ?
-        headers.insert(
-            "content-length",
-            HeaderValue::from_str(&form_encoded_body.as_bytes().len().to_string()).unwrap(),
-        );
-
-        req = req.body(form_encoded_body);
     } else if let Some(body) = &request.body {
         req = req.body(body.to_owned());
 
-        headers.remove("content-length");
-        // remove unwrap ?
-        headers.insert(
-            "content-length",
-            HeaderValue::from_str(&body.as_bytes().len().to_string()).unwrap(),
-        );
+        if let Ok(content_len_value) = HeaderValue::from_str(&body.as_bytes().len().to_string()) {
+            headers.remove("content-length");
+            headers.insert("content-length", content_len_value);
+        }
     }
 
     req = req.headers(headers);

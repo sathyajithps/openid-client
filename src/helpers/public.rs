@@ -29,17 +29,17 @@ pub fn generate_random(bytes_to_generate: Option<u32>) -> String {
     base64_url::encode(&random_bytes)
 }
 
-/// Generates a random string as the state. Uses [random] under the hood.
+/// Generates a random string as the state. Uses [generate_random] under the hood.
 pub fn generate_state(bytes: Option<u32>) -> String {
     generate_random(bytes)
 }
 
-/// Generates a random string as the nonce. Uses [random] under the hood.
+/// Generates a random string as the nonce. Uses [generate_random] under the hood.
 pub fn generate_nonce(bytes: Option<u32>) -> String {
     generate_random(bytes)
 }
 
-/// Generates a random string as the code_verifier. Uses [random] under the hood.
+/// Generates a random string as the code_verifier. Uses [generate_random] under the hood.
 pub fn generate_code_verifier(bytes: Option<u32>) -> String {
     generate_random(bytes)
 }
