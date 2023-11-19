@@ -107,7 +107,7 @@ impl Client {
 
     pub(crate) fn authorization_params(
         &self,
-        params: &AuthorizationParameters,
+        params: AuthorizationParameters,
     ) -> AuthorizationParameters {
         let mut new_params = AuthorizationParameters {
             client_id: Some(self.client_id.clone()),
@@ -118,75 +118,75 @@ impl Client {
         };
 
         if params.client_id.is_some() {
-            new_params.client_id = params.client_id.to_owned();
+            new_params.client_id = params.client_id;
         }
         if params.acr_values.is_some() {
-            new_params.acr_values = params.acr_values.to_owned();
+            new_params.acr_values = params.acr_values;
         }
         if params.audience.is_some() {
-            new_params.audience = params.audience.to_owned();
+            new_params.audience = params.audience;
         }
         if params.claims.is_some() {
-            new_params.claims = params.claims.to_owned();
+            new_params.claims = params.claims;
         }
         if params.claims_locales.is_some() {
-            new_params.claims_locales = params.claims_locales.to_owned();
+            new_params.claims_locales = params.claims_locales;
         }
         if params.code_challenge_method.is_some() {
-            new_params.code_challenge_method = params.code_challenge_method.to_owned();
+            new_params.code_challenge_method = params.code_challenge_method;
         }
         if params.code_challenge.is_some() {
-            new_params.code_challenge = params.code_challenge.to_owned();
+            new_params.code_challenge = params.code_challenge;
         }
         if params.display.is_some() {
-            new_params.display = params.display.to_owned();
+            new_params.display = params.display;
         }
         if params.id_token_hint.is_some() {
-            new_params.id_token_hint = params.id_token_hint.to_owned();
+            new_params.id_token_hint = params.id_token_hint;
         }
         if params.login_hint.is_some() {
-            new_params.login_hint = params.login_hint.to_owned();
+            new_params.login_hint = params.login_hint;
         }
         if params.max_age.is_some() {
-            new_params.max_age = params.max_age.to_owned();
+            new_params.max_age = params.max_age;
         }
         if params.nonce.is_some() {
-            new_params.nonce = params.nonce.to_owned();
+            new_params.nonce = params.nonce;
         }
         if params.prompt.is_some() {
-            new_params.prompt = params.prompt.to_owned();
+            new_params.prompt = params.prompt;
         }
         if params.redirect_uri.is_some() {
-            new_params.redirect_uri = params.redirect_uri.to_owned();
+            new_params.redirect_uri = params.redirect_uri;
         }
         if params.registration.is_some() {
-            new_params.registration = params.registration.to_owned();
+            new_params.registration = params.registration;
         }
         if params.request_uri.is_some() {
-            new_params.request_uri = params.request_uri.to_owned();
+            new_params.request_uri = params.request_uri;
         }
         if params.request.is_some() {
-            new_params.request = params.request.to_owned();
+            new_params.request = params.request;
         }
         if params.response_mode.is_some() {
-            new_params.response_mode = params.response_mode.to_owned();
+            new_params.response_mode = params.response_mode;
         }
         if params.response_type.is_some() {
-            new_params.response_type = params.response_type.to_owned();
+            new_params.response_type = params.response_type;
         }
         if params.resource.is_some() {
-            new_params.resource = params.resource.to_owned();
+            new_params.resource = params.resource;
         }
         if params.scope.is_some() {
-            new_params.scope = params.scope.to_owned();
+            new_params.scope = params.scope;
         }
         if params.state.is_some() {
-            new_params.state = params.state.to_owned();
+            new_params.state = params.state;
         }
         if params.ui_locales.is_some() {
-            new_params.ui_locales = params.ui_locales.to_owned();
+            new_params.ui_locales = params.ui_locales;
         }
-        new_params.other = params.other.to_owned();
+        new_params.other = params.other;
 
         new_params
     }
