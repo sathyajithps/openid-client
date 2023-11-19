@@ -346,7 +346,7 @@ impl Client {
     /// ```
     pub fn authorization_post(
         &self,
-        mut params: AuthorizationParameters,
+        mut parameters: AuthorizationParameters,
     ) -> Result<String, OidcClientError> {
         let authorization_endpiont = self.get_auth_endpoint()?;
 
@@ -355,15 +355,15 @@ impl Client {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        params = self.authorization_params(params);
+        parameters = self.authorization_params(parameters);
 
-        for (k, v) in params.other {
+        for (k, v) in parameters.other {
             query_params.insert(k, v);
         }
 
-        insert_query(&mut query_params, "client_id", params.client_id);
+        insert_query(&mut query_params, "client_id", parameters.client_id);
 
-        if let Some(acr_arr) = params.acr_values {
+        if let Some(acr_arr) = parameters.acr_values {
             let mut acr_str = String::new();
             for acr in acr_arr {
                 acr_str += &format!("{} ", acr);
@@ -376,7 +376,7 @@ impl Client {
             );
         }
 
-        if let Some(aud_arr) = params.audience {
+        if let Some(aud_arr) = parameters.audience {
             let mut aud_str = String::new();
             for aud in aud_arr {
                 aud_str += &format!("{} ", aud);
@@ -388,7 +388,7 @@ impl Client {
                 Some(aud_str.trim_end().to_string()),
             );
         }
-        if let Some(locale_arr) = params.claims_locales {
+        if let Some(locale_arr) = parameters.claims_locales {
             let mut locale_str = String::new();
             for locale in locale_arr {
                 locale_str += &format!("{} ", locale);
@@ -403,16 +403,20 @@ impl Client {
         insert_query(
             &mut query_params,
             "code_challenge_method",
-            params.code_challenge_method,
+            parameters.code_challenge_method,
         );
-        insert_query(&mut query_params, "code_challenge", params.code_challenge);
-        insert_query(&mut query_params, "display", params.display);
-        insert_query(&mut query_params, "id_token_hint", params.id_token_hint);
-        insert_query(&mut query_params, "login_hint", params.login_hint);
-        insert_query(&mut query_params, "max_age", params.max_age);
-        insert_query(&mut query_params, "nonce", params.nonce);
+        insert_query(
+            &mut query_params,
+            "code_challenge",
+            parameters.code_challenge,
+        );
+        insert_query(&mut query_params, "display", parameters.display);
+        insert_query(&mut query_params, "id_token_hint", parameters.id_token_hint);
+        insert_query(&mut query_params, "login_hint", parameters.login_hint);
+        insert_query(&mut query_params, "max_age", parameters.max_age);
+        insert_query(&mut query_params, "nonce", parameters.nonce);
 
-        if let Some(prompt_arr) = params.prompt {
+        if let Some(prompt_arr) = parameters.prompt {
             let mut prompt_str = String::new();
             for prompt in prompt_arr {
                 prompt_str += &format!("{} ", prompt);
@@ -425,12 +429,12 @@ impl Client {
             );
         }
 
-        insert_query(&mut query_params, "redirect_uri", params.redirect_uri);
-        insert_query(&mut query_params, "registration", params.registration);
-        insert_query(&mut query_params, "request_uri", params.request_uri);
-        insert_query(&mut query_params, "request", params.request);
-        insert_query(&mut query_params, "response_mode", params.response_mode);
-        if let Some(res_arr) = params.response_type {
+        insert_query(&mut query_params, "redirect_uri", parameters.redirect_uri);
+        insert_query(&mut query_params, "registration", parameters.registration);
+        insert_query(&mut query_params, "request_uri", parameters.request_uri);
+        insert_query(&mut query_params, "request", parameters.request);
+        insert_query(&mut query_params, "response_mode", parameters.response_mode);
+        if let Some(res_arr) = parameters.response_type {
             let mut res_str = String::new();
             for res in res_arr {
                 res_str += &format!("{} ", res);
@@ -443,7 +447,7 @@ impl Client {
             );
         }
 
-        if let Some(scope_arr) = params.scope {
+        if let Some(scope_arr) = parameters.scope {
             let mut scope_str = String::new();
             for scope in scope_arr {
                 scope_str += &format!("{} ", scope);
@@ -456,9 +460,9 @@ impl Client {
             );
         }
 
-        insert_query(&mut query_params, "state", params.state);
+        insert_query(&mut query_params, "state", parameters.state);
 
-        if let Some(ui_locales_arr) = params.ui_locales {
+        if let Some(ui_locales_arr) = parameters.ui_locales {
             let mut ui_locales_str = String::new();
             for ui_locale in ui_locales_arr {
                 ui_locales_str += &format!("{} ", ui_locale);
@@ -471,7 +475,7 @@ impl Client {
             );
         }
 
-        if let Some(c) = &params.claims {
+        if let Some(c) = &parameters.claims {
             if let Ok(s) = serde_json::to_string(c) {
                 query_params.insert("claims".to_string(), s);
             }
@@ -498,7 +502,7 @@ impl Client {
                 + "\n";
         }
 
-        if let Some(r) = &params.resource {
+        if let Some(r) = &parameters.resource {
             match r {
                 ResourceParam::String(string) => {
                     html = html
