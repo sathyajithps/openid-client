@@ -74,7 +74,7 @@ impl Client {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        parameters = self.authorization_params(&parameters);
+        parameters = self.authorization_params(parameters);
 
         for (k, v) in parameters.other {
             query_params.entry(k).or_insert(v);
@@ -355,7 +355,7 @@ impl Client {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        params = self.authorization_params(&params);
+        params = self.authorization_params(params);
 
         for (k, v) in params.other {
             query_params.insert(k, v);
@@ -2238,7 +2238,7 @@ impl Client {
         let mut body = if auth_params.request.is_some() {
             auth_params
         } else {
-            self.authorization_params(&auth_params)
+            self.authorization_params(auth_params)
         };
 
         body.client_id = Some(self.client_id.clone());
@@ -2602,7 +2602,7 @@ impl Client {
             }
         }
 
-        let body = self.authorization_params(&auth_params);
+        let body = self.authorization_params(auth_params);
 
         let mut form_body = HashMap::new();
 
