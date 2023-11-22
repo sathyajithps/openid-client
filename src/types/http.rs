@@ -38,58 +38,6 @@ pub struct Request {
     pub mtls: bool,
 }
 
-impl Default for Request {
-    fn default() -> Self {
-        Self {
-            expect_body: true,
-            bearer: false,
-            expected: StatusCode::OK,
-            headers: HeaderMap::default(),
-            method: Method::GET,
-            url: "".to_string(),
-            search_params: HashMap::new(),
-            json: None,
-            form: None,
-            body: None,
-            expect_body_to_be_json: true,
-            mtls: false,
-        }
-    }
-}
-
-impl Request {
-    /// Converts `search_params` to a [reqwest] compatible query params format
-    pub(crate) fn get_reqwest_query(&self) -> Vec<(String, String)> {
-        let mut query_list: Vec<(String, String)> = vec![];
-
-        for (k, v) in &self.search_params {
-            for val in v {
-                query_list.push((k.clone(), val.to_string()))
-            }
-        }
-
-        query_list
-    }
-
-    pub(crate) fn merge_form(&mut self, request: &Self) {
-        match (&mut self.form, &request.form) {
-            (None, Some(_)) => self.form = request.form.clone(),
-            (Some(own_form), Some(other_form)) => {
-                for (k, v) in other_form {
-                    own_form.insert(k.to_string(), v.to_owned());
-                }
-            }
-            (None, None) | (Some(_), None) => {}
-        }
-    }
-
-    pub(crate) fn merge_headers(&mut self, request: &Self) {
-        for (k, v) in &request.headers {
-            self.headers.insert(k, v.clone());
-        }
-    }
-}
-
 /// # Response
 /// Response is the abstracted version of the [reqwest] Response (async and blocking).
 #[derive(Debug, Clone)]
@@ -100,40 +48,6 @@ pub struct Response {
     pub status: StatusCode,
     /// Response headers from the server
     pub headers: HeaderMap,
-}
-
-impl Response {
-    /// Converts to [Value]
-    pub fn body_to_json_value(&self) -> Result<Value, OidcClientError> {
-        if let Some(body_string) = &self.body {
-            if let Ok(v) = convert_json_to::<Value>(body_string) {
-                return Ok(v);
-            }
-        }
-        Err(OidcClientError::new_error(
-            "could not convert body to serde::json value",
-            None,
-        ))
-    }
-
-    /// Creates a new instance of Response from [reqwest::Response]
-    pub(crate) async fn from_async(response: reqwest::Response) -> Self {
-        let status = response.status();
-        let headers = response.headers().clone();
-        let body_result = response.text().await;
-        let mut body: Option<String> = None;
-        if let Ok(body_string) = body_result {
-            if !body_string.is_empty() {
-                body = Some(body_string);
-            }
-        }
-
-        Self {
-            body,
-            status,
-            headers,
-        }
-    }
 }
 
 /// # Request Interceptor
@@ -224,4 +138,88 @@ pub struct RequestOptions {
     /// Accepts self signed or unverified or expired certificates.
     /// Use with caution.
     pub danger_accept_invalid_certs: bool,
+}
+
+impl Default for Request {
+    fn default() -> Self {
+        Self {
+            expect_body: true,
+            bearer: false,
+            expected: StatusCode::OK,
+            headers: HeaderMap::default(),
+            method: Method::GET,
+            url: "".to_string(),
+            search_params: HashMap::new(),
+            json: None,
+            form: None,
+            body: None,
+            expect_body_to_be_json: true,
+            mtls: false,
+        }
+    }
+}
+
+impl Request {
+    pub(crate) fn get_reqwest_query(&self) -> Vec<(String, String)> {
+        let mut query_list: Vec<(String, String)> = vec![];
+
+        for (k, v) in &self.search_params {
+            for val in v {
+                query_list.push((k.clone(), val.to_string()))
+            }
+        }
+
+        query_list
+    }
+
+    pub(crate) fn merge_form(&mut self, request: &Self) {
+        match (&mut self.form, &request.form) {
+            (None, Some(_)) => self.form = request.form.clone(),
+            (Some(own_form), Some(other_form)) => {
+                for (k, v) in other_form {
+                    own_form.insert(k.to_string(), v.to_owned());
+                }
+            }
+            (None, None) | (Some(_), None) => {}
+        }
+    }
+
+    pub(crate) fn merge_headers(&mut self, request: &Self) {
+        for (k, v) in &request.headers {
+            self.headers.insert(k, v.clone());
+        }
+    }
+}
+
+impl Response {
+    /// Converts to [Value]
+    pub fn body_to_json_value(&self) -> Result<Value, OidcClientError> {
+        if let Some(body_string) = &self.body {
+            if let Ok(v) = convert_json_to::<Value>(body_string) {
+                return Ok(v);
+            }
+        }
+        Err(OidcClientError::new_error(
+            "could not convert body to serde::json value",
+            None,
+        ))
+    }
+
+    pub(crate) async fn from_async(response: reqwest::Response) -> Self {
+        let status = response.status();
+        let headers = response.headers().clone();
+        let body_result = response.text().await;
+        let mut body: Option<String> = None;
+        if let Ok(body_string) = body_result {
+            if !body_string.is_empty() {
+                body = Some(body_string);
+            }
+        }
+
+        Self {
+            body,
+            status,
+            headers,
+        }
+    }
 }
