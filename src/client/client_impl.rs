@@ -172,7 +172,7 @@ impl Client {
 
         if let Some(other) = parameters.other {
             for (k, v) in other {
-                query_params.entry(k).or_insert_with(|| v.to_string());
+                query_params.entry(k).or_insert(v);
             }
         }
 
