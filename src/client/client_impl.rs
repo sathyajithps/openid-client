@@ -1400,6 +1400,10 @@ impl Client {
         retry: bool,
         mut options: RequestResourceOptions,
     ) -> Result<Response, OidcClientError> {
+        if self.dpop_bound_access_tokens.is_some_and(|x| x) && options.dpop.is_none() {
+            return Err(OidcClientError::new_type_error("DPoP key not set", None));
+        }
+
         let tt = if options.dpop.is_some() {
             "DPoP"
         } else {

@@ -943,3 +943,42 @@ mod signed_response_content_type_application_jwt {
         );
     }
 }
+
+#[tokio::test]
+async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in() {
+    let issuer_metadata = IssuerMetadata {
+        userinfo_endpoint: Some("https://op.example.com/me".to_string()),
+        ..Default::default()
+    };
+
+    let issuer = Issuer::new(issuer_metadata, None);
+
+    let client_metadata = ClientMetadata {
+        client_id: Some("identifier".to_string()),
+        id_token_signed_response_alg: Some("none".to_string()),
+        dpop_bound_access_tokens: Some(true),
+        ..Default::default()
+    };
+
+    let mut client = issuer
+        .client(client_metadata, None, None, None, None)
+        .unwrap();
+
+    let token_set_params = TokenSetParams {
+        id_token: Some("eyJhbGciOiJub25lIn0.eyJzdWIiOiJzdWJqZWN0In0.".to_string()),
+        refresh_token: Some("bar".to_string()),
+        access_token: Some("tokenValue".to_string()),
+        ..Default::default()
+    };
+
+    let token_set = TokenSet::new(token_set_params);
+
+    let err = client
+        .userinfo_async(&token_set, UserinfoOptions::default())
+        .await
+        .unwrap_err();
+
+    assert!(err.is_type_error());
+
+    assert_eq!("DPoP key not set", err.type_error().error.message);
+}

@@ -662,6 +662,56 @@ async fn is_enabled_for_request_resource() {
 }
 
 #[tokio::test]
+async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in() {
+    let issuer_metadata = IssuerMetadata {
+        issuer: "https://op.example.com".to_string(),
+        pushed_authorization_request_endpoint: Some("https://op.example.com/par".to_string()),
+        dpop_signing_alg_values_supported: Some(vec![
+            "PS256".to_string(),
+            "PS512".to_string(),
+            "PS384".to_string(),
+            "EdDSA".to_string(),
+            "ES256".to_string(),
+        ]),
+        ..Default::default()
+    };
+
+    let issuer = Issuer::new(issuer_metadata, None);
+
+    let client_metadata = ClientMetadata {
+        client_id: Some("client".to_string()),
+        token_endpoint_auth_method: Some("none".to_string()),
+        redirect_uri: Some("https://rp.example.com/cb".to_string()),
+        dpop_bound_access_tokens: Some(true),
+        ..Default::default()
+    };
+
+    let mut client = issuer
+        .client(client_metadata, None, None, None, None)
+        .unwrap();
+
+    let options = RequestResourceOptions {
+        dpop: None,
+        ..Default::default()
+    };
+
+    let err = client
+        .request_resource_async(
+            "https://rs.example.com/resource",
+            "foo",
+            None,
+            true,
+            options,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err.is_type_error());
+
+    assert_eq!("DPoP key not set", err.type_error().error.message);
+}
+
+#[tokio::test]
 async fn is_enabled_for_grant() {
     let mock_http_server = MockServer::start();
 

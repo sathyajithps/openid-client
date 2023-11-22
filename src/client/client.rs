@@ -208,6 +208,7 @@ impl Client {
             authorization_encrypted_response_alg: metadata.authorization_encrypted_response_alg,
             authorization_encrypted_response_enc: metadata.authorization_encrypted_response_enc,
             authorization_signed_response_alg: metadata.authorization_signed_response_alg,
+            dpop_bound_access_tokens: metadata.dpop_bound_access_tokens,
             other_fields: metadata.other_fields,
             ..Client::default(fapi)
         };
