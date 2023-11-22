@@ -2,6 +2,7 @@ use josekit::jwe::JweHeader;
 use josekit::jws::JwsHeader;
 use josekit::{jwe, jws};
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::time::Duration;
 
 use reqwest::header::HeaderValue;
@@ -26,7 +27,7 @@ use crate::{
     tokenset::{TokenSet, TokenSetParams},
     types::{
         authentication_post_param::AuthenticationPostParams, AuthorizationParameters,
-        EndSessionParameters, OidcClientError, ResourceParam,
+        EndSessionParameters, OidcClientError,
     },
 };
 
@@ -76,151 +77,19 @@ impl Client {
 
         parameters = self.authorization_params(parameters);
 
-        for (k, v) in parameters.other {
-            query_params.entry(k).or_insert(v);
-        }
+        let params_query: HashMap<String, String> = parameters.into();
 
-        insert_query(&mut query_params, "client_id", parameters.client_id);
-
-        if let Some(acr_arr) = parameters.acr_values {
-            let mut acr_str = String::new();
-            for acr in acr_arr {
-                acr_str += &format!("{} ", acr);
-            }
-
-            insert_query(
-                &mut query_params,
-                "acr_values",
-                Some(acr_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(aud_arr) = parameters.audience {
-            let mut aud_str = String::new();
-            for aud in aud_arr {
-                aud_str += &format!("{} ", aud);
-            }
-
-            insert_query(
-                &mut query_params,
-                "audience",
-                Some(aud_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(locale_arr) = parameters.claims_locales {
-            let mut locale_str = String::new();
-            for locale in locale_arr {
-                locale_str += &format!("{} ", locale);
-            }
-
-            insert_query(
-                &mut query_params,
-                "claims_locales",
-                Some(locale_str.trim_end().to_string()),
-            );
-        }
-        insert_query(
-            &mut query_params,
-            "code_challenge_method",
-            parameters.code_challenge_method,
-        );
-        insert_query(
-            &mut query_params,
-            "code_challenge",
-            parameters.code_challenge,
-        );
-        insert_query(&mut query_params, "display", parameters.display);
-        insert_query(&mut query_params, "id_token_hint", parameters.id_token_hint);
-        insert_query(&mut query_params, "login_hint", parameters.login_hint);
-        insert_query(&mut query_params, "max_age", parameters.max_age);
-        insert_query(&mut query_params, "nonce", parameters.nonce);
-
-        if let Some(prompt_arr) = parameters.prompt {
-            let mut prompt_str = String::new();
-            for prompt in prompt_arr {
-                prompt_str += &format!("{} ", prompt);
-            }
-
-            insert_query(
-                &mut query_params,
-                "prompt",
-                Some(prompt_str.trim_end().to_string()),
-            );
-        }
-
-        insert_query(&mut query_params, "redirect_uri", parameters.redirect_uri);
-        insert_query(&mut query_params, "registration", parameters.registration);
-        insert_query(&mut query_params, "request_uri", parameters.request_uri);
-        insert_query(&mut query_params, "request", parameters.request);
-        insert_query(&mut query_params, "response_mode", parameters.response_mode);
-
-        if let Some(res_arr) = parameters.response_type {
-            let mut res_str = String::new();
-            for res in res_arr {
-                res_str += &format!("{} ", res);
-            }
-
-            insert_query(
-                &mut query_params,
-                "response_type",
-                Some(res_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(scope_arr) = parameters.scope {
-            let mut scope_str = String::new();
-            for scope in scope_arr {
-                scope_str += &format!("{} ", scope);
-            }
-
-            insert_query(
-                &mut query_params,
-                "scope",
-                Some(urlencoding::encode(scope_str.trim_end()).to_string()),
-            );
-        }
-
-        insert_query(&mut query_params, "state", parameters.state);
-
-        if let Some(ui_locales_arr) = parameters.ui_locales {
-            let mut ui_locales_str = String::new();
-            for ui_locale in ui_locales_arr {
-                ui_locales_str += &format!("{} ", ui_locale);
-            }
-
-            insert_query(
-                &mut query_params,
-                "ui_locales",
-                Some(ui_locales_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(c) = &parameters.claims {
-            if let Ok(s) = serde_json::to_string(c) {
-                query_params.insert("claims".to_string(), s);
-            }
-        }
+        query_params.extend(params_query);
 
         authorization_endpiont.set_query(None);
 
         let mut new_query_params = form_urlencoded::Serializer::new(String::new());
 
         for (query, value) in &query_params {
+            if query == "scope" {
+                new_query_params.append_pair(query, urlencoding::encode(value).deref());
+            }
             new_query_params.append_pair(query, value);
-        }
-
-        if let Some(r) = &parameters.resource {
-            match r {
-                ResourceParam::String(string) => {
-                    new_query_params.append_pair("resource", string);
-                }
-                ResourceParam::Array(array) => {
-                    for v in array {
-                        new_query_params.append_pair("resource", v);
-                    }
-                }
-            };
         }
 
         if !query_params.is_empty() {
@@ -307,11 +176,28 @@ impl Client {
             }
         }
 
-        insert_query(&mut query_params, "client_id", parameters.client_id);
-        insert_query(&mut query_params, "post_logout_redirect_uri", post_logout);
-        insert_query(&mut query_params, "id_token_hint", parameters.id_token_hint);
-        insert_query(&mut query_params, "logout_hint", parameters.logout_hint);
-        insert_query(&mut query_params, "state", parameters.state);
+        if let Some(client_id) = parameters.client_id {
+            query_params.insert("client_id".to_string(), client_id);
+        }
+
+        if let Some(post_logout_redirect_uri) = post_logout {
+            query_params.insert(
+                "post_logout_redirect_uri".to_string(),
+                post_logout_redirect_uri,
+            );
+        }
+
+        if let Some(id_token_hint) = parameters.id_token_hint {
+            query_params.insert("id_token_hint".to_string(), id_token_hint);
+        }
+
+        if let Some(logout_hint) = parameters.logout_hint {
+            query_params.insert("logout_hint".to_string(), logout_hint);
+        }
+
+        if let Some(state) = parameters.state {
+            query_params.insert("state".to_string(), state);
+        }
 
         if !query_params.is_empty() {
             let new_query_params = string_map_to_form_url_encoded(&query_params)?;
@@ -357,129 +243,9 @@ impl Client {
 
         parameters = self.authorization_params(parameters);
 
-        for (k, v) in parameters.other {
-            query_params.insert(k, v);
-        }
+        let params_query: HashMap<String, String> = parameters.into();
 
-        insert_query(&mut query_params, "client_id", parameters.client_id);
-
-        if let Some(acr_arr) = parameters.acr_values {
-            let mut acr_str = String::new();
-            for acr in acr_arr {
-                acr_str += &format!("{} ", acr);
-            }
-
-            insert_query(
-                &mut query_params,
-                "acr_values",
-                Some(acr_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(aud_arr) = parameters.audience {
-            let mut aud_str = String::new();
-            for aud in aud_arr {
-                aud_str += &format!("{} ", aud);
-            }
-
-            insert_query(
-                &mut query_params,
-                "audience",
-                Some(aud_str.trim_end().to_string()),
-            );
-        }
-        if let Some(locale_arr) = parameters.claims_locales {
-            let mut locale_str = String::new();
-            for locale in locale_arr {
-                locale_str += &format!("{} ", locale);
-            }
-
-            insert_query(
-                &mut query_params,
-                "claims_locales",
-                Some(locale_str.trim_end().to_string()),
-            );
-        }
-        insert_query(
-            &mut query_params,
-            "code_challenge_method",
-            parameters.code_challenge_method,
-        );
-        insert_query(
-            &mut query_params,
-            "code_challenge",
-            parameters.code_challenge,
-        );
-        insert_query(&mut query_params, "display", parameters.display);
-        insert_query(&mut query_params, "id_token_hint", parameters.id_token_hint);
-        insert_query(&mut query_params, "login_hint", parameters.login_hint);
-        insert_query(&mut query_params, "max_age", parameters.max_age);
-        insert_query(&mut query_params, "nonce", parameters.nonce);
-
-        if let Some(prompt_arr) = parameters.prompt {
-            let mut prompt_str = String::new();
-            for prompt in prompt_arr {
-                prompt_str += &format!("{} ", prompt);
-            }
-
-            insert_query(
-                &mut query_params,
-                "prompt",
-                Some(prompt_str.trim_end().to_string()),
-            );
-        }
-
-        insert_query(&mut query_params, "redirect_uri", parameters.redirect_uri);
-        insert_query(&mut query_params, "registration", parameters.registration);
-        insert_query(&mut query_params, "request_uri", parameters.request_uri);
-        insert_query(&mut query_params, "request", parameters.request);
-        insert_query(&mut query_params, "response_mode", parameters.response_mode);
-        if let Some(res_arr) = parameters.response_type {
-            let mut res_str = String::new();
-            for res in res_arr {
-                res_str += &format!("{} ", res);
-            }
-
-            insert_query(
-                &mut query_params,
-                "response_type",
-                Some(res_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(scope_arr) = parameters.scope {
-            let mut scope_str = String::new();
-            for scope in scope_arr {
-                scope_str += &format!("{} ", scope);
-            }
-
-            insert_query(
-                &mut query_params,
-                "scope",
-                Some(scope_str.trim_end().to_string()),
-            );
-        }
-
-        insert_query(&mut query_params, "state", parameters.state);
-
-        if let Some(ui_locales_arr) = parameters.ui_locales {
-            let mut ui_locales_str = String::new();
-            for ui_locale in ui_locales_arr {
-                ui_locales_str += &format!("{} ", ui_locale);
-            }
-
-            insert_query(
-                &mut query_params,
-                "ui_locales",
-                Some(ui_locales_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(c) = &parameters.claims {
-            if let Ok(s) = serde_json::to_string(c) {
-                query_params.insert("claims".to_string(), s);
-            }
-        }
+        query_params.extend(params_query);
 
         let mut html = r#"<!DOCTYPE html>
         <head>
@@ -500,27 +266,6 @@ impl Client {
                 + &value
                 + r#""/>"#
                 + "\n";
-        }
-
-        if let Some(r) = &parameters.resource {
-            match r {
-                ResourceParam::String(string) => {
-                    html = html
-                        + r#"<input type="hidden" name="resource" value=""#
-                        + string
-                        + r#""/>"#
-                        + "\n";
-                }
-                ResourceParam::Array(array) => {
-                    for v in array {
-                        html = html
-                            + r#"<input type="hidden" name="resource" value=""#
-                            + v
-                            + r#""/>"#
-                            + "\n";
-                    }
-                }
-            };
         }
 
         html += r#"</form>
@@ -2247,129 +1992,7 @@ impl Client {
 
         body.client_id = Some(self.client_id.clone());
 
-        let mut form_body = HashMap::new();
-
-        for (k, v) in body.other {
-            form_body.insert(k, json!(v));
-        }
-
-        insert_form(&mut form_body, "client_id", body.client_id);
-
-        if let Some(acr_arr) = body.acr_values {
-            let mut acr_str = String::new();
-            for acr in acr_arr {
-                acr_str += &format!("{} ", acr);
-            }
-
-            insert_form(
-                &mut form_body,
-                "acr_values",
-                Some(acr_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(aud_arr) = body.audience {
-            let mut aud_str = String::new();
-            for aud in aud_arr {
-                aud_str += &format!("{} ", aud);
-            }
-
-            insert_form(
-                &mut form_body,
-                "audience",
-                Some(aud_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(locale_arr) = body.claims_locales {
-            let mut locale_str = String::new();
-            for locale in locale_arr {
-                locale_str += &format!("{} ", locale);
-            }
-
-            insert_form(
-                &mut form_body,
-                "claims_locales",
-                Some(locale_str.trim_end().to_string()),
-            );
-        }
-
-        insert_form(
-            &mut form_body,
-            "code_challenge_method",
-            body.code_challenge_method,
-        );
-        insert_form(&mut form_body, "code_challenge", body.code_challenge);
-        insert_form(&mut form_body, "display", body.display);
-        insert_form(&mut form_body, "id_token_hint", body.id_token_hint);
-        insert_form(&mut form_body, "login_hint", body.login_hint);
-        insert_form(&mut form_body, "max_age", body.max_age);
-        insert_form(&mut form_body, "nonce", body.nonce);
-
-        if let Some(prompt_arr) = body.prompt {
-            let mut prompt_str = String::new();
-            for prompt in prompt_arr {
-                prompt_str += &format!("{} ", prompt);
-            }
-
-            insert_form(
-                &mut form_body,
-                "prompt",
-                Some(prompt_str.trim_end().to_string()),
-            );
-        }
-
-        insert_form(&mut form_body, "redirect_uri", body.redirect_uri);
-        insert_form(&mut form_body, "registration", body.registration);
-        insert_form(&mut form_body, "request_uri", body.request_uri);
-        insert_form(&mut form_body, "request", body.request);
-        insert_form(&mut form_body, "response_mode", body.response_mode);
-        if let Some(res_arr) = body.response_type {
-            let mut res_str = String::new();
-            for res in res_arr {
-                res_str += &format!("{} ", res);
-            }
-
-            insert_form(
-                &mut form_body,
-                "response_type",
-                Some(res_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(scope_arr) = body.scope {
-            let mut scope_str = String::new();
-            for scope in scope_arr {
-                scope_str += &format!("{} ", scope);
-            }
-
-            insert_form(
-                &mut form_body,
-                "scope",
-                Some(scope_str.trim_end().to_string()),
-            );
-        }
-
-        insert_form(&mut form_body, "state", body.state);
-
-        if let Some(ui_locales_arr) = body.ui_locales {
-            let mut ui_locales_str = String::new();
-            for ui_locale in ui_locales_arr {
-                ui_locales_str += &format!("{} ", ui_locale);
-            }
-
-            insert_form(
-                &mut form_body,
-                "ui_locales",
-                Some(ui_locales_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(c) = &body.claims {
-            if let Ok(v) = serde_json::to_value(c) {
-                form_body.insert("claims".to_string(), v);
-            }
-        }
+        let form_body: HashMap<String, Value> = body.into();
 
         let req = Request {
             form: Some(form_body),
@@ -2489,6 +2112,11 @@ impl Client {
                         auth_params.audience = Some(aud_arr);
                     }
                 }
+
+                if let Some(audience) = v.as_str() {
+                    let aud_arr = vec![audience.to_string()];
+                    auth_params.audience = Some(aud_arr);
+                }
             } else if k == "claims" {
                 if let Ok(claims) = serde_json::from_value::<ClaimParam>(v.clone()) {
                     auth_params.claims = Some(claims);
@@ -2506,6 +2134,10 @@ impl Client {
                         auth_params.acr_values = Some(acr_arr);
                     }
                 }
+                if let Some(acr_values) = v.as_str() {
+                    let acr_arr = vec![acr_values.to_string()];
+                    auth_params.acr_values = Some(acr_arr);
+                }
             } else if k == "claims_locales" {
                 if let Some(claims_locales) = v.as_array() {
                     if !claims_locales.is_empty() {
@@ -2518,6 +2150,11 @@ impl Client {
 
                         auth_params.claims_locales = Some(locale_arr);
                     }
+                }
+
+                if let Some(claims_locales) = v.as_str() {
+                    let locale_arr = vec![claims_locales.to_string()];
+                    auth_params.claims_locales = Some(locale_arr);
                 }
             } else if k == "client_id" {
                 if let Some(client_id) = v.as_str() {
@@ -2564,6 +2201,11 @@ impl Client {
                         auth_params.prompt = Some(prompt_arr);
                     }
                 }
+
+                if let Some(prompt) = v.as_str() {
+                    let prompt_arr = vec![prompt.to_string()];
+                    auth_params.prompt = Some(prompt_arr);
+                }
             } else if k == "registration" {
                 if let Some(registration) = v.as_str() {
                     auth_params.registration = Some(registration.to_string());
@@ -2577,8 +2219,22 @@ impl Client {
                     auth_params.request = Some(request.to_string());
                 }
             } else if k == "resource" {
-                if let Ok(resource) = serde_json::from_value::<ResourceParam>(v.clone()) {
-                    auth_params.resource = Some(resource);
+                if let Some(resource) = v.as_array() {
+                    if !resource.is_empty() {
+                        let mut resource_arr = vec![];
+                        for r in resource {
+                            if let Some(a) = r.as_str() {
+                                resource_arr.push(a.to_string());
+                            }
+                        }
+
+                        auth_params.resource = Some(resource_arr);
+                    }
+                }
+
+                if let Some(resource) = v.as_str() {
+                    let resource_arr = vec![resource.to_string()];
+                    auth_params.resource = Some(resource_arr);
                 }
             } else if k == "response_mode" {
                 if let Some(response_mode) = v.as_str() {
@@ -2601,136 +2257,23 @@ impl Client {
                         auth_params.ui_locales = Some(ui_locales_arr);
                     }
                 }
+
+                if let Some(ui_locales) = v.as_str() {
+                    let locale_arr = vec![ui_locales.to_string()];
+                    auth_params.ui_locales = Some(locale_arr);
+                }
+            } else if let Some(other) = &mut auth_params.other {
+                other.insert(k, get_serde_value_as_string(&v)?);
             } else {
-                auth_params.other.insert(k, get_serde_value_as_string(&v)?);
+                let mut other = HashMap::new();
+                other.insert(k, get_serde_value_as_string(&v)?);
+                auth_params.other = Some(other);
             }
         }
 
         let body = self.authorization_params(auth_params);
 
-        let mut form_body = HashMap::new();
-
-        for (k, v) in body.other {
-            form_body.insert(k, json!(v));
-        }
-
-        insert_form(&mut form_body, "client_id", body.client_id);
-
-        if let Some(acr_arr) = body.acr_values {
-            let mut acr_str = String::new();
-            for acr in acr_arr {
-                acr_str += &format!("{} ", acr);
-            }
-
-            insert_form(
-                &mut form_body,
-                "acr_values",
-                Some(acr_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(aud_arr) = body.audience {
-            let mut aud_str = String::new();
-            for aud in aud_arr {
-                aud_str += &format!("{} ", aud);
-            }
-
-            insert_form(
-                &mut form_body,
-                "audience",
-                Some(aud_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(locale_arr) = body.claims_locales {
-            let mut locale_str = String::new();
-            for locale in locale_arr {
-                locale_str += &format!("{} ", locale);
-            }
-
-            insert_form(
-                &mut form_body,
-                "claims_locales",
-                Some(locale_str.trim_end().to_string()),
-            );
-        }
-
-        insert_form(
-            &mut form_body,
-            "code_challenge_method",
-            body.code_challenge_method,
-        );
-        insert_form(&mut form_body, "code_challenge", body.code_challenge);
-        insert_form(&mut form_body, "display", body.display);
-        insert_form(&mut form_body, "id_token_hint", body.id_token_hint);
-        insert_form(&mut form_body, "login_hint", body.login_hint);
-        insert_form(&mut form_body, "max_age", body.max_age);
-        insert_form(&mut form_body, "nonce", body.nonce);
-
-        if let Some(prompt_arr) = body.prompt {
-            let mut prompt_str = String::new();
-            for prompt in prompt_arr {
-                prompt_str += &format!("{} ", prompt);
-            }
-
-            insert_form(
-                &mut form_body,
-                "prompt",
-                Some(prompt_str.trim_end().to_string()),
-            );
-        }
-
-        insert_form(&mut form_body, "redirect_uri", body.redirect_uri);
-        insert_form(&mut form_body, "registration", body.registration);
-        insert_form(&mut form_body, "request_uri", body.request_uri);
-        insert_form(&mut form_body, "request", body.request);
-        insert_form(&mut form_body, "response_mode", body.response_mode);
-        if let Some(res_arr) = body.response_type {
-            let mut res_str = String::new();
-            for res in res_arr {
-                res_str += &format!("{} ", res);
-            }
-
-            insert_form(
-                &mut form_body,
-                "response_type",
-                Some(res_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(scope_arr) = body.scope {
-            let mut scope_str = String::new();
-            for scope in scope_arr {
-                scope_str += &format!("{} ", scope);
-            }
-
-            insert_form(
-                &mut form_body,
-                "scope",
-                Some(scope_str.trim_end().to_string()),
-            );
-        }
-
-        insert_form(&mut form_body, "state", body.state);
-
-        if let Some(ui_locales_arr) = body.ui_locales {
-            let mut ui_locales_str = String::new();
-            for ui_locale in ui_locales_arr {
-                ui_locales_str += &format!("{} ", ui_locale);
-            }
-
-            insert_form(
-                &mut form_body,
-                "ui_locales",
-                Some(ui_locales_str.trim_end().to_string()),
-            );
-        }
-
-        if let Some(c) = &body.claims {
-            if let Ok(v) = serde_json::to_value(c) {
-                form_body.insert("claims".to_string(), v);
-            }
-        }
+        let form_body: HashMap<String, Value> = body.into();
 
         let req = Request {
             form: Some(form_body),
@@ -2769,17 +2312,5 @@ impl Client {
             extras,
             params.max_age,
         ))
-    }
-}
-
-fn insert_query(qp: &mut HashMap<String, String>, key: &str, value: Option<String>) {
-    if let Some(v) = value {
-        qp.insert(key.to_string(), v);
-    }
-}
-
-fn insert_form(f: &mut HashMap<String, Value>, key: &str, value: Option<String>) {
-    if let Some(v) = value {
-        f.insert(key.to_string(), json!(v));
     }
 }

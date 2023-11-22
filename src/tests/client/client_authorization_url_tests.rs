@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use crate::{
     client::client::client_test::helpers::get_query,
     issuer::Issuer,
-    types::{
-        AuthorizationParameters, ClaimParam, ClaimParamValue, ClientMetadata, IssuerMetadata,
-        ResourceParam,
-    },
+    types::{AuthorizationParameters, ClaimParam, ClaimParamValue, ClientMetadata, IssuerMetadata},
 };
 
 use crate::client::Client;
@@ -261,7 +258,7 @@ fn allows_any_other_params_to_be_provide_too() {
 
     let auth_params = AuthorizationParameters {
         state: Some("state".to_string()),
-        other,
+        other: Some(other),
         ..Default::default()
     };
 
@@ -276,10 +273,10 @@ fn allows_resource_to_passed_as_an_array() {
     let clients = setup_clients();
 
     let auth_params = AuthorizationParameters {
-        resource: Some(ResourceParam::Array(vec![
+        resource: Some(vec![
             "urn:example:com".to_string(),
             "urn:example-2:com".to_string(),
-        ])),
+        ]),
         ..Default::default()
     };
 
@@ -288,7 +285,7 @@ fn allows_resource_to_passed_as_an_array() {
     assert!(url
         .query()
         .unwrap()
-        .contains("resource=urn%3Aexample%3Acom&resource=urn%3Aexample-2%3Acom"));
+        .contains("resource=urn%3Aexample%3Acom+urn%3Aexample-2%3Acom"));
 }
 
 #[test]
