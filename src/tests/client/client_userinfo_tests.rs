@@ -3,7 +3,6 @@ use crate::tests::test_interceptors::get_default_test_interceptor;
 use crate::tokenset::{TokenSet, TokenSetParams};
 use crate::types::{ClientMetadata, IssuerMetadata, UserinfoOptions};
 use httpmock::{Method, MockServer};
-use serde_json::json;
 use std::collections::HashMap;
 
 #[tokio::test]
@@ -395,7 +394,7 @@ async fn can_add_extra_params_in_a_body_when_post() {
     options.method = reqwest::Method::POST;
     options.via = "body".to_string();
     let mut params = HashMap::new();
-    params.insert("foo".to_string(), json!("bar"));
+    params.insert("foo".to_string(), "bar".to_string());
     options.params = Some(params);
 
     let _ = client.userinfo_async(&token_set, options).await.unwrap();
@@ -449,7 +448,7 @@ async fn can_add_extra_params_in_a_body_when_post_but_via_header() {
     options.method = reqwest::Method::POST;
 
     let mut params = HashMap::new();
-    params.insert("foo".to_string(), json!("bar"));
+    params.insert("foo".to_string(), "bar".to_string());
     options.params = Some(params);
 
     let _ = client.userinfo_async(&token_set, options).await.unwrap();
@@ -499,7 +498,7 @@ async fn can_add_extra_params_in_a_query_when_non_post() {
     let mut options = UserinfoOptions::default();
 
     let mut params = HashMap::new();
-    params.insert("foo".to_string(), json!("bar"));
+    params.insert("foo".to_string(), "bar".to_string());
     options.params = Some(params);
 
     let _ = client.userinfo_async(&token_set, options).await.unwrap();

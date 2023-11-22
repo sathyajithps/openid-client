@@ -1636,13 +1636,11 @@ impl Client {
         if let Some(params) = &options.params {
             if options.method == Method::GET {
                 for (k, v) in params {
-                    if let Some(v_str) = v.as_str() {
-                        url.query_pairs_mut().append_pair(k, v_str);
-                    }
+                    url.query_pairs_mut().append_pair(k, v);
                 }
             } else if options.via == "body" && options.method == Method::POST {
                 for (k, v) in params {
-                    form_body.insert(k.to_owned(), v.to_owned());
+                    form_body.insert(k.to_owned(), json!(v.to_owned()));
                 }
             } else {
                 req.headers.remove("Content-Type");
@@ -1651,7 +1649,7 @@ impl Client {
                     HeaderValue::from_static("application/x-www-form-urlencoded"),
                 );
                 for (k, v) in params {
-                    form_body.insert(k.to_owned(), v.to_owned());
+                    form_body.insert(k.to_owned(), json!(v.to_owned()));
                 }
             }
         }

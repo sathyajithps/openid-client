@@ -348,7 +348,10 @@ async fn handles_dpop_nonce_in_userinfo() {
 
     let mut other = HashMap::new();
 
-    other.insert("only_for_fail_test".to_string(), json!("doesntaffecttest"));
+    other.insert(
+        "only_for_fail_test".to_string(),
+        "doesntaffecttest".to_string(),
+    );
 
     let options3 = UserinfoOptions {
         dpop: Some(key.clone()),
