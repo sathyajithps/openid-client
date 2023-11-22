@@ -23,8 +23,8 @@ use crate::{
     http::request_async,
     tokenset::TokenSet,
     types::{
-        query_keystore::QueryKeyStore, AuthenticationPostParams, AuthorizationParameters,
-        OidcClientError, Response,
+        authentication_post_param::AuthenticationPostParams, query_keystore::QueryKeyStore,
+        AuthorizationParameters, OidcClientError, Response,
     },
 };
 use crate::{jwks::jwks::CustomJwk, types::Request};

@@ -1,7 +1,7 @@
 //! # Types Module
 //! All the types, response, request, error etc are in this module
 
-mod authentication_post_param;
+pub(crate) mod authentication_post_param;
 mod authorization_parameters;
 mod callback_params;
 mod client_metadata;
@@ -27,7 +27,6 @@ mod revoke_extras;
 mod userinfo_options;
 mod webfinger;
 
-pub use authentication_post_param::AuthenticationPostParams;
 pub use authorization_parameters::{
     AuthorizationParameters, ClaimParam, ClaimParamValue, ClaimsParameterMember, ResourceParam,
 };

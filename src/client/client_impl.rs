@@ -22,8 +22,8 @@ use crate::{
     helpers::convert_json_to,
     tokenset::{TokenSet, TokenSetParams},
     types::{
-        AuthenticationPostParams, AuthorizationParameters, EndSessionParameters, OidcClientError,
-        ResourceParam,
+        authentication_post_param::AuthenticationPostParams, AuthorizationParameters,
+        EndSessionParameters, OidcClientError, ResourceParam,
     },
 };
 
