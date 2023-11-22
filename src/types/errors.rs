@@ -155,8 +155,6 @@ impl OidcClientError {
         )
     }
 
-    // TODO: remove
-    #[allow(dead_code)]
     pub(crate) fn new_rp_error(
         message: &str,
         response: Option<Response>,
