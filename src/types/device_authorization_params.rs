@@ -10,7 +10,7 @@ pub struct DeviceAuthorizationParams {
     pub client_id: Option<String>,
     /// Scopes to request with
     pub scope: Option<Vec<String>>,
-    /// Max age allowed for token
+    /// Max age allowed for token in seconds
     pub max_age: Option<u64>,
     /// Other values that needs to be sent with the request
     pub other: HashMap<String, Value>,
