@@ -13,7 +13,6 @@ pub struct UserinfoOptions {
     /// Additional params to sent with the userinfo request
     pub params: Option<HashMap<String, String>>,
     /// When provided the client will send a DPoP Proof JWT.
-    /// The DPoP Proof JWT's algorithm is determined automatically based on the type of key and the issuer metadata.
     pub dpop: Option<Jwk>,
 }
 
