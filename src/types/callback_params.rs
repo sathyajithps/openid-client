@@ -4,8 +4,11 @@ use josekit::{jwk::Jwk, jwt::JwtPayload};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::helpers::get_serde_value_as_string;
+
 /// # CallbackParams
-/// These are the fields that was recieved from the Authorization server to the client
+/// These are the fields that is recieved from the Authorization server to the client.
+/// Which of these fields are present will depend up on the type of authorization request
 #[derive(Default, Serialize, Deserialize, Debug)]
 pub struct CallbackParams {
     /// Access token obtained
@@ -30,9 +33,9 @@ pub struct CallbackParams {
     pub session_state: Option<String>,
     /// The JARM response
     pub response: Option<String>,
-    /// Issuer
+    /// Issuer url
     pub iss: Option<String>,
-    /// Other fields from Auth server
+    /// Other fields received from Auth server
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub other: Option<HashMap<String, Value>>,
 }
@@ -70,7 +73,7 @@ impl CallbackParams {
 
     fn json_value_to_string_option(value: Option<&Value>) -> Option<String> {
         if let Some(v) = value {
-            return v.as_str().map(|x| x.to_string());
+            return get_serde_value_as_string(v).ok();
         }
 
         None
