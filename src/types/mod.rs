@@ -28,7 +28,7 @@ mod userinfo_options;
 mod webfinger;
 
 pub use authorization_parameters::{
-    AuthorizationParameters, ClaimParam, ClaimParamValue, ClaimsParameterMember, ResourceParam,
+    AuthorizationParameters, ClaimParam, ClaimParamValue, ClaimsParameterMember,
 };
 pub use callback_params::{
     CallbackExtras, CallbackParams, OAuthCallbackChecks, OpenIDCallbackChecks,

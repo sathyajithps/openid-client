@@ -105,7 +105,7 @@ fn allows_any_other_params_to_be_provide_too() {
 
     let auth_params = AuthorizationParameters {
         state: Some("state".to_string()),
-        other,
+        other: Some(other),
         ..Default::default()
     };
 
