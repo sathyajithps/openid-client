@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use serde_json::{json, Value};
-
 use crate::{
     client::{client::client_test::helpers::get_query, Client},
     issuer::Issuer,
@@ -186,9 +184,9 @@ fn allows_for_recommended_and_optional_query_params_to_be_passed_in_1() {
 fn allows_for_recommended_and_optional_query_params_to_be_passed_in_2() {
     let client = setup_clients().client_with_query;
 
-    let mut other: HashMap<String, Value> = HashMap::new();
+    let mut other: HashMap<String, String> = HashMap::new();
 
-    other.insert("foo".to_string(), json!("this will be ignored"));
+    other.insert("foo".to_string(), "this will be ignored".to_string());
 
     let url = client
         .end_session_url(EndSessionParameters {

@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use serde_json::Value;
-
 /// # EndSessionParameters
 /// Parameters for customizing [`crate::client::Client::end_session_url()`]
 #[derive(Debug, Default)]
@@ -17,5 +15,5 @@ pub struct EndSessionParameters {
     /// [Logout hint](https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout)
     pub logout_hint: Option<String>,
     /// Other fields
-    pub other: Option<HashMap<String, Value>>,
+    pub other: Option<HashMap<String, String>>,
 }
