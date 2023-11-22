@@ -11,6 +11,5 @@ pub struct RefreshTokenExtras {
     /// Additional body params to sent with the exchange request
     pub exchange_body: Option<HashMap<String, Value>>,
     /// When provided the client will send a DPoP Proof JWT.
-    /// The DPoP Proof JWT's algorithm is determined automatically based on the type of key and the issuer metadata.
     pub dpop: Option<Jwk>,
 }
