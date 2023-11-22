@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::jwks::Jwks;
 
 /// # Client Metadata
+/// This struct is used to create a client as well as to register a client.
+/// This is why you would see `Option<bool>` in places. Set it explicitly to register a client or
+/// create one
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq, Clone)]
 pub struct ClientMetadata {
     /// Client Id
@@ -151,5 +154,5 @@ pub struct ClientMetadata {
     pub dpop_bound_access_tokens: Option<bool>,
     /// Extra key values
     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
-    pub other_fields: HashMap<String, serde_json::Value>,
+    pub other_fields: HashMap<String, String>,
 }

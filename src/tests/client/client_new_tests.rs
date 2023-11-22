@@ -214,12 +214,9 @@ fn validates_the_issuer_has_supported_algs_announced_if_revocation_endpoint_sign
 fn is_able_to_assign_custom_or_non_recognized_properties() {
     let issuer = Issuer::new(IssuerMetadata::default(), None);
 
-    let mut other_fields: HashMap<String, serde_json::Value> = HashMap::new();
+    let mut other_fields: HashMap<String, String> = HashMap::new();
 
-    other_fields.insert(
-        "foo".to_string(),
-        serde_json::Value::String("bar".to_string()),
-    );
+    other_fields.insert("foo".to_string(), "bar".to_string());
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
