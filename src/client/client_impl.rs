@@ -78,7 +78,19 @@ impl Client {
         }
 
         insert_query(&mut query_params, "client_id", parameters.client_id);
-        insert_query(&mut query_params, "acr_values", parameters.acr_values);
+
+        if let Some(acr_arr) = parameters.acr_values {
+            let mut acr_str = String::new();
+            for acr in acr_arr {
+                acr_str += &format!("{} ", acr);
+            }
+
+            insert_query(
+                &mut query_params,
+                "acr_values",
+                Some(acr_str.trim_end().to_string()),
+            );
+        }
 
         if let Some(aud_arr) = parameters.audience {
             let mut aud_str = String::new();
@@ -93,11 +105,18 @@ impl Client {
             );
         }
 
-        insert_query(
-            &mut query_params,
-            "claims_locales",
-            parameters.claims_locales,
-        );
+        if let Some(locale_arr) = parameters.claims_locales {
+            let mut locale_str = String::new();
+            for locale in locale_arr {
+                locale_str += &format!("{} ", locale);
+            }
+
+            insert_query(
+                &mut query_params,
+                "claims_locales",
+                Some(locale_str.trim_end().to_string()),
+            );
+        }
         insert_query(
             &mut query_params,
             "code_challenge_method",
@@ -113,7 +132,20 @@ impl Client {
         insert_query(&mut query_params, "login_hint", parameters.login_hint);
         insert_query(&mut query_params, "max_age", parameters.max_age);
         insert_query(&mut query_params, "nonce", parameters.nonce);
-        insert_query(&mut query_params, "prompt", parameters.prompt);
+
+        if let Some(prompt_arr) = parameters.prompt {
+            let mut prompt_str = String::new();
+            for prompt in prompt_arr {
+                prompt_str += &format!("{} ", prompt);
+            }
+
+            insert_query(
+                &mut query_params,
+                "prompt",
+                Some(prompt_str.trim_end().to_string()),
+            );
+        }
+
         insert_query(&mut query_params, "redirect_uri", parameters.redirect_uri);
         insert_query(&mut query_params, "registration", parameters.registration);
         insert_query(&mut query_params, "request_uri", parameters.request_uri);
@@ -147,7 +179,19 @@ impl Client {
         }
 
         insert_query(&mut query_params, "state", parameters.state);
-        insert_query(&mut query_params, "ui_locales", parameters.ui_locales);
+
+        if let Some(ui_locales_arr) = parameters.ui_locales {
+            let mut ui_locales_str = String::new();
+            for ui_locale in ui_locales_arr {
+                ui_locales_str += &format!("{} ", ui_locale);
+            }
+
+            insert_query(
+                &mut query_params,
+                "ui_locales",
+                Some(ui_locales_str.trim_end().to_string()),
+            );
+        }
 
         if let Some(c) = &parameters.claims {
             if let Ok(s) = serde_json::to_string(c) {
@@ -320,7 +364,20 @@ impl Client {
         }
 
         insert_query(&mut query_params, "client_id", params.client_id);
-        insert_query(&mut query_params, "acr_values", params.acr_values);
+
+        if let Some(acr_arr) = params.acr_values {
+            let mut acr_str = String::new();
+            for acr in acr_arr {
+                acr_str += &format!("{} ", acr);
+            }
+
+            insert_query(
+                &mut query_params,
+                "acr_values",
+                Some(acr_str.trim_end().to_string()),
+            );
+        }
+
         if let Some(aud_arr) = params.audience {
             let mut aud_str = String::new();
             for aud in aud_arr {
@@ -333,7 +390,18 @@ impl Client {
                 Some(aud_str.trim_end().to_string()),
             );
         }
-        insert_query(&mut query_params, "claims_locales", params.claims_locales);
+        if let Some(locale_arr) = params.claims_locales {
+            let mut locale_str = String::new();
+            for locale in locale_arr {
+                locale_str += &format!("{} ", locale);
+            }
+
+            insert_query(
+                &mut query_params,
+                "claims_locales",
+                Some(locale_str.trim_end().to_string()),
+            );
+        }
         insert_query(
             &mut query_params,
             "code_challenge_method",
@@ -345,7 +413,20 @@ impl Client {
         insert_query(&mut query_params, "login_hint", params.login_hint);
         insert_query(&mut query_params, "max_age", params.max_age);
         insert_query(&mut query_params, "nonce", params.nonce);
-        insert_query(&mut query_params, "prompt", params.prompt);
+
+        if let Some(prompt_arr) = params.prompt {
+            let mut prompt_str = String::new();
+            for prompt in prompt_arr {
+                prompt_str += &format!("{} ", prompt);
+            }
+
+            insert_query(
+                &mut query_params,
+                "prompt",
+                Some(prompt_str.trim_end().to_string()),
+            );
+        }
+
         insert_query(&mut query_params, "redirect_uri", params.redirect_uri);
         insert_query(&mut query_params, "registration", params.registration);
         insert_query(&mut query_params, "request_uri", params.request_uri);
@@ -378,7 +459,19 @@ impl Client {
         }
 
         insert_query(&mut query_params, "state", params.state);
-        insert_query(&mut query_params, "ui_locales", params.ui_locales);
+
+        if let Some(ui_locales_arr) = params.ui_locales {
+            let mut ui_locales_str = String::new();
+            for ui_locale in ui_locales_arr {
+                ui_locales_str += &format!("{} ", ui_locale);
+            }
+
+            insert_query(
+                &mut query_params,
+                "ui_locales",
+                Some(ui_locales_str.trim_end().to_string()),
+            );
+        }
 
         if let Some(c) = &params.claims {
             if let Ok(s) = serde_json::to_string(c) {
@@ -2170,7 +2263,20 @@ impl Client {
         }
 
         insert_form(&mut form_body, "client_id", body.client_id);
-        insert_form(&mut form_body, "acr_values", body.acr_values);
+
+        if let Some(acr_arr) = body.acr_values {
+            let mut acr_str = String::new();
+            for acr in acr_arr {
+                acr_str += &format!("{} ", acr);
+            }
+
+            insert_form(
+                &mut form_body,
+                "acr_values",
+                Some(acr_str.trim_end().to_string()),
+            );
+        }
+
         if let Some(aud_arr) = body.audience {
             let mut aud_str = String::new();
             for aud in aud_arr {
@@ -2183,7 +2289,20 @@ impl Client {
                 Some(aud_str.trim_end().to_string()),
             );
         }
-        insert_form(&mut form_body, "claims_locales", body.claims_locales);
+
+        if let Some(locale_arr) = body.claims_locales {
+            let mut locale_str = String::new();
+            for locale in locale_arr {
+                locale_str += &format!("{} ", locale);
+            }
+
+            insert_form(
+                &mut form_body,
+                "claims_locales",
+                Some(locale_str.trim_end().to_string()),
+            );
+        }
+
         insert_form(
             &mut form_body,
             "code_challenge_method",
@@ -2195,7 +2314,20 @@ impl Client {
         insert_form(&mut form_body, "login_hint", body.login_hint);
         insert_form(&mut form_body, "max_age", body.max_age);
         insert_form(&mut form_body, "nonce", body.nonce);
-        insert_form(&mut form_body, "prompt", body.prompt);
+
+        if let Some(prompt_arr) = body.prompt {
+            let mut prompt_str = String::new();
+            for prompt in prompt_arr {
+                prompt_str += &format!("{} ", prompt);
+            }
+
+            insert_form(
+                &mut form_body,
+                "prompt",
+                Some(prompt_str.trim_end().to_string()),
+            );
+        }
+
         insert_form(&mut form_body, "redirect_uri", body.redirect_uri);
         insert_form(&mut form_body, "registration", body.registration);
         insert_form(&mut form_body, "request_uri", body.request_uri);
@@ -2228,7 +2360,19 @@ impl Client {
         }
 
         insert_form(&mut form_body, "state", body.state);
-        insert_form(&mut form_body, "ui_locales", body.ui_locales);
+
+        if let Some(ui_locales_arr) = body.ui_locales {
+            let mut ui_locales_str = String::new();
+            for ui_locale in ui_locales_arr {
+                ui_locales_str += &format!("{} ", ui_locale);
+            }
+
+            insert_form(
+                &mut form_body,
+                "ui_locales",
+                Some(ui_locales_str.trim_end().to_string()),
+            );
+        }
 
         if let Some(c) = &body.claims {
             if let Ok(v) = serde_json::to_value(c) {
@@ -2359,12 +2503,30 @@ impl Client {
                     auth_params.claims = Some(claims);
                 }
             } else if k == "acr_values" {
-                if let Some(acr_values) = v.as_str() {
-                    auth_params.acr_values = Some(acr_values.to_string());
+                if let Some(acr_values) = v.as_array() {
+                    if !acr_values.is_empty() {
+                        let mut acr_arr = vec![];
+                        for acr in acr_values {
+                            if let Some(a) = acr.as_str() {
+                                acr_arr.push(a.to_string());
+                            }
+                        }
+
+                        auth_params.acr_values = Some(acr_arr);
+                    }
                 }
             } else if k == "claims_locales" {
-                if let Some(claims_locales) = v.as_str() {
-                    auth_params.claims_locales = Some(claims_locales.to_string());
+                if let Some(claims_locales) = v.as_array() {
+                    if !claims_locales.is_empty() {
+                        let mut locale_arr = vec![];
+                        for locale in claims_locales {
+                            if let Some(a) = locale.as_str() {
+                                locale_arr.push(a.to_string());
+                            }
+                        }
+
+                        auth_params.claims_locales = Some(locale_arr);
+                    }
                 }
             } else if k == "client_id" {
                 if let Some(client_id) = v.as_str() {
@@ -2399,8 +2561,17 @@ impl Client {
                     auth_params.nonce = Some(nonce.to_string());
                 }
             } else if k == "prompt" {
-                if let Some(prompt) = v.as_str() {
-                    auth_params.prompt = Some(prompt.to_string());
+                if let Some(prompt) = v.as_array() {
+                    if !prompt.is_empty() {
+                        let mut prompt_arr = vec![];
+                        for prompt in prompt {
+                            if let Some(a) = prompt.as_str() {
+                                prompt_arr.push(a.to_string());
+                            }
+                        }
+
+                        auth_params.prompt = Some(prompt_arr);
+                    }
                 }
             } else if k == "registration" {
                 if let Some(registration) = v.as_str() {
@@ -2427,8 +2598,17 @@ impl Client {
                     auth_params.state = Some(state.to_string());
                 }
             } else if k == "ui_locales" {
-                if let Some(ui_locales) = v.as_str() {
-                    auth_params.ui_locales = Some(ui_locales.to_string());
+                if let Some(ui_locales) = v.as_array() {
+                    if !ui_locales.is_empty() {
+                        let mut ui_locales_arr = vec![];
+                        for ui_locale in ui_locales {
+                            if let Some(a) = ui_locale.as_str() {
+                                ui_locales_arr.push(a.to_string());
+                            }
+                        }
+
+                        auth_params.ui_locales = Some(ui_locales_arr);
+                    }
                 }
             } else {
                 auth_params.other.insert(k, get_serde_value_as_string(&v)?);
@@ -2444,7 +2624,20 @@ impl Client {
         }
 
         insert_form(&mut form_body, "client_id", body.client_id);
-        insert_form(&mut form_body, "acr_values", body.acr_values);
+
+        if let Some(acr_arr) = body.acr_values {
+            let mut acr_str = String::new();
+            for acr in acr_arr {
+                acr_str += &format!("{} ", acr);
+            }
+
+            insert_form(
+                &mut form_body,
+                "acr_values",
+                Some(acr_str.trim_end().to_string()),
+            );
+        }
+
         if let Some(aud_arr) = body.audience {
             let mut aud_str = String::new();
             for aud in aud_arr {
@@ -2457,7 +2650,20 @@ impl Client {
                 Some(aud_str.trim_end().to_string()),
             );
         }
-        insert_form(&mut form_body, "claims_locales", body.claims_locales);
+
+        if let Some(locale_arr) = body.claims_locales {
+            let mut locale_str = String::new();
+            for locale in locale_arr {
+                locale_str += &format!("{} ", locale);
+            }
+
+            insert_form(
+                &mut form_body,
+                "claims_locales",
+                Some(locale_str.trim_end().to_string()),
+            );
+        }
+
         insert_form(
             &mut form_body,
             "code_challenge_method",
@@ -2469,7 +2675,20 @@ impl Client {
         insert_form(&mut form_body, "login_hint", body.login_hint);
         insert_form(&mut form_body, "max_age", body.max_age);
         insert_form(&mut form_body, "nonce", body.nonce);
-        insert_form(&mut form_body, "prompt", body.prompt);
+
+        if let Some(prompt_arr) = body.prompt {
+            let mut prompt_str = String::new();
+            for prompt in prompt_arr {
+                prompt_str += &format!("{} ", prompt);
+            }
+
+            insert_form(
+                &mut form_body,
+                "prompt",
+                Some(prompt_str.trim_end().to_string()),
+            );
+        }
+
         insert_form(&mut form_body, "redirect_uri", body.redirect_uri);
         insert_form(&mut form_body, "registration", body.registration);
         insert_form(&mut form_body, "request_uri", body.request_uri);
@@ -2502,7 +2721,19 @@ impl Client {
         }
 
         insert_form(&mut form_body, "state", body.state);
-        insert_form(&mut form_body, "ui_locales", body.ui_locales);
+
+        if let Some(ui_locales_arr) = body.ui_locales {
+            let mut ui_locales_str = String::new();
+            for ui_locale in ui_locales_arr {
+                ui_locales_str += &format!("{} ", ui_locale);
+            }
+
+            insert_form(
+                &mut form_body,
+                "ui_locales",
+                Some(ui_locales_str.trim_end().to_string()),
+            );
+        }
 
         if let Some(c) = &body.claims {
             if let Ok(v) = serde_json::to_value(c) {
