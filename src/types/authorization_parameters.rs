@@ -8,13 +8,13 @@ use serde_json::Value;
 #[derive(Debug, Default)]
 pub struct AuthorizationParameters {
     /// [Auth Context Class Reference Values](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub acr_values: Option<String>,
+    pub acr_values: Option<Vec<String>>,
     /// Audience of the Access Token
     pub audience: Option<Vec<String>>,
     /// Claims customization for `id_token` and `userinfo`
     pub claims: Option<ClaimParam>,
     /// Preferred [language script](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest) for claims
-    pub claims_locales: Option<String>,
+    pub claims_locales: Option<Vec<String>>,
     /// [Client Id](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
     pub client_id: Option<String>,
     /// [PKCE code challenge method](https://datatracker.ietf.org/doc/html/rfc7636)
@@ -33,7 +33,7 @@ pub struct AuthorizationParameters {
     /// [Nonce](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
     pub nonce: Option<String>,
     /// [Prompt Parameter](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub prompt: Option<String>,
+    pub prompt: Option<Vec<String>>,
     /// [Redirect Uri](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
     /// to which response will be sent
     pub redirect_uri: Option<String>,
@@ -55,7 +55,7 @@ pub struct AuthorizationParameters {
     /// [State Parameter](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
     pub state: Option<String>,
     /// Preferred [language script](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest) for UI
-    pub ui_locales: Option<String>,
+    pub ui_locales: Option<Vec<String>>,
     /// Other fields
     pub other: HashMap<String, String>,
 }
