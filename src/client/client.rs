@@ -26,7 +26,7 @@ pub struct Client {
     pub(crate) registration_client_uri: Option<String>,
     pub(crate) client_id_issued_at: Option<i64>,
     pub(crate) client_secret_expires_at: Option<i64>,
-    pub(crate) token_endpoint_auth_method: String,
+    pub(crate) token_endpoint_auth_method: Option<String>,
     pub(crate) token_endpoint_auth_signing_alg: Option<String>,
     pub(crate) introspection_endpoint_auth_method: Option<String>,
     pub(crate) introspection_endpoint_auth_signing_alg: Option<String>,
@@ -83,7 +83,7 @@ impl Client {
             registration_client_uri: None,
             client_id_issued_at: None,
             client_secret_expires_at: None,
-            token_endpoint_auth_method: "client_secret_basic".to_string(),
+            token_endpoint_auth_method: Some("client_secret_basic".to_string()),
             token_endpoint_auth_signing_alg: None,
             introspection_endpoint_auth_method: None,
             introspection_endpoint_auth_signing_alg: None,
@@ -235,13 +235,13 @@ impl Client {
         }
 
         if let Some(team) = metadata.token_endpoint_auth_method {
-            client.token_endpoint_auth_method = team;
+            client.token_endpoint_auth_method = Some(team);
         } else if let Some(iss) = issuer {
             if let Some(teams) = &iss.token_endpoint_auth_methods_supported {
-                if !teams.contains(&client.token_endpoint_auth_method)
-                    && teams.contains(&"client_secret_post".to_string())
-                {
-                    client.token_endpoint_auth_method = "client_secret_post".to_string();
+                if let Some(team) = &client.token_endpoint_auth_method {
+                    if !teams.contains(team) && teams.contains(&"client_secret_post".to_string()) {
+                        client.token_endpoint_auth_method = Some("client_secret_post".to_string());
+                    }
                 }
             }
         }
@@ -269,7 +269,7 @@ impl Client {
         if let Some(iss) = issuer {
             if iss.token_endpoint.is_some() {
                 Self::assert_signing_alg_values_support(
-                    &Some(client.token_endpoint_auth_method.clone()),
+                    &client.token_endpoint_auth_method.clone(),
                     &client.token_endpoint_auth_signing_alg,
                     &iss.token_endpoint_auth_signing_alg_values_supported,
                     "token",
@@ -705,7 +705,7 @@ impl Client {
             registration_client_uri: self.registration_client_uri.clone(),
             client_id_issued_at: self.client_id_issued_at,
             client_secret_expires_at: self.client_secret_expires_at,
-            token_endpoint_auth_method: Some(self.token_endpoint_auth_method.clone()),
+            token_endpoint_auth_method: self.token_endpoint_auth_method.clone(),
             token_endpoint_auth_signing_alg: self.token_endpoint_auth_signing_alg.clone(),
             introspection_endpoint_auth_method: self.introspection_endpoint_auth_method.clone(),
             introspection_endpoint_auth_signing_alg: self

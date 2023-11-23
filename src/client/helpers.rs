@@ -245,7 +245,7 @@ impl Client {
         req.merge_headers(&auth_request);
 
         let auth_method = match endpoint_auth_method {
-            "token" => Some(&self.token_endpoint_auth_method),
+            "token" => self.token_endpoint_auth_method.as_ref(),
             "introspection" => self.introspection_endpoint_auth_method.as_ref(),
             "revocation" => self.revocation_endpoint_auth_method.as_ref(),
             _ => return Err(OidcClientError::new_error("unknown endpoint", None)),
@@ -320,7 +320,7 @@ impl Client {
         client_assertion_payload: Option<&HashMap<String, Value>>,
     ) -> Result<Request, OidcClientError> {
         let endpiont_auth_method = match endpoint {
-            "token" => Some(&self.token_endpoint_auth_method),
+            "token" => self.token_endpoint_auth_method.as_ref(),
             "revocation" => self.revocation_endpoint_auth_method.as_ref(),
             "introspection" => self.introspection_endpoint_auth_method.as_ref(),
             _ => {
@@ -477,7 +477,7 @@ impl Client {
         let (mut alg, endpiont_auth_method) = match endpoint {
             "token" => (
                 self.token_endpoint_auth_signing_alg.as_ref(),
-                Some(&self.token_endpoint_auth_method),
+                self.token_endpoint_auth_method.as_ref(),
             ),
             "revocation" => (
                 self.revocation_endpoint_auth_signing_alg.as_ref(),
@@ -1570,14 +1570,12 @@ impl Client {
         let alg = match private_key_input.key_type().to_lowercase().as_str() {
             "okp" => "EdDSA",
             "ec" => determine_ec_algorithm(private_key_input)?,
-            "rsa" | "rsa-pss" => {
-                private_key_input
-                    .algorithm()
-                    .ok_or(OidcClientError::new_type_error(
-                        "alg not present in private_key_input",
-                        None,
-                    ))?
-            }
+            "rsa" => private_key_input
+                .algorithm()
+                .ok_or(OidcClientError::new_type_error(
+                    "alg not present in private_key_input",
+                    None,
+                ))?,
             _ => {
                 return Err(OidcClientError::new_type_error(
                     "unsupported DPoP private key asymmetric key type",
