@@ -132,6 +132,29 @@ mod when_client_secret_post {
             error.error.message
         );
     }
+
+    #[test]
+    fn allows_client_secret_to_be_empty_string() {
+        let issuer = Issuer::new(IssuerMetadata::default(), None);
+
+        let client_metadata = ClientMetadata {
+            client_id: Some("an:identifier".to_string()),
+            client_secret: Some("".to_string()),
+            token_endpoint_auth_method: Some("client_secret_post".to_string()),
+            ..Default::default()
+        };
+
+        let client = issuer
+            .client(client_metadata, None, None, None, None)
+            .unwrap();
+
+        let req = client.auth_for("token", None).unwrap();
+
+        let form = req.form.unwrap();
+
+        assert_eq!("an:identifier", form.get("client_id").unwrap());
+        assert_eq!("", form.get("client_secret").unwrap());
+    }
 }
 
 #[cfg(test)]
@@ -248,6 +271,28 @@ mod when_client_secret_basic {
         assert_eq!(
             "client_secret_basic client authentication method requires a client_secret",
             error.error.message
+        );
+    }
+
+    #[test]
+    fn allows_client_secret_to_be_empty_string() {
+        let issuer = Issuer::new(IssuerMetadata::default(), None);
+
+        let client_metadata = ClientMetadata {
+            client_id: Some("an:identifier".to_string()),
+            client_secret: Some("".to_string()),
+            ..Default::default()
+        };
+
+        let client = issuer
+            .client(client_metadata, None, None, None, None)
+            .unwrap();
+
+        let req = client.auth_for("token", None).unwrap();
+
+        assert_eq!(
+            "Basic YW4lM0FpZGVudGlmaWVyOg==",
+            req.headers.get("authorization").unwrap()
         );
     }
 }
