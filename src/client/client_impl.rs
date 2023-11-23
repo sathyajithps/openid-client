@@ -18,7 +18,7 @@ use crate::jwks::jwks::CustomJwk;
 use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
     CallbackExtras, CallbackParams, ClaimParam, DeviceAuthorizationExtras,
-    DeviceAuthorizationParams, DeviceAuthorizationResponse, GrantExtras, IntrospectionExtras,
+    DeviceAuthorizationParams, DeviceAuthorizationResponse, Fapi, GrantExtras, IntrospectionExtras,
     OAuthCallbackChecks, OpenIDCallbackChecks, PushedAuthorizationRequestExtras,
     RefreshTokenExtras, Request, RequestResourceOptions, Response, RevokeExtras, UserinfoOptions,
 };
@@ -38,6 +38,16 @@ impl Client {
     /// Returns if the client is fapi or not
     pub fn is_fapi(&self) -> bool {
         self.fapi.is_some()
+    }
+
+    /// Returns if the client is fapi 1 or not
+    pub fn is_fapi1(&self) -> bool {
+        self.fapi.as_ref().is_some_and(|x| matches!(x, Fapi::V1))
+    }
+
+    /// Returns if the client is fapi 2 or not
+    pub fn is_fapi2(&self) -> bool {
+        self.fapi.as_ref().is_some_and(|x| matches!(x, Fapi::V2))
     }
 
     /// # Authorization Url
