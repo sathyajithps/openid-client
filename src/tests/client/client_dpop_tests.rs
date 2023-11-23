@@ -597,7 +597,9 @@ async fn handles_dpop_nonce_in_request_resource() {
         .unwrap_err();
 
     assert!(err.is_op_error());
-    assert_eq!("invalid_dpop_proof", err.op_error().error.error);
+    let op_error = err.op_error();
+    assert_eq!("invalid_dpop_proof", op_error.error.error);
+    assert_eq!("400", op_error.response.unwrap().status.as_str());
 }
 
 #[tokio::test]

@@ -23,7 +23,6 @@ struct TestData {
     pub client: Client,
     pub client_with_3rd_party: Client,
     pub client_with_3rd_parties: Client,
-    pub fapi_client: Client,
 }
 
 fn get_token_set(id_token: String, access_token: Option<String>, code: Option<String>) -> TokenSet {
@@ -134,23 +133,12 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
         )
         .unwrap();
 
-    let fapi_client_metadata = ClientMetadata {
-        client_id: Some("identifier".to_string()),
-        token_endpoint_auth_method: Some("tls_client_auth".to_string()),
-        ..Default::default()
-    };
-
-    let fapi_client = issuer
-        .client(fapi_client_metadata, None, None, None, Some(Fapi::V1))
-        .unwrap();
-
     TestData {
         jwk,
         issuer,
         client,
         client_with_3rd_party,
         client_with_3rd_parties,
-        fapi_client,
     }
 }
 
@@ -1428,25 +1416,58 @@ async fn validates_c_hash_presence_for_hybrid_flow() {
 
 #[tokio::test]
 async fn fapi_client_validates_s_hash_presence() {
-    let code = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
-    let c_hash = "77QmUPtjPfzWtF2AnpK9RQ";
-
     let mock_server = MockServer::start();
 
-    let mut test_data = get_test_data(&mock_server);
+    let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+
+    jwk.set_algorithm("PS256");
+
+    let jwks = Jwks::from(vec![jwk.clone()]);
+
+    let _ = mock_server.mock(|when, then| {
+        when.method(GET)
+            .header("Accept", "application/json,application/jwk-set+json")
+            .path("/certs");
+        then.status(200)
+            .body(serde_json::to_string(&jwks.get_public_jwks()).unwrap());
+    });
+
+    let issuer_metadata = IssuerMetadata {
+        issuer: "https://op.example.com".to_string(),
+        jwks_uri: Some("https://op.example.com/certs".to_string()),
+        ..Default::default()
+    };
+
+    let issuer = Issuer::new(
+        issuer_metadata,
+        get_default_test_interceptor(Some(mock_server.port())),
+    );
+
+    let fapi_client_metadata = ClientMetadata {
+        client_id: Some("identifier".to_string()),
+        token_endpoint_auth_method: Some("tls_client_auth".to_string()),
+        ..Default::default()
+    };
+
+    let mut fapi_client = issuer
+        .client(fapi_client_metadata, None, None, None, Some(Fapi::V1))
+        .unwrap();
+
+    let code = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
+    let c_hash = "77QmUPtjPfzWtF2AnpK9RQ";
 
     let time = now();
 
     let payload = vec![
-        ("iss".to_string(), json!(test_data.issuer.issuer)),
+        ("iss".to_string(), json!(issuer.issuer)),
         ("sub".to_string(), json!("userId")),
-        ("aud".to_string(), json!(test_data.fapi_client.client_id)),
+        ("aud".to_string(), json!(fapi_client.client_id)),
         ("exp".to_string(), json!(time + 3600)),
         ("iat".to_string(), json!(time)),
         ("c_hash".to_string(), json!(c_hash)),
     ];
 
-    let id_token = get_id_token(&test_data.jwk, "PS256", payload);
+    let id_token = get_id_token(&jwk, "PS256", payload);
 
     let params = CallbackParams {
         id_token: Some(id_token.clone()),
@@ -1463,8 +1484,7 @@ async fn fapi_client_validates_s_hash_presence() {
         ..Default::default()
     };
 
-    let err = test_data
-        .fapi_client
+    let err = fapi_client
         .callback_async(None, params, Some(checks), None)
         .await
         .unwrap_err();
@@ -1478,28 +1498,61 @@ async fn fapi_client_validates_s_hash_presence() {
 
 #[tokio::test]
 async fn fapi_client_checks_iat_is_fresh() {
+    let mock_server = MockServer::start();
+
+    let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+
+    jwk.set_algorithm("PS256");
+
+    let jwks = Jwks::from(vec![jwk.clone()]);
+
+    let _ = mock_server.mock(|when, then| {
+        when.method(GET)
+            .header("Accept", "application/json,application/jwk-set+json")
+            .path("/certs");
+        then.status(200)
+            .body(serde_json::to_string(&jwks.get_public_jwks()).unwrap());
+    });
+
+    let issuer_metadata = IssuerMetadata {
+        issuer: "https://op.example.com".to_string(),
+        jwks_uri: Some("https://op.example.com/certs".to_string()),
+        ..Default::default()
+    };
+
+    let issuer = Issuer::new(
+        issuer_metadata,
+        get_default_test_interceptor(Some(mock_server.port())),
+    );
+
+    let fapi_client_metadata = ClientMetadata {
+        client_id: Some("identifier".to_string()),
+        token_endpoint_auth_method: Some("tls_client_auth".to_string()),
+        ..Default::default()
+    };
+
+    let mut fapi_client = issuer
+        .client(fapi_client_metadata, None, None, None, Some(Fapi::V1))
+        .unwrap();
+
     let code = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
     let c_hash = "77QmUPtjPfzWtF2AnpK9RQ";
     let s_hash = "LCa0a2j_xo_5m0U8HTBBNA";
-
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
 
     let time = now();
     let iat = time - 3601;
 
     let payload = vec![
-        ("iss".to_string(), json!(test_data.issuer.issuer)),
+        ("iss".to_string(), json!(issuer.issuer)),
         ("sub".to_string(), json!("userId")),
-        ("aud".to_string(), json!(test_data.fapi_client.client_id)),
+        ("aud".to_string(), json!(fapi_client.client_id)),
         ("exp".to_string(), json!(time + 3600)),
         ("iat".to_string(), json!(iat)),
         ("c_hash".to_string(), json!(c_hash)),
         ("s_hash".to_string(), json!(s_hash)),
     ];
 
-    let id_token = get_id_token(&test_data.jwk, "PS256", payload);
+    let id_token = get_id_token(&jwk, "PS256", payload);
 
     let params = CallbackParams {
         id_token: Some(id_token.clone()),
@@ -1516,8 +1569,7 @@ async fn fapi_client_checks_iat_is_fresh() {
         ..Default::default()
     };
 
-    let err = test_data
-        .fapi_client
+    let err = fapi_client
         .callback_async(None, params, Some(checks), None)
         .await
         .unwrap_err();
