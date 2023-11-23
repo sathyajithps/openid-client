@@ -701,7 +701,7 @@ impl Client {
 
         let url = validate_url(issuer.registration_endpoint.as_ref().unwrap())?;
 
-        let body = serde_json::to_value(client_metadata).map_err(|_| {
+        let body = serde_json::to_string(&client_metadata).map_err(|_| {
             OidcClientError::new_error("client metadata is an invalid json format", None)
         })?;
 
