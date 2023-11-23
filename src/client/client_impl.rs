@@ -2243,10 +2243,12 @@ impl Client {
             .as_ref()
             .and_then(|x| x.client_assertion_payload.as_ref());
 
+        let dpop = extras.as_ref().and_then(|x| x.dpop.as_ref());
+
         let params = AuthenticationPostParams {
             client_assertion_payload,
             endpoint_auth_method: Some("token"),
-            ..Default::default()
+            dpop,
         };
 
         let res = self
