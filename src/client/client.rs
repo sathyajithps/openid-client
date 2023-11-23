@@ -329,7 +329,7 @@ impl Client {
             client.id_token_signed_response_alg = alg;
         }
 
-        if let Some(Fapi::V1) = client.fapi.as_ref() {
+        if client.is_fapi1() {
             match client.token_endpoint_auth_method.as_deref() {
                 Some("private_key_jwt") => {
                     if client.private_jwks.is_none() {
@@ -352,7 +352,7 @@ impl Client {
             };
         }
 
-        if let Some(Fapi::V2) = client.fapi.as_ref() {
+        if client.is_fapi2() {
             match (
                 client.tls_client_certificate_bound_access_tokens.as_ref(),
                 client.dpop_bound_access_tokens.as_ref(),

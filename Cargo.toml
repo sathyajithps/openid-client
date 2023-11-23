@@ -1,6 +1,6 @@
 [package]
 name = "openid-client"
-version = "0.0.42-alpha"
+version = "0.0.43-alpha"
 edition = "2021"
 license = "MIT"
 description = "Work In Progress OpenId Connect Client"
