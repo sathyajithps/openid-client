@@ -680,7 +680,7 @@ mod response_type_checks {
         };
 
         let checks = OAuthCallbackChecks {
-            response_type: Some("code token".to_string()),
+            response_type: Some("code token"),
             ..Default::default()
         };
 
@@ -711,7 +711,7 @@ mod response_type_checks {
         };
 
         let checks = OAuthCallbackChecks {
-            response_type: Some("code token".to_string()),
+            response_type: Some("code token"),
             ..Default::default()
         };
 
@@ -745,7 +745,7 @@ mod response_type_checks {
         };
 
         let checks = OAuthCallbackChecks {
-            response_type: Some("code token".to_string()),
+            response_type: Some("code token"),
             ..Default::default()
         };
 
@@ -777,7 +777,7 @@ mod response_type_checks {
         };
 
         let checks = OAuthCallbackChecks {
-            response_type: Some("none".to_string()),
+            response_type: Some("none"),
             ..Default::default()
         };
 
@@ -809,7 +809,7 @@ mod response_type_checks {
         };
 
         let checks = OAuthCallbackChecks {
-            response_type: Some("none".to_string()),
+            response_type: Some("none"),
             ..Default::default()
         };
 
@@ -884,7 +884,7 @@ mod state_checks {
         let (_, mut client, _) = get_iss_client_iss(None);
 
         let checks = OAuthCallbackChecks {
-            state: Some("should be this".to_string()),
+            state: Some("should be this"),
             ..Default::default()
         };
 
@@ -916,7 +916,7 @@ mod state_checks {
         };
 
         let checks = OAuthCallbackChecks {
-            state: Some("bar".to_string()),
+            state: Some("bar"),
             ..Default::default()
         };
 

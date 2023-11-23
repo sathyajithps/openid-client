@@ -1478,7 +1478,7 @@ async fn fapi_client_validates_s_hash_presence() {
 
     let checks = OpenIDCallbackChecks {
         oauth_checks: Some(OAuthCallbackChecks {
-            state: Some("foo".to_string()),
+            state: Some("foo"),
             ..Default::default()
         }),
         ..Default::default()
@@ -1563,7 +1563,7 @@ async fn fapi_client_checks_iat_is_fresh() {
 
     let checks = OpenIDCallbackChecks {
         oauth_checks: Some(OAuthCallbackChecks {
-            state: Some("foo".to_string()),
+            state: Some("foo"),
             ..Default::default()
         }),
         ..Default::default()
@@ -1650,7 +1650,7 @@ async fn validates_s_hash() {
 
     let checks = OpenIDCallbackChecks {
         oauth_checks: Some(OAuthCallbackChecks {
-            state: Some(state.to_string()),
+            state: Some(state),
             ..Default::default()
         }),
         ..Default::default()
@@ -1703,7 +1703,7 @@ async fn passes_with_the_right_s_hash() {
 
     let checks = OpenIDCallbackChecks {
         oauth_checks: Some(OAuthCallbackChecks {
-            state: Some(state.to_string()),
+            state: Some(state),
             ..Default::default()
         }),
         ..Default::default()

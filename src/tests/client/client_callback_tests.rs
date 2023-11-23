@@ -105,7 +105,7 @@ async fn resolves_a_tokenset_with_just_a_state_for_response_type_none() {
 
     let checks = OpenIDCallbackChecks {
         oauth_checks: Some(OAuthCallbackChecks {
-            state: Some("state".to_string()),
+            state: Some("state"),
             ..Default::default()
         }),
         ..Default::default()
@@ -186,7 +186,7 @@ mod state_checks {
 
         let checks = OpenIDCallbackChecks {
             oauth_checks: Some(OAuthCallbackChecks {
-                state: Some("should be this".to_string()),
+                state: Some("should be this"),
                 ..Default::default()
             }),
             ..Default::default()
@@ -221,7 +221,7 @@ mod state_checks {
 
         let checks = OpenIDCallbackChecks {
             oauth_checks: Some(OAuthCallbackChecks {
-                state: Some("bar".to_string()),
+                state: Some("bar"),
                 ..Default::default()
             }),
             ..Default::default()
@@ -598,7 +598,7 @@ mod response_type_checks {
 
         let checks = OpenIDCallbackChecks {
             oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("code id_token token".to_string()),
+                response_type: Some("code id_token token"),
                 ..Default::default()
             }),
             ..Default::default()
@@ -633,7 +633,7 @@ mod response_type_checks {
 
         let checks = OpenIDCallbackChecks {
             oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("code id_token token".to_string()),
+                response_type: Some("code id_token token"),
                 ..Default::default()
             }),
             ..Default::default()
@@ -671,7 +671,7 @@ mod response_type_checks {
 
         let checks = OpenIDCallbackChecks {
             oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("code id_token token".to_string()),
+                response_type: Some("code id_token token"),
                 ..Default::default()
             }),
             ..Default::default()
@@ -709,7 +709,7 @@ mod response_type_checks {
 
         let checks = OpenIDCallbackChecks {
             oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("code id_token token".to_string()),
+                response_type: Some("code id_token token"),
                 ..Default::default()
             }),
             ..Default::default()
@@ -744,7 +744,7 @@ mod response_type_checks {
 
         let checks = OpenIDCallbackChecks {
             oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("none".to_string()),
+                response_type: Some("none"),
                 ..Default::default()
             }),
             ..Default::default()
@@ -779,7 +779,7 @@ mod response_type_checks {
 
         let checks = OpenIDCallbackChecks {
             oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("none".to_string()),
+                response_type: Some("none"),
                 ..Default::default()
             }),
             ..Default::default()
@@ -814,7 +814,7 @@ mod response_type_checks {
 
         let checks = OpenIDCallbackChecks {
             oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("none".to_string()),
+                response_type: Some("none"),
                 ..Default::default()
             }),
             ..Default::default()

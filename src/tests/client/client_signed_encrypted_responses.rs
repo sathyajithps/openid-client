@@ -96,9 +96,9 @@ async fn handles_signed_and_encrypted_id_tokens_from_implicit_and_code_responses
     };
 
     let checks = OpenIDCallbackChecks {
-        nonce: Some("c645fffa40075532ef29a2ea627cfa37".to_string()),
+        nonce: Some("c645fffa40075532ef29a2ea627cfa37"),
         oauth_checks: Some(OAuthCallbackChecks {
-            state: Some("36853f4ea7c9d26f4b0b95f126afe6a2".to_string()),
+            state: Some("36853f4ea7c9d26f4b0b95f126afe6a2"),
             ..Default::default()
         }),
         ..Default::default()
@@ -393,7 +393,7 @@ async fn handles_symmetric_encryption() {
     };
 
     let checks = OpenIDCallbackChecks {
-        nonce: Some("9cda9a61a2b01b31aa0b31d3c33631a1".to_string()),
+        nonce: Some("9cda9a61a2b01b31aa0b31d3c33631a1"),
         ..Default::default()
     };
 
