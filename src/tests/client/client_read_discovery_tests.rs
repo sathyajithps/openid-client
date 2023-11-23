@@ -34,9 +34,9 @@ async fn accepts_and_assigns_discovered_metadata() {
     .await
     .unwrap();
 
-    assert_eq!("identifier", client.get_client_id());
+    assert_eq!("identifier", client.client_id);
 
-    assert_eq!("secure", client.get_client_secret().unwrap());
+    assert_eq!("secure", client.client_secret.unwrap());
 }
 
 #[tokio::test]

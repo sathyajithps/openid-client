@@ -238,7 +238,7 @@ impl Client {
             client.token_endpoint_auth_method = team;
         } else if let Some(iss) = issuer {
             if let Some(teams) = &iss.token_endpoint_auth_methods_supported {
-                if !teams.contains(&client.get_token_endpoint_auth_method())
+                if !teams.contains(&client.token_endpoint_auth_method)
                     && teams.contains(&"client_secret_post".to_string())
                 {
                     client.token_endpoint_auth_method = "client_secret_post".to_string();
@@ -252,19 +252,19 @@ impl Client {
 
         client.introspection_endpoint_auth_method = metadata
             .introspection_endpoint_auth_method
-            .or(Some(client.get_token_endpoint_auth_method()));
+            .or(client.token_endpoint_auth_method.clone());
 
         client.introspection_endpoint_auth_signing_alg = metadata
             .introspection_endpoint_auth_signing_alg
-            .or(client.get_token_endpoint_auth_signing_alg());
+            .or(client.token_endpoint_auth_signing_alg.clone());
 
         client.revocation_endpoint_auth_method = metadata
             .revocation_endpoint_auth_method
-            .or(Some(client.get_token_endpoint_auth_method()));
+            .or(client.token_endpoint_auth_method.clone());
 
         client.revocation_endpoint_auth_signing_alg = metadata
             .revocation_endpoint_auth_signing_alg
-            .or(client.get_token_endpoint_auth_signing_alg());
+            .or(client.token_endpoint_auth_signing_alg.clone());
 
         if let Some(iss) = issuer {
             if iss.token_endpoint.is_some() {
@@ -334,6 +334,15 @@ impl Client {
             }
         }
         Ok(())
+    }
+
+    /// Gets the extra fields in client
+    pub fn get_other_fields(&self) -> &HashMap<String, Value> {
+        &self.other_fields
+    }
+
+    fn set_request_interceptor(&mut self, i: RequestInterceptor) {
+        self.request_interceptor = Some(i);
     }
 }
 

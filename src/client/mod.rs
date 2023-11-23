@@ -6,9 +6,6 @@ mod client;
 
 pub(super) mod helpers;
 
-/// Getter & Setter method implementations for Client
-pub mod client_get_set;
-
 /// Implementaion of RP Client methods
 pub mod client_impl;
 
