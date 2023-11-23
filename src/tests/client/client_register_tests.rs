@@ -79,9 +79,9 @@ async fn accepts_and_assigns_the_registered_metadata() {
     .await
     .unwrap();
 
-    assert_eq!("identifier", client.get_client_id());
+    assert_eq!("identifier", client.client_id);
 
-    assert_eq!("secure", client.get_client_secret().unwrap());
+    assert_eq!("secure", client.client_secret.unwrap());
 }
 
 #[tokio::test]
@@ -666,7 +666,7 @@ mod dynamic_registration_defaults_not_supported_by_issuer {
             .unwrap();
         assert_eq!(
             "client_secret_post".to_string(),
-            client.get_token_endpoint_auth_method()
+            client.token_endpoint_auth_method.unwrap()
         );
     }
 }

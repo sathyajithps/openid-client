@@ -35,8 +35,8 @@ fn accepts_the_recognized_metadata() {
 
     let client = client_result.unwrap();
 
-    assert_eq!(client_id, client.get_client_id());
-    assert_eq!(client_secret.unwrap(), client.get_client_secret().unwrap());
+    assert_eq!(client_id, client.client_id.clone());
+    assert_eq!(client_secret.unwrap(), client.client_secret.unwrap());
 }
 
 #[test]
@@ -57,16 +57,13 @@ fn assigns_defaults_to_some_properties() {
 
     let client = client_result.unwrap();
 
-    assert_eq!(client_id, client.get_client_id());
-    assert_eq!(vec!["authorization_code"], client.get_grant_types());
-    assert_eq!(
-        "RS256".to_string(),
-        client.get_id_token_signed_response_alg()
-    );
-    assert_eq!(vec!["code".to_string()], client.get_response_types());
+    assert_eq!(client_id, client.client_id);
+    assert_eq!(vec!["authorization_code"], client.grant_types);
+    assert_eq!("RS256".to_string(), client.id_token_signed_response_alg);
+    assert_eq!(vec!["code".to_string()], client.response_types);
     assert_eq!(
         "client_secret_basic".to_string(),
-        client.get_token_endpoint_auth_method()
+        client.token_endpoint_auth_method.unwrap()
     );
 }
 
@@ -95,14 +92,12 @@ fn autofills_introspection_endpoint_auth_method() {
 
     assert_eq!(
         token_endpoint_auth_method(),
-        client.get_introspection_endpoint_auth_method().unwrap()
+        client.introspection_endpoint_auth_method.unwrap()
     );
 
     assert_eq!(
         token_endpoint_auth_signing_alg(),
-        client
-            .get_introspection_endpoint_auth_signing_alg()
-            .unwrap()
+        client.introspection_endpoint_auth_signing_alg.unwrap()
     );
 }
 
@@ -131,12 +126,12 @@ fn autofills_revocation_endpoint_auth_method() {
 
     assert_eq!(
         token_endpoint_auth_method(),
-        client.get_revocation_endpoint_auth_method().unwrap()
+        client.revocation_endpoint_auth_method.unwrap()
     );
 
     assert_eq!(
         token_endpoint_auth_signing_alg(),
-        client.get_revocation_endpoint_auth_signing_alg().unwrap()
+        client.revocation_endpoint_auth_signing_alg.unwrap()
     );
 }
 
@@ -236,7 +231,7 @@ fn is_able_to_assign_custom_or_non_recognized_properties() {
         .client(client_metadata, None, None, None, None)
         .unwrap();
 
-    assert!(client.get_field("foo").is_some());
+    assert!(client.other_fields.get("foo").is_some());
 }
 
 #[test]
@@ -255,8 +250,8 @@ fn handles_redirect_uri() {
         .client(client_metadata, None, None, None, None)
         .unwrap();
 
-    assert_eq!(redirect_uri(), client.get_redirect_uri().unwrap());
-    assert_eq!(vec![redirect_uri()], client.get_redirect_uris().unwrap());
+    assert_eq!(redirect_uri(), client.redirect_uri.unwrap());
+    assert_eq!(vec![redirect_uri()], client.redirect_uris.unwrap());
 }
 
 #[test]
@@ -298,8 +293,8 @@ fn handles_response_type() {
         .client(client_metadata, None, None, None, None)
         .unwrap();
 
-    assert_eq!(response_type(), client.get_response_type().unwrap());
-    assert_eq!(vec![response_type()], client.get_response_types());
+    assert_eq!(response_type(), client.response_type.unwrap());
+    assert_eq!(vec![response_type()], client.response_types);
 }
 
 #[test]
