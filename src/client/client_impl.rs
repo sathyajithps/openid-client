@@ -142,7 +142,7 @@ impl Client {
             insert_query(
                 &mut query_params,
                 "scope",
-                Some(scope_str.trim_end().to_string()),
+                Some(urlencoding::encode(scope_str.trim_end()).to_string()),
             );
         }
 

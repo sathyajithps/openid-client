@@ -110,6 +110,28 @@ fn auto_stringifies_claims_parameter() {
 }
 
 #[test]
+fn returns_a_space_delimited_scope_parameter() {
+    let clients = setup_clients();
+
+    let auth_params = AuthorizationParameters {
+        state: Some("state".to_string()),
+        scope: Some(vec![
+            "openid".to_string(),
+            "profile".to_string(),
+            "email".to_string(),
+        ]),
+        ..Default::default()
+    };
+
+    let url = clients.client.authorization_url(auth_params).unwrap();
+
+    assert_eq!(
+        Some("openid%20profile%20email".to_string()),
+        get_query(&url, "scope")
+    );
+}
+
+#[test]
 fn returns_a_string_with_the_url_with_some_basic_defaults() {
     let clients = setup_clients();
 
@@ -224,7 +246,7 @@ fn allows_to_overwrite_the_defaults() {
         get_query(&url, "response_type")
     );
     assert_eq!(
-        Some("openid offline_access".to_string()),
+        Some("openid%20offline_access".to_string()),
         get_query(&url, "scope")
     );
 }
