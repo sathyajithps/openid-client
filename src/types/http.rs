@@ -27,7 +27,7 @@ pub struct Request {
     /// Query Params that are send with the request
     pub search_params: HashMap<String, Vec<String>>,
     /// The request body to be sent
-    pub json: Option<Value>,
+    pub json: Option<String>,
     /// The request form body to be sent
     pub form: Option<HashMap<String, Value>>,
     /// The request body to be sent

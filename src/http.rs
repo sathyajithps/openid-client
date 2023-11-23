@@ -83,26 +83,16 @@ pub async fn request_async(
         .timeout(options.timeout);
 
     if let Some(json_body) = &request.json {
-        match serde_json::to_string(json_body) {
-            Ok(serialized) => {
-                headers.remove("content-type");
-                headers.insert("content-type", HeaderValue::from_static("application/json"));
-                headers.remove("content-length");
-                // remove unwrap ?
-                headers.insert(
-                    "content-length",
-                    HeaderValue::from_str(&serialized.as_bytes().len().to_string()).unwrap(),
-                );
+        headers.remove("content-type");
+        headers.insert("content-type", HeaderValue::from_static("application/json"));
+        headers.remove("content-length");
+        // remove unwrap ?
+        headers.insert(
+            "content-length",
+            HeaderValue::from_str(&json_body.as_bytes().len().to_string()).unwrap(),
+        );
 
-                req = req.body(serialized);
-            }
-            _ => {
-                return Err(OidcClientError::new_error(
-                    "error while serializing body to string",
-                    None,
-                ))
-            }
-        }
+        req = req.body(json_body.to_owned());
     } else if let Some(form_body) = &request.form {
         if !form_body.is_empty() {
             let body = value_map_to_form_url_encoded(form_body)?;
