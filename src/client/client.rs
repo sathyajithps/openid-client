@@ -14,6 +14,7 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
 };
+use serde_json::Value;
 
 use super::dpop_nonce_cache::DPoPNonceCache;
 
@@ -75,8 +76,8 @@ pub struct Client {
 }
 
 impl Client {
-    pub(crate) fn default() -> Self {
-        Self {
+    pub(crate) fn default(fapi: Option<Fapi>) -> Self {
+        let mut client = Self {
             client_id: String::new(),
             client_secret: None,
             registration_access_token: None,
@@ -129,14 +130,30 @@ impl Client {
             now,
             dpop_nonce_cache: DPoPNonceCache::new(),
             dpop_bound_access_tokens: None,
-        }
+        };
+
+        match fapi.as_ref() {
+            Some(Fapi::V1) => {
+                client.grant_types = vec!["authorization_code".to_string(), "implicit".to_string()];
+                client.id_token_signed_response_alg = "PS256".to_string();
+                client.authorization_signed_response_alg = Some("PS256".to_string());
+                client.response_types = vec!["code".to_string(), "id_token".to_string()];
+                client.tls_client_certificate_bound_access_tokens = Some(true);
+                client.token_endpoint_auth_method = None;
+            }
+            Some(Fapi::V2) => {
+                client.id_token_signed_response_alg = "PS256".to_string();
+                client.authorization_signed_response_alg = Some("PS256".to_string());
+                client.token_endpoint_auth_method = None;
+            }
+            None => {}
+        };
+
+        client.fapi = fapi;
+
+        client
     }
 
-    /// # Internal documentation
-    /// This method is used to create an instance of [Client] by:
-    ///     - [`Issuer::client()`]
-    ///     - [`Client::from_uri_async()`],
-    ///     - [`Client::register_async()`]
     pub(crate) fn from_internal(
         metadata: ClientMetadata,
         issuer: Option<&Issuer>,
@@ -192,8 +209,7 @@ impl Client {
             authorization_encrypted_response_enc: metadata.authorization_encrypted_response_enc,
             authorization_signed_response_alg: metadata.authorization_signed_response_alg,
             other_fields: metadata.other_fields,
-            fapi,
-            ..Client::default()
+            ..Client::default(fapi)
         };
 
         client.client_options = options;
@@ -311,6 +327,51 @@ impl Client {
 
         if let Some(alg) = metadata.id_token_signed_response_alg {
             client.id_token_signed_response_alg = alg;
+        }
+
+        if let Some(Fapi::V1) = client.fapi.as_ref() {
+            match client.token_endpoint_auth_method.as_deref() {
+                Some("private_key_jwt") => {
+                    if client.private_jwks.is_none() {
+                        return Err(OidcClientError::new_type_error("jwks is required", None));
+                    }
+                }
+                Some("self_signed_tls_client_auth") | Some("tls_client_auth") => {}
+                Some(_) => {
+                    return Err(OidcClientError::new_type_error(
+                        "invalid or unsupported token_endpoint_auth_method",
+                        None,
+                    ));
+                }
+                None => {
+                    return Err(OidcClientError::new_type_error(
+                        "token_endpoint_auth_method is required",
+                        None,
+                    ));
+                }
+            };
+        }
+
+        if let Some(Fapi::V2) = client.fapi.as_ref() {
+            match (
+                client.tls_client_certificate_bound_access_tokens.as_ref(),
+                client.dpop_bound_access_tokens.as_ref(),
+            ) {
+                (Some(&false), Some(&false))
+                | (Some(&false), None)
+                | (None, Some(&false))
+                | (None, None) => return Err(OidcClientError::new_type_error(
+                    "one of tls_client_certificate_bound_access_tokens or dpop_bound_access_tokens must be true",
+                    None,
+                )),
+
+                (Some(&true), Some(&true)) => return Err(OidcClientError::new_type_error(
+                    "only one of tls_client_certificate_bound_access_tokens or dpop_bound_access_tokens must be true",
+                    None,
+                )),
+
+                (_, _) => {},
+            };
         }
 
         Ok(client)
