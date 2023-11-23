@@ -19,8 +19,8 @@ use crate::{
     tokenset::{TokenSet, TokenSetParams},
     types::{
         CallbackExtras, CallbackParams, ClientMetadata, DeviceAuthorizationExtras,
-        DeviceAuthorizationParams, GrantExtras, IssuerMetadata, RefreshTokenExtras,
-        RequestResourceOptions, UserinfoOptions,
+        DeviceAuthorizationParams, GrantExtras, IssuerMetadata, PushedAuthorizationRequestExtras,
+        RefreshTokenExtras, RequestResourceOptions, UserinfoOptions,
     },
 };
 
@@ -53,6 +53,7 @@ fn get_client(port: Option<u16>) -> (Issuer, Client) {
         introspection_endpoint: Some("https://op.example.com/token/introspect".to_string()),
         revocation_endpoint: Some("https://op.example.com/token/revoke".to_string()),
         device_authorization_endpoint: Some("https://op.example.com/device".to_string()),
+        pushed_authorization_request_endpoint: Some("https://op.example.com/par".to_string()),
         dpop_signing_alg_values_supported: Some(vec![
             "PS256".to_string(),
             "PS512".to_string(),
@@ -68,6 +69,7 @@ fn get_client(port: Option<u16>) -> (Issuer, Client) {
     let client_metadata = ClientMetadata {
         client_id: Some("client".to_string()),
         token_endpoint_auth_method: Some("none".to_string()),
+        redirect_uri: Some("https://rp.example.com/cb".to_string()),
         ..Default::default()
     };
 
@@ -827,4 +829,55 @@ async fn is_enabled_for_deviceauthorization() {
     });
 
     handle.grant_async().await.unwrap();
+}
+
+#[tokio::test]
+async fn is_enabled_for_pushed_authorization() {
+    let mock_http_server = MockServer::start();
+
+    let _par = mock_http_server.mock(|when, then| {
+        when.method(POST)
+            .header("Accept", "application/json")
+            .matches(|req| {
+                let decoded =
+                    urlencoding::decode(std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap())
+                        .unwrap();
+
+                let kvp = querystring::querify(&decoded);
+                let binding = req.headers.clone().unwrap();
+                let header = binding.iter().find(|(k, _)| k.to_lowercase() == "dpop");
+
+                let client_id = kvp
+                    .iter()
+                    .find(|(k, v)| k == &"client_id" && v == &"client");
+                let redirect_uri = kvp
+                    .iter()
+                    .find(|(k, v)| k == &"redirect_uri" && v == &"https://rp.example.com/cb");
+                let response_type = kvp
+                    .iter()
+                    .find(|(k, v)| k == &"response_type" && v == &"code");
+                let scope = kvp.iter().find(|(k, v)| k == &"scope" && v == &"openid");
+
+                client_id.is_some()
+                    && redirect_uri.is_some()
+                    && response_type.is_some()
+                    && scope.is_some()
+                    && header.is_some()
+            })
+            .path("/par");
+
+        then.status(201)
+            .body(r#"{"expires_in":60,"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#);
+    });
+
+    let (_, mut client) = get_client(Some(mock_http_server.port()));
+
+    let extras = PushedAuthorizationRequestExtras {
+        dpop: Some(get_rsa_private_key()),
+        client_assertion_payload: None,
+    };
+    client
+        .pushed_authorization_request_async(None, Some(extras))
+        .await
+        .unwrap();
 }
