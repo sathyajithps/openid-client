@@ -422,7 +422,7 @@ impl Client {
         &mut self,
         redirect_uri: Option<&str>,
         mut parameters: CallbackParams,
-        checks: Option<OAuthCallbackChecks>,
+        checks: Option<OAuthCallbackChecks<'_>>,
         extras: Option<CallbackExtras>,
     ) -> Result<TokenSet, OidcClientError> {
         let checks = checks.unwrap_or_default();
@@ -474,8 +474,8 @@ impl Client {
             ));
         }
 
-        if parameters.state != checks.state {
-            let checks_state = checks.state.clone();
+        if parameters.state.as_deref() != checks.state {
+            let checks_state = checks.state;
             let params_state = parameters.state.clone();
 
             let mut extra_data: HashMap<String, Value> = HashMap::new();
@@ -798,7 +798,7 @@ impl Client {
         &mut self,
         redirect_uri: Option<&str>,
         mut parameters: CallbackParams,
-        checks: Option<OpenIDCallbackChecks>,
+        checks: Option<OpenIDCallbackChecks<'_>>,
         extras: Option<CallbackExtras>,
     ) -> Result<TokenSet, OidcClientError> {
         let mut checks = checks.unwrap_or_default();
@@ -856,8 +856,8 @@ impl Client {
             ));
         }
 
-        if parameters.state != oauth_checks.state {
-            let checks_state = oauth_checks.state.clone();
+        if parameters.state.as_deref() != oauth_checks.state {
+            let checks_state = oauth_checks.state;
             let params_state = parameters.state.clone();
 
             let mut extra_data: HashMap<String, Value> = HashMap::new();
@@ -1061,10 +1061,10 @@ impl Client {
             token_set = self
                 .validate_id_token_async(
                     token_set,
-                    checks.nonce.clone(),
+                    checks.nonce.map(|x| x.to_owned()),
                     "authorization",
                     checks.max_age,
-                    oauth_checks.state.clone(),
+                    oauth_checks.state.map(|x| x.to_owned()),
                 )
                 .await?;
 
@@ -1108,10 +1108,10 @@ impl Client {
             token_set = self
                 .validate_id_token_async(
                     token_set,
-                    checks.nonce,
+                    checks.nonce.map(|x| x.to_owned()),
                     "token",
                     checks.max_age,
-                    oauth_checks.state,
+                    oauth_checks.state.map(|x| x.to_owned()),
                 )
                 .await?;
 
