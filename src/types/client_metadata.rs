@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::jwks::Jwks;
 
@@ -154,5 +155,5 @@ pub struct ClientMetadata {
     pub dpop_bound_access_tokens: Option<bool>,
     /// Extra key values
     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
-    pub other_fields: HashMap<String, String>,
+    pub other_fields: HashMap<String, Value>,
 }

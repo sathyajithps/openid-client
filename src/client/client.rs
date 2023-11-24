@@ -14,6 +14,7 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
 };
+use serde_json::Value;
 
 use super::dpop_nonce_cache::DPoPNonceCache;
 
@@ -60,7 +61,6 @@ pub struct Client {
     pub(crate) authorization_encrypted_response_alg: Option<String>,
     pub(crate) authorization_encrypted_response_enc: Option<String>,
     pub(crate) authorization_signed_response_alg: Option<String>,
-    pub(crate) other_fields: HashMap<String, String>,
     pub(crate) private_jwks: Option<Jwks>,
     pub(crate) request_interceptor: Option<RequestInterceptor>,
     pub(crate) issuer: Option<Issuer>,
@@ -72,6 +72,7 @@ pub struct Client {
     pub(crate) now: fn() -> i64,
     pub(crate) dpop_nonce_cache: DPoPNonceCache,
     pub(crate) dpop_bound_access_tokens: Option<bool>,
+    pub(crate) other_fields: HashMap<String, Value>,
 }
 
 impl Client {
@@ -398,7 +399,7 @@ impl Client {
     }
 
     /// Gets the extra fields in client
-    pub fn get_other_fields(&self) -> &HashMap<String, String> {
+    pub fn get_other_fields(&self) -> &HashMap<String, Value> {
         &self.other_fields
     }
 
