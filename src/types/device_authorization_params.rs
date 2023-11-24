@@ -4,7 +4,7 @@ use serde_json::Value;
 
 /// # DeviceAuthorizationParams
 /// Parameters for performing Device Authorization
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct DeviceAuthorizationParams {
     /// Client id for making the Device authorization request
     pub client_id: Option<String>,
