@@ -99,16 +99,22 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
     };
 
     let client = issuer
-        .client(client_metadata.clone(), None, None, None, None)
+        .client(client_metadata, None, None, None, None)
         .unwrap();
 
     let client_3rd_party_options = ClientOptions {
         additional_authorized_parties: Some(vec!["authorized third party".to_string()]),
     };
 
+    let client_metadata_3rd_party = ClientMetadata {
+        client_id: Some("identifier".to_string()),
+        client_secret: Some("larger_than_32_characters_secret_".to_string()),
+        ..Default::default()
+    };
+
     let client_with_3rd_party = issuer
         .client(
-            client_metadata.clone(),
+            client_metadata_3rd_party,
             None,
             None,
             Some(client_3rd_party_options),
@@ -123,9 +129,15 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
         ]),
     };
 
+    let client_metadata_3rd_parties = ClientMetadata {
+        client_id: Some("identifier".to_string()),
+        client_secret: Some("larger_than_32_characters_secret_".to_string()),
+        ..Default::default()
+    };
+
     let client_with_3rd_parties = issuer
         .client(
-            client_metadata,
+            client_metadata_3rd_parties,
             None,
             None,
             Some(client_3rd_parties_options),

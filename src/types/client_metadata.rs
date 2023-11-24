@@ -9,7 +9,7 @@ use crate::jwks::Jwks;
 /// This struct is used to create a client as well as to register a client.
 /// This is why you would see `Option<bool>` in places. Set it explicitly to register a client or
 /// create one
-#[derive(Debug, Serialize, Deserialize, Default, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ClientMetadata {
     /// Client Id
     #[serde(skip_serializing_if = "Option::is_none")]
