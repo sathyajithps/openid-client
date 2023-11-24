@@ -377,7 +377,7 @@ mod with_key_store_as_an_option {
 
         let _ = Client::register_async(
             &issuer,
-            client_metadata.clone(),
+            client_metadata,
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
             None,
@@ -397,13 +397,7 @@ mod with_key_store_as_an_option {
                 if let Some(body) = req.body.clone() {
                     let body_string = String::from_utf8(body);
                     if let Ok(body_str) = body_string {
-                        if let Ok(metadata) = convert_json_to::<ClientMetadata>(&body_str) {
-                            return metadata
-                                == ClientMetadata {
-                                    jwks_uri: Some("https://rp.example.com/certs".to_string()),
-                                    ..Default::default()
-                                };
-                        }
+                        return body_str == r#"{"jwks_uri":"https://rp.example.com/certs"}"#;
                     }
                 }
                 false
@@ -438,7 +432,7 @@ mod with_key_store_as_an_option {
 
         let _ = Client::register_async(
             &issuer,
-            client_metadata.clone(),
+            client_metadata,
             Some(register_options.clone()),
             get_default_test_interceptor(Some(mock_http_server.port())),
             None,
@@ -469,7 +463,7 @@ mod with_key_store_as_an_option {
 
         let client_error = Client::register_async(
             &issuer,
-            client_metadata.clone(),
+            client_metadata,
             Some(register_options.clone()),
             None,
             None,
@@ -503,7 +497,7 @@ mod with_key_store_as_an_option {
 
         let client_error = Client::register_async(
             &issuer,
-            client_metadata.clone(),
+            client_metadata,
             Some(register_options.clone()),
             None,
             None,
