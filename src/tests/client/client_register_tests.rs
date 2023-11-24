@@ -321,7 +321,7 @@ mod with_key_store_as_an_option {
         let _ = Client::register_async(
             &issuer,
             ClientMetadata::default(),
-            Some(register_options.clone()),
+            Some(register_options),
             get_default_test_interceptor(Some(mock_http_server.port())),
             None,
         )
@@ -378,7 +378,7 @@ mod with_key_store_as_an_option {
         let _ = Client::register_async(
             &issuer,
             client_metadata,
-            Some(register_options.clone()),
+            Some(register_options),
             get_default_test_interceptor(Some(mock_http_server.port())),
             None,
         )
@@ -433,7 +433,7 @@ mod with_key_store_as_an_option {
         let _ = Client::register_async(
             &issuer,
             client_metadata,
-            Some(register_options.clone()),
+            Some(register_options),
             get_default_test_interceptor(Some(mock_http_server.port())),
             None,
         )
@@ -461,15 +461,10 @@ mod with_key_store_as_an_option {
 
         let client_metadata = ClientMetadata::default();
 
-        let client_error = Client::register_async(
-            &issuer,
-            client_metadata,
-            Some(register_options.clone()),
-            None,
-            None,
-        )
-        .await
-        .unwrap_err();
+        let client_error =
+            Client::register_async(&issuer, client_metadata, Some(register_options), None, None)
+                .await
+                .unwrap_err();
 
         assert_eq!(
             "jwks must only contain private keys",
@@ -495,15 +490,10 @@ mod with_key_store_as_an_option {
 
         let client_metadata = ClientMetadata::default();
 
-        let client_error = Client::register_async(
-            &issuer,
-            client_metadata,
-            Some(register_options.clone()),
-            None,
-            None,
-        )
-        .await
-        .unwrap_err();
+        let client_error =
+            Client::register_async(&issuer, client_metadata, Some(register_options), None, None)
+                .await
+                .unwrap_err();
 
         assert_eq!(
             "jwks must only contain private keys",
@@ -559,7 +549,7 @@ mod with_initial_access_token {
         let _ = Client::register_async(
             &issuer,
             ClientMetadata::default(),
-            Some(register_options.clone()),
+            Some(register_options),
             get_default_test_interceptor(Some(mock_http_server.port())),
             None,
         )
