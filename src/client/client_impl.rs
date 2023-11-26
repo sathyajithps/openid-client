@@ -1221,7 +1221,7 @@ impl Client {
         access_token: &str,
         token_type: Option<&'async_recursion str>,
         retry: bool,
-        mut options: RequestResourceOptions,
+        mut options: RequestResourceOptions<'async_recursion>,
     ) -> Result<Response, OidcClientError> {
         if self.dpop_bound_access_tokens.is_some_and(|x| x) && options.dpop.is_none() {
             return Err(OidcClientError::new_type_error("DPoP key not set", None));
@@ -1257,7 +1257,7 @@ impl Client {
         };
 
         match self
-            .instance_request_async(req, options.dpop.as_ref(), Some(&access_token.to_string()))
+            .instance_request_async(req, options.dpop, Some(access_token))
             .await
         {
             Ok(r) => Ok(r),
@@ -1504,7 +1504,7 @@ impl Client {
     pub async fn userinfo_async(
         &mut self,
         token_set: &TokenSet,
-        options: UserinfoOptions,
+        options: UserinfoOptions<'_>,
     ) -> Result<Value, OidcClientError> {
         let issuer = match self.issuer.as_ref() {
             Some(iss) => iss,
@@ -1591,14 +1591,21 @@ impl Client {
             form_body.insert("access_token".to_string(), access_token.to_owned());
         }
 
-        if let Some(params) = &options.params {
+        let mut req_res_params = RequestResourceOptions {
+            bearer: true,
+            expect_body_to_be_json: !jwt,
+            dpop: options.dpop,
+            ..Default::default()
+        };
+
+        if let Some(params) = options.params {
             if options.method == Method::GET {
                 for (k, v) in params {
-                    url.query_pairs_mut().append_pair(k, v);
+                    url.query_pairs_mut().append_pair(&k, &v);
                 }
             } else if options.via == "body" && options.method == Method::POST {
                 for (k, v) in params {
-                    form_body.insert(k.to_owned(), v.to_owned());
+                    form_body.insert(k, v);
                 }
             } else {
                 req.headers.remove("Content-Type");
@@ -1607,7 +1614,7 @@ impl Client {
                     HeaderValue::from_static("application/x-www-form-urlencoded"),
                 );
                 for (k, v) in params {
-                    form_body.insert(k.to_owned(), v.to_owned());
+                    form_body.insert(k, v);
                 }
             }
         }
@@ -1617,14 +1624,9 @@ impl Client {
             body = Some(string_map_to_form_url_encoded(&form_body)?);
         }
 
-        let req_res_params = RequestResourceOptions {
-            method: options.method,
-            headers: req.headers,
-            bearer: true,
-            expect_body_to_be_json: !jwt,
-            body,
-            dpop: options.dpop,
-        };
+        req_res_params.body = body;
+        req_res_params.method = options.method;
+        req_res_params.headers = req.headers;
 
         let res = self
             .request_resource_async(

@@ -225,8 +225,9 @@ async fn is_enabled_for_userinfo() {
     };
     let token_set = TokenSet::new(token_params);
 
+    let key = get_rsa_private_key();
     let options = UserinfoOptions {
-        dpop: Some(get_rsa_private_key()),
+        dpop: Some(&key),
         ..Default::default()
     };
 
@@ -333,14 +334,14 @@ async fn handles_dpop_nonce_in_userinfo() {
     let key = get_rsa_private_key();
 
     let options = UserinfoOptions {
-        dpop: Some(key.clone()),
+        dpop: Some(&key),
         ..Default::default()
     };
 
     client.userinfo_async(&token_set, options).await.unwrap();
 
     let options2 = UserinfoOptions {
-        dpop: Some(key.clone()),
+        dpop: Some(&key),
         ..Default::default()
     };
 
@@ -354,7 +355,7 @@ async fn handles_dpop_nonce_in_userinfo() {
     );
 
     let options3 = UserinfoOptions {
-        dpop: Some(key.clone()),
+        dpop: Some(&key),
         params: Some(other),
         ..Default::default()
     };
@@ -551,7 +552,7 @@ async fn handles_dpop_nonce_in_request_resource() {
     let key = get_rsa_private_key();
 
     let options = RequestResourceOptions {
-        dpop: Some(key.clone()),
+        dpop: Some(&key),
         ..Default::default()
     };
 
@@ -567,7 +568,7 @@ async fn handles_dpop_nonce_in_request_resource() {
         .unwrap();
 
     let options2 = RequestResourceOptions {
-        dpop: Some(key.clone()),
+        dpop: Some(&key),
         ..Default::default()
     };
 
@@ -583,7 +584,7 @@ async fn handles_dpop_nonce_in_request_resource() {
         .unwrap();
 
     let options3 = RequestResourceOptions {
-        dpop: Some(key.clone()),
+        dpop: Some(&key),
         body: Some("fail_case_should_not_affect".to_string()),
         ..Default::default()
     };
@@ -646,8 +647,9 @@ async fn is_enabled_for_request_resource() {
 
     let (_, mut client) = get_client(Some(mock_http_server.port()));
 
+    let key = get_rsa_private_key();
     let options = RequestResourceOptions {
-        dpop: Some(get_rsa_private_key()),
+        dpop: Some(&key),
         method: Method::POST,
         ..Default::default()
     };
