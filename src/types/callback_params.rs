@@ -9,7 +9,7 @@ use crate::helpers::get_serde_value_as_string;
 /// # CallbackParams
 /// These are the fields that is recieved from the Authorization server to the client.
 /// Which of these fields are present will depend up on the type of authorization request
-#[derive(Default, Serialize, Deserialize, Debug)]
+#[derive(Default, Serialize, Debug)]
 pub struct CallbackParams {
     /// Access token obtained
     pub access_token: Option<String>,
@@ -96,7 +96,7 @@ pub struct CallbackExtras {
 
 /// # OAuthCallbackChecks
 /// Checks that needs to be performed against the OAuth [CallbackParams] recieved from the Auth server.
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct OAuthCallbackChecks<'a> {
     /// When provided the authorization response will be checked for presence of required parameters for a given response_type. Use of this check is recommended.
     pub response_type: Option<&'a str>,
