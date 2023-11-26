@@ -340,7 +340,7 @@ async fn can_submit_access_token_in_a_body_when_post() {
 
     let mut options = UserinfoOptions::default();
     options.method = reqwest::Method::POST;
-    options.via = "body".to_string();
+    options.via = "body";
 
     let _ = client.userinfo_async(&token_set, options).await.unwrap();
     userinfo_server.assert();
@@ -392,7 +392,7 @@ async fn can_add_extra_params_in_a_body_when_post() {
 
     let mut options = UserinfoOptions::default();
     options.method = reqwest::Method::POST;
-    options.via = "body".to_string();
+    options.via = "body";
     let mut params = HashMap::new();
     params.insert("foo".to_string(), "bar".to_string());
     options.params = Some(params);
@@ -534,7 +534,7 @@ async fn can_only_submit_access_token_in_a_body_when_post() {
     let mut options = UserinfoOptions::default();
 
     options.method = reqwest::Method::GET;
-    options.via = "body".to_string();
+    options.via = "body";
 
     let err = client
         .userinfo_async(&token_set, options)

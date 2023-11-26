@@ -1520,7 +1520,7 @@ impl Client {
         &mut self,
         mut req: Request,
         dpop: Option<&Jwk>,
-        access_token: Option<&String>,
+        access_token: Option<&str>,
     ) -> Result<Response, OidcClientError> {
         self.generate_dpop_header(&mut req, dpop, access_token)?;
 
@@ -1548,7 +1548,7 @@ impl Client {
         &self,
         payload: Value,
         private_key_input: &Jwk,
-        access_token: Option<&String>,
+        access_token: Option<&str>,
     ) -> Result<String, OidcClientError> {
         let mut payload_obj = match payload {
             Value::Object(obj) => obj,
@@ -1639,7 +1639,7 @@ impl Client {
         &mut self,
         request: &mut Request,
         dpop: Option<&Jwk>,
-        access_token: Option<&String>,
+        access_token: Option<&str>,
     ) -> Result<(), OidcClientError> {
         if let Some(dpop) = dpop.as_ref() {
             if let Some(htu) = get_dpop_htu(&request.url) {
