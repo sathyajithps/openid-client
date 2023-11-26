@@ -8,7 +8,7 @@ use serde_json::Value;
 #[derive(Default, Debug)]
 pub struct DeviceAuthorizationExtras {
     /// Extra request body properties to be sent to the AS during code exchange.
-    pub exchange_body: Option<HashMap<String, Value>>,
+    pub exchange_body: Option<HashMap<String, String>>,
     /// Extra client assertion payload parameters to be sent as part of a client JWT assertion.
     /// This is only used when the client's token_endpoint_auth_method is either client_secret_jwt or private_key_jwt
     pub client_assertion_payload: Option<HashMap<String, Value>>,

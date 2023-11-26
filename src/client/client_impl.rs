@@ -10,10 +10,7 @@ use reqwest::{Method, StatusCode};
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
 
-use crate::helpers::{
-    generate_random, get_serde_value_as_string, string_map_to_form_url_encoded,
-    value_map_to_form_url_encoded,
-};
+use crate::helpers::{generate_random, get_serde_value_as_string, string_map_to_form_url_encoded};
 use crate::jwks::jwks::CustomJwk;
 use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
@@ -314,7 +311,7 @@ impl Client {
     #[async_recursion::async_recursion(? Send)]
     pub async fn grant_async(
         &mut self,
-        body: HashMap<String, Value>,
+        body: HashMap<String, String>,
         extras: GrantExtras,
         retry: bool,
     ) -> Result<TokenSet, OidcClientError> {
@@ -640,18 +637,21 @@ impl Client {
                 Some(e) => e
                     .exchange_body
                     .clone()
-                    .unwrap_or(HashMap::<String, Value>::new()),
-                None => HashMap::<String, Value>::new(),
+                    .unwrap_or(HashMap::<String, String>::new()),
+                None => HashMap::<String, String>::new(),
             };
 
-            exchange_body.insert("grant_type".to_string(), json!("authorization_code"));
-            exchange_body.insert("code".to_string(), json!(parameters.code.as_ref().unwrap()));
+            exchange_body.insert("grant_type".to_string(), "authorization_code".to_owned());
+            exchange_body.insert(
+                "code".to_string(),
+                parameters.code.as_ref().unwrap().to_owned(),
+            );
             if let Some(ru) = redirect_uri {
-                exchange_body.insert("redirect_uri".to_string(), json!(ru));
+                exchange_body.insert("redirect_uri".to_string(), ru.to_owned());
             };
 
-            if let Some(cv) = checks.code_verifier.as_ref() {
-                exchange_body.insert("code_verifier".to_string(), json!(cv));
+            if let Some(cv) = checks.code_verifier {
+                exchange_body.insert("code_verifier".to_string(), cv.to_owned());
             };
 
             let mut grant_extras = GrantExtras::default();
@@ -1054,18 +1054,21 @@ impl Client {
                 Some(e) => e
                     .exchange_body
                     .clone()
-                    .unwrap_or(HashMap::<String, Value>::new()),
-                None => HashMap::<String, Value>::new(),
+                    .unwrap_or(HashMap::<String, String>::new()),
+                None => HashMap::<String, String>::new(),
             };
 
-            exchange_body.insert("grant_type".to_string(), json!("authorization_code"));
-            exchange_body.insert("code".to_string(), json!(parameters.code.as_ref().unwrap()));
+            exchange_body.insert("grant_type".to_string(), "authorization_code".to_owned());
+            exchange_body.insert(
+                "code".to_string(),
+                parameters.code.as_ref().unwrap().to_owned(),
+            );
             if let Some(ru) = redirect_uri {
-                exchange_body.insert("redirect_uri".to_string(), json!(ru));
+                exchange_body.insert("redirect_uri".to_string(), ru.to_owned());
             };
 
-            if let Some(cv) = oauth_checks.code_verifier.as_ref() {
-                exchange_body.insert("code_verifier".to_string(), json!(cv));
+            if let Some(cv) = oauth_checks.code_verifier {
+                exchange_body.insert("code_verifier".to_string(), cv.to_owned());
             };
 
             let mut grant_extras = GrantExtras::default();
@@ -1147,8 +1150,8 @@ impl Client {
     /// - `extras`: See [IntrospectionExtras]
     pub async fn introspect_async(
         &mut self,
-        token: &str,
-        token_type_hint: Option<&str>,
+        token: String,
+        token_type_hint: Option<String>,
         extras: Option<IntrospectionExtras>,
     ) -> Result<Response, OidcClientError> {
         let issuer = match self.issuer.as_ref() {
@@ -1165,10 +1168,10 @@ impl Client {
 
         let mut form = HashMap::new();
 
-        form.insert("token".to_string(), json!(token));
+        form.insert("token".to_string(), token);
 
         if let Some(hint) = token_type_hint {
-            form.insert("token_type_hint".to_string(), json!(hint));
+            form.insert("token_type_hint".to_string(), hint);
         }
 
         if let Some(p) = &extras {
@@ -1380,8 +1383,8 @@ impl Client {
             }
         }
 
-        body.insert("grant_type".to_string(), json!("refresh_token"));
-        body.insert("refresh_token".to_string(), json!(refresh_token));
+        body.insert("grant_type".to_string(), "refresh_token".to_owned());
+        body.insert("refresh_token".to_string(), refresh_token.to_owned());
 
         let grant_extras = GrantExtras {
             client_assertion_payload: extras
@@ -1449,10 +1452,10 @@ impl Client {
 
         let mut form = HashMap::new();
 
-        form.insert("token".to_string(), json!(token));
+        form.insert("token".to_string(), token.to_owned());
 
         if let Some(h) = token_type_hint {
-            form.insert("token_type_hint".to_string(), json!(h));
+            form.insert("token_type_hint".to_string(), h.to_owned());
         }
 
         let mut client_assertion_payload = None;
@@ -1578,7 +1581,7 @@ impl Client {
                 "Content-Type",
                 HeaderValue::from_static("application/x-www-form-urlencoded"),
             );
-            form_body.insert("access_token".to_string(), json!(access_token));
+            form_body.insert("access_token".to_string(), access_token.to_owned());
         }
 
         if let Some(params) = &options.params {
@@ -1588,7 +1591,7 @@ impl Client {
                 }
             } else if options.via == "body" && options.method == Method::POST {
                 for (k, v) in params {
-                    form_body.insert(k.to_owned(), json!(v.to_owned()));
+                    form_body.insert(k.to_owned(), v.to_owned());
                 }
             } else {
                 req.headers.remove("Content-Type");
@@ -1597,14 +1600,14 @@ impl Client {
                     HeaderValue::from_static("application/x-www-form-urlencoded"),
                 );
                 for (k, v) in params {
-                    form_body.insert(k.to_owned(), json!(v.to_owned()));
+                    form_body.insert(k.to_owned(), v.to_owned());
                 }
             }
         }
 
         let mut body = None;
         if !form_body.is_empty() {
-            body = Some(value_map_to_form_url_encoded(&form_body)?);
+            body = Some(string_map_to_form_url_encoded(&form_body)?);
         }
 
         let req_res_params = RequestResourceOptions {
@@ -1938,7 +1941,7 @@ impl Client {
 
         body.client_id = Some(self.client_id.clone());
 
-        let form_body: HashMap<String, Value> = body.into();
+        let form_body: HashMap<String, String> = body.into();
 
         let req = Request {
             form: Some(form_body),
@@ -2219,7 +2222,7 @@ impl Client {
 
         let body = self.authorization_params(auth_params);
 
-        let form_body: HashMap<String, Value> = body.into();
+        let form_body: HashMap<String, String> = body.into();
 
         let req = Request {
             form: Some(form_body),
