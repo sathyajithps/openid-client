@@ -1926,7 +1926,7 @@ impl Client {
     pub async fn pushed_authorization_request_async(
         &mut self,
         parameters: Option<AuthorizationParameters>,
-        extras: Option<PushedAuthorizationRequestExtras>,
+        extras: Option<PushedAuthorizationRequestExtras<'_>>,
     ) -> Result<Value, OidcClientError> {
         let issuer = match self.issuer.as_ref() {
             Some(iss) => iss,
@@ -1963,7 +1963,7 @@ impl Client {
             .as_ref()
             .and_then(|x| x.client_assertion_payload.as_ref());
 
-        let dpop = extras.as_ref().and_then(|x| x.dpop.as_ref());
+        let dpop = extras.as_ref().and_then(|x| x.dpop);
 
         let params = AuthenticationPostParams {
             client_assertion_payload,
