@@ -931,8 +931,9 @@ async fn is_enabled_for_pushed_authorization() {
 
     let (_, mut client) = get_client(Some(mock_http_server.port()));
 
+    let key = get_rsa_private_key();
     let extras = PushedAuthorizationRequestExtras {
-        dpop: Some(get_rsa_private_key()),
+        dpop: Some(&key),
         client_assertion_payload: None,
     };
     client
