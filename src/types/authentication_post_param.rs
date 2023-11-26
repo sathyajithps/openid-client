@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use josekit::jwk::Jwk;
 use serde_json::Value;
 
-#[derive(Debug, Default, Clone)]
 pub struct AuthenticationPostParams<'a> {
     pub client_assertion_payload: Option<&'a HashMap<String, Value>>,
     pub endpoint_auth_method: Option<&'a str>,

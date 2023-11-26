@@ -70,5 +70,5 @@ pub struct IssuerMetadata {
     pub require_pushed_authorization_requests: bool,
     /// Any extra data that was read from the discovery document
     #[serde(flatten)]
-    pub other_fields: HashMap<String, serde_json::Value>,
+    pub other_fields: HashMap<String, String>,
 }

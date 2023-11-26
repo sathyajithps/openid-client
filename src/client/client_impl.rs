@@ -339,7 +339,7 @@ impl Client {
         };
 
         let response = match self
-            .authenticated_post_async("token", req, auth_post_params.clone())
+            .authenticated_post_async("token", req, auth_post_params)
             .await
         {
             Ok(r) => r,
@@ -791,7 +791,12 @@ impl Client {
     ) -> Result<TokenSet, OidcClientError> {
         let mut checks = checks.unwrap_or_default();
 
-        let oauth_checks = checks.oauth_checks.clone().unwrap_or_default();
+        let default_oauth_checks = OAuthCallbackChecks::default();
+
+        let oauth_checks = checks
+            .oauth_checks
+            .as_ref()
+            .unwrap_or(&default_oauth_checks);
 
         if oauth_checks.jarm.is_some_and(|x| x) && parameters.response.is_none() {
             let mut extra_data: HashMap<String, Value> = HashMap::new();
@@ -1194,7 +1199,8 @@ impl Client {
                 client_assertion_payload: extras
                     .as_ref()
                     .and_then(|x| x.client_assertion_payload.as_ref()),
-                ..Default::default()
+                dpop: None,
+                endpoint_auth_method: None,
             },
         )
         .await
@@ -1483,7 +1489,8 @@ impl Client {
             req,
             AuthenticationPostParams {
                 client_assertion_payload: client_assertion_payload.as_ref(),
-                ..Default::default()
+                dpop: None,
+                endpoint_auth_method: None,
             },
         )
         .await
