@@ -137,18 +137,21 @@ pub struct ClientMetadata {
     /// If this is specified, the response will be signed using JWS and the configured algorithm.
     /// The algorithm none is not allowed. The default, if omitted, is RS256
     /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization_signed_response_alg: Option<String>,
     /// Algorithm used for encrypting authorization responses.
     /// If both signing and encryption are requested, the response will be signed then encrypted,
     /// with the result being a Nested JWT, as defined in JWT RFC7519.
     /// The default, if omitted, is that no encryption is performed.
     /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization_encrypted_response_alg: Option<String>,
     /// Algoritm for encrypting authorization responses.
     /// If authorization_encrypted_response_alg is specified, the default for this value is A128CBC-HS256.
     ///  When authorization_encrypted_response_enc is included, authorization_encrypted_response_alg MUST
     /// also be provided.
     /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization_encrypted_response_enc: Option<String>,
     /// A boolean value specifying whether the client always uses DPoP for token requests. If omitted, the default value is false.
     #[serde(skip_serializing_if = "Option::is_none")]
