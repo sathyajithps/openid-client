@@ -448,7 +448,7 @@ async fn handles_dpop_nonce_in_grant() {
     let key = get_rsa_private_key();
 
     let extras = GrantExtras {
-        dpop: Some(key.clone()),
+        dpop: Some(&key),
         ..Default::default()
     };
 
@@ -732,8 +732,9 @@ async fn is_enabled_for_grant() {
 
     let (_, mut client) = get_client(Some(mock_http_server.port()));
 
+    let key = get_rsa_private_key();
     let extra = GrantExtras {
-        dpop: Some(get_rsa_private_key()),
+        dpop: Some(&key),
         ..Default::default()
     };
 
@@ -766,8 +767,9 @@ async fn is_enabled_for_refresh() {
     };
     let token_set = TokenSet::new(token_params);
 
+    let key = get_rsa_private_key();
     let params = RefreshTokenExtras {
-        dpop: Some(get_rsa_private_key()),
+        dpop: Some(&key),
         client_assertion_payload: None,
         exchange_body: None,
     };

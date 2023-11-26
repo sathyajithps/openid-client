@@ -112,7 +112,7 @@ impl DeviceFlowHandle {
                 .extras
                 .as_ref()
                 .and_then(|x| x.client_assertion_payload.to_owned()),
-            dpop: self.extras.as_ref().and_then(|x| x.dpop.to_owned()),
+            dpop: self.extras.as_ref().and_then(|x| x.dpop.as_ref()),
             ..Default::default()
         };
 
