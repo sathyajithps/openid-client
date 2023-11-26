@@ -690,34 +690,22 @@ impl Client {
             None => HashMap::new(),
         };
 
-        if let Some(state) = &parameters.state {
-            other_fields.insert("state".to_string(), json!(state));
+        if let Some(state) = parameters.state {
+            other_fields.insert("state".to_string(), state);
         }
 
-        if let Some(code) = &parameters.code {
-            other_fields.insert("code".to_string(), json!(code));
+        if let Some(code) = parameters.code {
+            other_fields.insert("code".to_string(), code);
         }
 
         let expires_at = match other_fields.get("expires_at") {
-            Some(eat) => eat.as_i64(),
+            Some(eat) => eat.parse::<i64>().ok(),
             None => None,
         };
-        let scope = match other_fields.get("scope") {
-            Some(s) => s.as_str().map(|f| f.to_owned()),
-            None => None,
-        };
-        let token_type = match other_fields.get("token_type") {
-            Some(s) => s.as_str().map(|f| f.to_owned()),
-            None => None,
-        };
-        let session_state = match other_fields.get("session_state") {
-            Some(s) => s.as_str().map(|f| f.to_owned()),
-            None => None,
-        };
-        let refresh_token = match other_fields.get("refresh_token") {
-            Some(s) => s.as_str().map(|f| f.to_owned()),
-            None => None,
-        };
+        let scope = other_fields.get("scope").map(|s| s.to_owned());
+        let token_type = other_fields.get("token_type").map(|tt| tt.to_owned());
+        let session_state = other_fields.get("session_state").map(|ss| ss.to_owned());
+        let refresh_token = other_fields.get("refresh_token").map(|rt| rt.to_owned());
         let expires_in = match parameters.expires_in {
             Some(exp_in) => exp_in.parse::<i64>().ok(),
             None => None,
@@ -1010,33 +998,21 @@ impl Client {
             };
 
             if let Some(state) = &parameters.state {
-                other_fields.insert("state".to_string(), json!(state));
+                other_fields.insert("state".to_owned(), state.to_owned());
             }
 
             if let Some(code) = &parameters.code {
-                other_fields.insert("code".to_string(), json!(code));
+                other_fields.insert("code".to_owned(), code.to_owned());
             }
 
             let expires_at = match other_fields.get("expires_at") {
-                Some(eat) => eat.as_i64(),
+                Some(eat) => eat.parse::<i64>().ok(),
                 None => None,
             };
-            let scope = match other_fields.get("scope") {
-                Some(s) => s.as_str().map(|f| f.to_owned()),
-                None => None,
-            };
-            let token_type = match other_fields.get("token_type") {
-                Some(s) => s.as_str().map(|f| f.to_owned()),
-                None => None,
-            };
-            let session_state = match other_fields.get("session_state") {
-                Some(s) => s.as_str().map(|f| f.to_owned()),
-                None => None,
-            };
-            let refresh_token = match other_fields.get("refresh_token") {
-                Some(s) => s.as_str().map(|f| f.to_owned()),
-                None => None,
-            };
+            let scope = other_fields.get("scope").map(|s| s.to_owned());
+            let token_type = other_fields.get("token_type").map(|tt| tt.to_owned());
+            let session_state = other_fields.get("session_state").map(|ss| ss.to_owned());
+            let refresh_token = other_fields.get("refresh_token").map(|rt| rt.to_owned());
             let expires_in = match &parameters.expires_in {
                 Some(exp_in) => exp_in.parse::<i64>().ok(),
                 None => None,
@@ -1127,34 +1103,22 @@ impl Client {
             None => HashMap::new(),
         };
 
-        if let Some(state) = parameters.state {
-            other_fields.insert("state".to_string(), json!(state));
+        if let Some(state) = &parameters.state {
+            other_fields.insert("state".to_string(), state.to_owned());
         }
 
         if let Some(code) = parameters.code {
-            other_fields.insert("code".to_string(), json!(code));
+            other_fields.insert("code".to_string(), code);
         }
 
         let expires_at = match other_fields.get("expires_at") {
-            Some(eat) => eat.as_i64(),
+            Some(eat) => eat.parse::<i64>().ok(),
             None => None,
         };
-        let scope = match other_fields.get("scope") {
-            Some(s) => s.as_str().map(|f| f.to_owned()),
-            None => None,
-        };
-        let token_type = match other_fields.get("token_type") {
-            Some(s) => s.as_str().map(|f| f.to_owned()),
-            None => None,
-        };
-        let session_state = match other_fields.get("session_state") {
-            Some(s) => s.as_str().map(|f| f.to_owned()),
-            None => None,
-        };
-        let refresh_token = match other_fields.get("refresh_token") {
-            Some(s) => s.as_str().map(|f| f.to_owned()),
-            None => None,
-        };
+        let scope = other_fields.get("scope").map(|s| s.to_owned());
+        let token_type = other_fields.get("token_type").map(|tt| tt.to_owned());
+        let session_state = other_fields.get("session_state").map(|ss| ss.to_owned());
+        let refresh_token = other_fields.get("refresh_token").map(|rt| rt.to_owned());
         let expires_in = match parameters.expires_in {
             Some(exp_in) => exp_in.parse::<i64>().ok(),
             None => None,
@@ -1358,48 +1322,22 @@ impl Client {
             let mut other = HashMap::new();
 
             for (k, v) in qp {
-                if k == "access_token" {
-                    params.access_token = Some(v.to_string());
-                } else if k == "code" {
-                    params.code = Some(v.to_string());
-                } else if k == "error" {
-                    params.error = Some(v.to_string());
-                } else if k == "error_description" {
-                    params.error_description = Some(v.to_string());
-                } else if k == "error_uri" {
-                    params.error_uri = Some(v.to_string());
-                } else if k == "id_token" {
-                    params.id_token = Some(v.to_string());
-                } else if k == "iss" {
-                    params.iss = Some(v.to_string());
-                } else if k == "response" {
-                    params.response = Some(v.to_string());
-                } else if k == "session_state" {
-                    params.session_state = Some(v.to_string());
-                } else if k == "state" {
-                    params.state = Some(v.to_string());
-                } else if k == "token_type" {
-                    params.token_type = Some(v.to_string());
-                } else {
-                    let val = v.to_string();
-                    let key = k.to_string();
-                    if let Ok(u_64) = val.parse::<u64>() {
-                        other.insert(key, json!(u_64));
-                    } else if let Ok(i_64) = val.parse::<i64>() {
-                        other.insert(key, json!(i_64));
-                    } else if let Ok(f_64) = val.parse::<f64>() {
-                        other.insert(key, json!(f_64));
-                    } else if val == "true" || val == "false" {
-                        let bool = val == "true";
-                        other.insert(key, json!(bool));
-                    } else if let Ok(arr) = serde_json::from_str::<Vec<Value>>(&val) {
-                        other.insert(key, json!(arr));
-                    } else if let Ok(obj) = serde_json::from_str::<Value>(&val) {
-                        other.insert(key, obj);
-                    } else {
-                        other.insert(key, json!(val));
+                match k.as_str() {
+                    "access_token" => params.access_token = Some(v),
+                    "code" => params.code = Some(v),
+                    "error" => params.error = Some(v),
+                    "error_description" => params.error_description = Some(v),
+                    "error_uri" => params.error_uri = Some(v),
+                    "id_token" => params.id_token = Some(v),
+                    "iss" => params.iss = Some(v),
+                    "response" => params.response = Some(v),
+                    "session_state" => params.session_state = Some(v),
+                    "state" => params.state = Some(v),
+                    "token_type" => params.token_type = Some(v),
+                    _ => {
+                        other.insert(k, v);
                     }
-                }
+                };
             }
 
             if !other.is_empty() {

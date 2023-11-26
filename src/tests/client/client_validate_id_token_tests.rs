@@ -29,7 +29,7 @@ fn get_token_set(id_token: String, access_token: Option<String>, code: Option<St
     let mut other = HashMap::new();
 
     if let Some(c) = code {
-        other.insert("code".to_string(), json!(c));
+        other.insert("code".to_string(), c);
     }
 
     let token_set_params = TokenSetParams {

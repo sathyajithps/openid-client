@@ -123,13 +123,7 @@ async fn resolves_a_tokenset_with_just_a_state_for_response_type_none() {
 
     assert_eq!(
         "state",
-        token_set
-            .get_other()
-            .unwrap()
-            .get("state")
-            .unwrap()
-            .as_str()
-            .unwrap()
+        token_set.get_other().unwrap().get("state").unwrap()
     )
 }
 

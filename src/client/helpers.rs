@@ -1439,7 +1439,7 @@ impl Client {
 
             let other_fields = token_set.get_other().unwrap_or_default();
 
-            if let Some(Value::String(code)) = other_fields.get("code") {
+            if let Some(code) = other_fields.get("code") {
                 if let Some(Value::String(c_hash)) = payload.claim("c_hash") {
                     let name = Names {
                         claim: "c_hash".to_string(),

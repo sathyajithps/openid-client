@@ -37,7 +37,7 @@ pub struct CallbackParams {
     pub iss: Option<String>,
     /// Other fields received from Auth server
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
-    pub other: Option<HashMap<String, Value>>,
+    pub other: Option<HashMap<String, String>>,
 }
 
 impl CallbackParams {
@@ -60,10 +60,12 @@ impl CallbackParams {
             other: None,
         };
 
-        let mut other = HashMap::<String, Value>::new();
+        let mut other = HashMap::<String, String>::new();
 
         for (k, v) in payload.claims_set().iter() {
-            other.insert(k.to_string(), v.to_owned());
+            if let Ok(v_string) = get_serde_value_as_string(v) {
+                other.insert(k.to_string(), v_string);
+            }
         }
 
         params.other = Some(other);

@@ -35,7 +35,7 @@ pub struct TokenSetParams {
     pub scope: Option<String>,
     /// `other`
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub other: Option<HashMap<String, Value>>,
+    pub other: Option<HashMap<String, String>>,
 }
 
 /// # TokenSet
@@ -60,7 +60,7 @@ pub struct TokenSet {
     #[serde(skip_serializing_if = "Option::is_none")]
     scope: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", flatten)]
-    other: Option<HashMap<String, Value>>,
+    other: Option<HashMap<String, String>>,
     #[serde(skip_serializing, skip_deserializing, default = "default_now")]
     pub(crate) now: fn() -> i64,
 }
@@ -185,7 +185,7 @@ impl TokenSet {
     }
 
     /// Gets the other fields
-    pub fn get_other(&self) -> Option<HashMap<String, Value>> {
+    pub fn get_other(&self) -> Option<HashMap<String, String>> {
         self.other.clone()
     }
 
