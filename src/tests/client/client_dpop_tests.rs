@@ -453,7 +453,7 @@ async fn handles_dpop_nonce_in_grant() {
 
     let mut body = HashMap::new();
 
-    body.insert("grant_type".to_string(), json!("client_credentials"));
+    body.insert("grant_type".to_string(), "client_credentials".to_owned());
     client
         .grant_async(body.clone(), extras.clone(), true)
         .await
@@ -464,7 +464,7 @@ async fn handles_dpop_nonce_in_grant() {
         .await
         .unwrap();
 
-    body.insert("fail_case".to_string(), json!("shouldnotaffect"));
+    body.insert("fail_case".to_string(), "shouldnotaffect".to_owned());
 
     let err = client.grant_async(body, extras, true).await.unwrap_err();
 
@@ -737,7 +737,7 @@ async fn is_enabled_for_grant() {
 
     let mut body = HashMap::new();
 
-    body.insert("grant_type".to_string(), json!("client_credentials"));
+    body.insert("grant_type".to_string(), "client_credentials".to_owned());
 
     client.grant_async(body, extra, true).await.unwrap();
 }

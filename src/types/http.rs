@@ -29,7 +29,7 @@ pub struct Request {
     /// The request body to be sent
     pub json: Option<String>,
     /// The request form body to be sent
-    pub form: Option<HashMap<String, Value>>,
+    pub form: Option<HashMap<String, String>>,
     /// The request body to be sent
     pub body: Option<String>,
     /// Specifies if the response should be of type json and validates it

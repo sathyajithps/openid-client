@@ -45,7 +45,7 @@ mod no_implicit_key_ids {
 
         let binding = request.form.unwrap();
 
-        let jwt = binding.get("client_assertion").unwrap().as_str().unwrap();
+        let jwt = binding.get("client_assertion").unwrap();
 
         let decoded_jwt = decode_jwt(jwt).unwrap();
 

@@ -230,18 +230,6 @@ pub(crate) fn get_serde_value_as_string(v: &Value) -> Result<String, OidcClientE
     }
 }
 
-pub(crate) fn value_map_to_form_url_encoded(
-    map: &HashMap<String, Value>,
-) -> Result<String, OidcClientError> {
-    let mut form_urlencoded = form_urlencoded::Serializer::new(String::new());
-    for (k, v) in map {
-        let v_str = get_serde_value_as_string(v)?;
-        form_urlencoded.append_pair(k, &v_str);
-    }
-
-    Ok(form_urlencoded.finish())
-}
-
 pub(crate) fn string_map_to_form_url_encoded(
     map: &HashMap<String, String>,
 ) -> Result<String, OidcClientError> {

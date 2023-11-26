@@ -3,7 +3,7 @@ mod when_none {
     use std::collections::HashMap;
 
     use assert_json_diff::assert_json_eq;
-    use serde_json::{json, Value};
+    use serde_json::json;
 
     use crate::{
         issuer::Issuer,
@@ -28,9 +28,9 @@ mod when_none {
         let request = client.auth_for("token", None).unwrap();
 
         let mut expected_request = Request::default();
-        let mut form: HashMap<String, Value> = HashMap::new();
+        let mut form: HashMap<String, String> = HashMap::new();
 
-        form.insert("client_id".to_string(), json!("identifier"));
+        form.insert("client_id".to_string(), "identifier".to_owned());
 
         expected_request.form = Some(form);
 
@@ -58,7 +58,7 @@ mod when_client_secret_post {
     use std::collections::HashMap;
 
     use assert_json_diff::assert_json_eq;
-    use serde_json::{json, Value};
+    use serde_json::json;
 
     use crate::{
         issuer::Issuer,
@@ -83,10 +83,10 @@ mod when_client_secret_post {
         let request = client.auth_for("token", None).unwrap();
 
         let mut expected_request = Request::default();
-        let mut form: HashMap<String, Value> = HashMap::new();
+        let mut form: HashMap<String, String> = HashMap::new();
 
-        form.insert("client_id".to_string(), json!("identifier"));
-        form.insert("client_secret".to_string(), json!("secure"));
+        form.insert("client_id".to_string(), "identifier".to_owned());
+        form.insert("client_secret".to_string(), "secure".to_owned());
 
         expected_request.form = Some(form);
 
@@ -354,10 +354,8 @@ mod when_client_secret_jwt {
         let form = auth.form.unwrap();
 
         assert_eq!(
-            form.get("client_assertion_type"),
-            Some(&json!(
-                "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
-            ))
+            form.get("client_assertion_type").map(|x| x.as_str()),
+            Some("urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
         );
 
         assert!(form.contains_key("client_assertion"),);
@@ -441,8 +439,6 @@ mod when_client_secret_jwt {
             .form
             .unwrap()
             .get("client_assertion")
-            .unwrap()
-            .as_str()
             .unwrap()
             .split('.')
             .map(|s| s.to_string())
@@ -557,10 +553,8 @@ mod when_private_key_jwt {
             let form = auth.form.unwrap();
 
             assert_eq!(
-                form.get("client_assertion_type"),
-                Some(&json!(
-                    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
-                ))
+                form.get("client_assertion_type").map(|x| x.as_str()),
+                Some("urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
             );
 
             assert!(form.contains_key("client_assertion"),);
@@ -644,8 +638,6 @@ mod when_private_key_jwt {
                 .form
                 .unwrap()
                 .get("client_assertion")
-                .unwrap()
-                .as_str()
                 .unwrap()
                 .split('.')
                 .map(|s| s.to_string())

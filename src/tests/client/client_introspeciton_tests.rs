@@ -54,7 +54,7 @@ async fn posts_the_token_in_a_body_and_returns_the_parsed_response() {
         .unwrap();
 
     let response = client
-        .introspect_async("tokenValue", None, None)
+        .introspect_async("tokenValue".to_owned(), None, None)
         .await
         .unwrap();
 
@@ -114,7 +114,11 @@ async fn posts_the_token_and_a_hint_in_a_body() {
         .unwrap();
 
     let _ = client
-        .introspect_async("tokenValue", Some("access_token"), None)
+        .introspect_async(
+            "tokenValue".to_owned(),
+            Some("access_token".to_owned()),
+            None,
+        )
         .await
         .unwrap();
 
@@ -154,7 +158,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
         .unwrap();
 
     let err = client
-        .introspect_async("tokenValue", None, None)
+        .introspect_async("tokenValue".to_owned(), None, None)
         .await
         .unwrap_err();
 
@@ -201,7 +205,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
         .unwrap();
 
     let err = client
-        .introspect_async("tokenValue", None, None)
+        .introspect_async("tokenValue".to_owned(), None, None)
         .await
         .unwrap_err();
 
@@ -249,7 +253,7 @@ async fn is_rejected_with_error_upon_invalid_response() {
         .unwrap();
 
     let err = client
-        .introspect_async("tokenValue", None, None)
+        .introspect_async("tokenValue".to_owned(), None, None)
         .await
         .unwrap_err();
 

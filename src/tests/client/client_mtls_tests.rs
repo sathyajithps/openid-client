@@ -78,14 +78,7 @@ async fn uses_the_issuer_identifier_and_token_endpoint_as_private_key_jwt_audien
     let req_token = client.auth_for("token", None).unwrap();
     let form_token = req_token.form.unwrap();
 
-    let decoded_token = decode_jwt(
-        &form_token
-            .get("client_assertion")
-            .unwrap()
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
+    let decoded_token = decode_jwt(&form_token.get("client_assertion").unwrap()).unwrap();
 
     let aud_token = decoded_token.payload.claim("aud").unwrap();
 
@@ -97,14 +90,8 @@ async fn uses_the_issuer_identifier_and_token_endpoint_as_private_key_jwt_audien
     let req_introspection = client.auth_for("introspection", None).unwrap();
     let form_introspection = req_introspection.form.unwrap();
 
-    let decoded_introspection = decode_jwt(
-        &form_introspection
-            .get("client_assertion")
-            .unwrap()
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
+    let decoded_introspection =
+        decode_jwt(&form_introspection.get("client_assertion").unwrap()).unwrap();
 
     let aud_introspection = decoded_introspection.payload.claim("aud").unwrap();
 
@@ -116,14 +103,7 @@ async fn uses_the_issuer_identifier_and_token_endpoint_as_private_key_jwt_audien
     let req_revocation = client.auth_for("introspection", None).unwrap();
     let form_revocation = req_revocation.form.unwrap();
 
-    let decoded_revocation = decode_jwt(
-        &form_revocation
-            .get("client_assertion")
-            .unwrap()
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
+    let decoded_revocation = decode_jwt(&form_revocation.get("client_assertion").unwrap()).unwrap();
 
     let aud_revocation = decoded_revocation.payload.claim("aud").unwrap();
 
@@ -182,12 +162,15 @@ async fn requires_mtls_for_introspection_authentication_when_introspection_endpo
 
     let (mut client, _) = get_clients(Some(mock_http_server.port()));
 
-    client.introspect_async("foo", None, None).await.unwrap();
+    client
+        .introspect_async("foo".to_owned(), None, None)
+        .await
+        .unwrap();
 
     client.request_interceptor = get_default_test_interceptor(Some(mock_http_server.port()));
 
     let err = client
-        .introspect_async("foo", None, None)
+        .introspect_async("foo".to_owned(), None, None)
         .await
         .unwrap_err();
 

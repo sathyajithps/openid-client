@@ -340,9 +340,9 @@ impl Client {
             "self_signed_tls_client_auth" | "tls_client_auth" | "none" => {
                 let mut request = Request::default();
 
-                let mut form: HashMap<String, Value> = HashMap::new();
+                let mut form: HashMap<String, String> = HashMap::new();
 
-                form.insert("client_id".to_string(), json!(self.client_id));
+                form.insert("client_id".to_owned(), self.client_id.to_owned());
 
                 request.form = Some(form);
 
@@ -358,12 +358,12 @@ impl Client {
 
                 let mut request = Request::default();
 
-                let mut form: HashMap<String, Value> = HashMap::new();
+                let mut form: HashMap<String, String> = HashMap::new();
 
-                form.insert("client_id".to_string(), json!(self.client_id));
+                form.insert("client_id".to_owned(), self.client_id.to_owned());
                 form.insert(
-                    "client_secret".to_string(),
-                    json!(self.client_secret.clone().unwrap()),
+                    "client_secret".to_owned(),
+                    self.client_secret.clone().unwrap(),
                 );
 
                 request.form = Some(form);
@@ -414,13 +414,13 @@ impl Client {
 
                 let mut request = Request::default();
 
-                let mut form: HashMap<String, Value> = HashMap::new();
+                let mut form: HashMap<String, String> = HashMap::new();
 
-                form.insert("client_id".to_string(), json!(self.client_id));
-                form.insert("client_assertion".to_string(), json!(assertion));
+                form.insert("client_id".to_owned(), self.client_id.to_owned());
+                form.insert("client_assertion".to_owned(), assertion);
                 form.insert(
-                    "client_assertion_type".to_string(),
-                    json!("urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
+                    "client_assertion_type".to_owned(),
+                    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer".to_owned(),
                 );
 
                 request.form = Some(form);

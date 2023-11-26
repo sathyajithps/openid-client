@@ -8,5 +8,5 @@ pub struct RevokeExtras {
     /// Additional claims to be added in the client assertion payload
     pub client_assertion_payload: Option<HashMap<String, Value>>,
     /// Additional body params to sent with the revocation request
-    pub revocation_body: Option<HashMap<String, Value>>,
+    pub revocation_body: Option<HashMap<String, String>>,
 }

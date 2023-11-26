@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 /// # AuthorizationParameters
 /// Values that will be sent with the [`crate::client::Client::authorization_url()`] or  authorize request
@@ -191,19 +191,6 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         }
 
         query
-    }
-}
-
-impl From<AuthorizationParameters> for HashMap<String, Value> {
-    fn from(value: AuthorizationParameters) -> Self {
-        let str_map: HashMap<String, String> = value.into();
-        let mut map = HashMap::new();
-
-        for (k, v) in str_map {
-            map.insert(k, json!(v));
-        }
-
-        map
     }
 }
 

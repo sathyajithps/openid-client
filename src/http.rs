@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    helpers::{convert_json_to, parse_www_authenticate_error, value_map_to_form_url_encoded},
+    helpers::{convert_json_to, parse_www_authenticate_error, string_map_to_form_url_encoded},
     types::{
         Lookup, OidcClientError, Request, RequestInterceptor, RequestOptions, Response,
         StandardBodyError,
@@ -95,7 +95,7 @@ pub async fn request_async(
         req = req.body(json_body.to_owned());
     } else if let Some(form_body) = &request.form {
         if !form_body.is_empty() {
-            let body = value_map_to_form_url_encoded(form_body)?;
+            let body = string_map_to_form_url_encoded(form_body)?;
 
             headers.remove("content-type");
             headers.insert(

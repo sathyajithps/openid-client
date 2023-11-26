@@ -1,7 +1,5 @@
 use std::{cmp::max, collections::HashMap, num::Wrapping};
 
-use serde_json::json;
-
 use crate::types::{
     DeviceAuthorizationExtras, DeviceAuthorizationResponse, DeviceFlowGrantResponse, GrantExtras,
     OidcClientError,
@@ -128,10 +126,10 @@ impl DeviceFlowHandle {
 
         body.insert(
             "grant_type".to_string(),
-            json!("urn:ietf:params:oauth:grant-type:device_code"),
+            "urn:ietf:params:oauth:grant-type:device_code".to_owned(),
         );
 
-        body.insert("device_code".to_string(), json!(self.device_code()));
+        body.insert("device_code".to_string(), self.device_code().to_owned());
 
         self.last_requested = (self.now)();
 
