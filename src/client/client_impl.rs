@@ -312,7 +312,7 @@ impl Client {
     pub async fn grant_async(
         &mut self,
         body: HashMap<String, String>,
-        extras: GrantExtras,
+        extras: GrantExtras<'async_recursion>,
         retry: bool,
     ) -> Result<TokenSet, OidcClientError> {
         let issuer = self.issuer.as_ref().ok_or(OidcClientError::new_error(
@@ -334,8 +334,8 @@ impl Client {
 
         let auth_post_params = AuthenticationPostParams {
             client_assertion_payload: extras.client_assertion_payload.as_ref(),
-            dpop: extras.dpop.as_ref(),
-            endpoint_auth_method: extras.endpoint_auth_method.as_deref(),
+            dpop: extras.dpop,
+            endpoint_auth_method: extras.endpoint_auth_method,
         };
 
         let response = match self
@@ -659,7 +659,7 @@ impl Client {
             match &extras {
                 Some(e) => {
                     grant_extras.client_assertion_payload = e.client_assertion_payload.clone();
-                    grant_extras.dpop = e.dpop.clone();
+                    grant_extras.dpop = e.dpop.as_ref();
                 }
                 None => {}
             };
@@ -1081,7 +1081,7 @@ impl Client {
             match &extras {
                 Some(e) => {
                     grant_extras.client_assertion_payload = e.client_assertion_payload.clone();
-                    grant_extras.dpop = e.dpop.clone();
+                    grant_extras.dpop = e.dpop.as_ref();
                 }
                 None => {}
             };
@@ -1369,7 +1369,7 @@ impl Client {
     pub async fn refresh_async(
         &mut self,
         token_set: TokenSet,
-        extras: Option<RefreshTokenExtras>,
+        extras: Option<RefreshTokenExtras<'_>>,
     ) -> Result<TokenSet, OidcClientError> {
         let refresh_token = match token_set.get_refresh_token() {
             Some(rt) => rt,
@@ -1396,7 +1396,7 @@ impl Client {
             client_assertion_payload: extras
                 .as_ref()
                 .and_then(|x| x.client_assertion_payload.to_owned()),
-            dpop: extras.as_ref().and_then(|x| x.dpop.to_owned()),
+            dpop: extras.as_ref().and_then(|x| x.dpop),
             endpoint_auth_method: None,
         };
 
