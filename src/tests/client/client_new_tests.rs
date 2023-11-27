@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
+use josekit::jwk::Jwk;
 use serde_json::{json, Value};
 
 use crate::issuer::Issuer;
-use crate::types::{ClientMetadata, IssuerMetadata};
+use crate::jwks::Jwks;
+use crate::types::{ClientMetadata, Fapi, IssuerMetadata};
 
 #[test]
 fn requires_client_id() {
@@ -317,4 +319,171 @@ fn returns_error_if_response_type_and_response_types_are_given() {
         "provide a response_type or response_types, not both".to_string(),
         client_error.type_error().error.message
     );
+}
+
+mod fapi {
+
+    use super::*;
+
+    #[test]
+    fn assigns_defaults_to_some_properties_for_fapi_1() {
+        let issuer_metadata = IssuerMetadata::default();
+        let issuer = Issuer::new(issuer_metadata, None);
+
+        let client_metadata = ClientMetadata {
+            client_id: Some("identifier".to_string()),
+            token_endpoint_auth_method: Some("private_key_jwt".to_string()),
+            ..ClientMetadata::default()
+        };
+
+        let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+        jwk.set_algorithm("PS256");
+
+        let jwks = Jwks::from(vec![jwk]);
+
+        let client_result = issuer.client(client_metadata, None, Some(jwks), None, Some(Fapi::V1));
+
+        assert!(client_result.is_ok());
+
+        let client = client_result.unwrap();
+
+        assert_eq!(vec!["authorization_code", "implicit"], client.grant_types);
+        assert_eq!("PS256".to_string(), client.id_token_signed_response_alg);
+        assert_eq!(
+            Some("PS256".to_string()),
+            client.authorization_signed_response_alg
+        );
+        assert_eq!(vec!["code", "id_token"], client.response_types);
+        assert_eq!(
+            Some(true),
+            client.tls_client_certificate_bound_access_tokens
+        );
+    }
+
+    #[test]
+    fn assigns_defaults_to_some_properties_for_fapi_2() {
+        let issuer_metadata = IssuerMetadata::default();
+        let issuer = Issuer::new(issuer_metadata, None);
+
+        let client_metadata = ClientMetadata {
+            client_id: Some("identifier".to_string()),
+            dpop_bound_access_tokens: Some(true),
+            ..ClientMetadata::default()
+        };
+
+        let client_result = issuer.client(client_metadata, None, None, None, Some(Fapi::V2));
+
+        assert!(client_result.is_ok());
+
+        let client = client_result.unwrap();
+
+        assert_eq!("PS256".to_string(), client.id_token_signed_response_alg);
+        assert_eq!(
+            Some("PS256".to_string()),
+            client.authorization_signed_response_alg
+        );
+    }
+
+    #[test]
+    fn token_endpoint_auth_method_is_required_for_fapi_1() {
+        let issuer_metadata = IssuerMetadata::default();
+        let issuer = Issuer::new(issuer_metadata, None);
+
+        let client_metadata = ClientMetadata {
+            client_id: Some("identifier".to_string()),
+            ..ClientMetadata::default()
+        };
+
+        let err = issuer
+            .client(client_metadata, None, None, None, Some(Fapi::V1))
+            .unwrap_err();
+
+        assert!(err.is_type_error());
+
+        assert_eq!(
+            "token_endpoint_auth_method is required",
+            err.type_error().error.message
+        );
+    }
+
+    #[test]
+    fn jwks_is_required_for_private_key_jwt() {
+        let issuer_metadata = IssuerMetadata::default();
+        let issuer = Issuer::new(issuer_metadata, None);
+
+        let client_metadata = ClientMetadata {
+            client_id: Some("identifier".to_string()),
+            token_endpoint_auth_method: Some("private_key_jwt".to_string()),
+            ..ClientMetadata::default()
+        };
+
+        let err = issuer
+            .client(client_metadata, None, None, None, Some(Fapi::V1))
+            .unwrap_err();
+
+        assert!(err.is_type_error());
+
+        assert_eq!("jwks is required", err.type_error().error.message);
+    }
+
+    #[test]
+    fn fapi_1_clients_rejects_other_token_endpoint_auth_methods() {
+        let issuer_metadata = IssuerMetadata::default();
+        let issuer = Issuer::new(issuer_metadata, None);
+
+        let client_metadata = ClientMetadata {
+            client_id: Some("identifier".to_string()),
+            token_endpoint_auth_method: Some("client_secret_basic".to_string()),
+            ..ClientMetadata::default()
+        };
+
+        let err = issuer
+            .client(client_metadata, None, None, None, Some(Fapi::V1))
+            .unwrap_err();
+
+        assert!(err.is_type_error());
+
+        assert_eq!(
+            "invalid or unsupported token_endpoint_auth_method",
+            err.type_error().error.message
+        );
+    }
+
+    #[test]
+    fn either_dpop_or_mtls_bound_at_is_required_for_fapi_2() {
+        let issuer_metadata = IssuerMetadata::default();
+        let issuer = Issuer::new(issuer_metadata, None);
+
+        let client_metadata = ClientMetadata {
+            client_id: Some("identifier".to_string()),
+            ..ClientMetadata::default()
+        };
+
+        let err = issuer
+            .client(client_metadata, None, None, None, Some(Fapi::V2))
+            .unwrap_err();
+
+        assert!(err.is_type_error());
+        assert_eq!("one of tls_client_certificate_bound_access_tokens or dpop_bound_access_tokens must be true", err.type_error().error.message);
+    }
+
+    #[test]
+    fn either_dpop_or_mtls_bound_should_be_configured_for_fapi_2() {
+        let issuer_metadata = IssuerMetadata::default();
+        let issuer = Issuer::new(issuer_metadata, None);
+
+        let client_metadata = ClientMetadata {
+            client_id: Some("identifier".to_string()),
+            dpop_bound_access_tokens: Some(true),
+            tls_client_certificate_bound_access_tokens: Some(true),
+            ..ClientMetadata::default()
+        };
+
+        let err = issuer
+            .client(client_metadata, None, None, None, Some(Fapi::V2))
+            .unwrap_err();
+
+        assert!(err.is_type_error());
+        assert_eq!("only one of tls_client_certificate_bound_access_tokens or dpop_bound_access_tokens must be true", err.type_error().error.message);
+    }
 }

@@ -202,16 +202,25 @@ impl Client {
             default_acr_values: metadata.default_acr_values,
             initiate_login_uri: metadata.initiate_login_uri,
             request_uris: metadata.request_uris,
-            tls_client_certificate_bound_access_tokens: metadata
-                .tls_client_certificate_bound_access_tokens,
             post_logout_redirect_uris: metadata.post_logout_redirect_uris,
             authorization_encrypted_response_alg: metadata.authorization_encrypted_response_alg,
             authorization_encrypted_response_enc: metadata.authorization_encrypted_response_enc,
-            authorization_signed_response_alg: metadata.authorization_signed_response_alg,
             dpop_bound_access_tokens: metadata.dpop_bound_access_tokens,
             other_fields: metadata.other_fields,
             ..Client::default(fapi)
         };
+
+        if metadata
+            .tls_client_certificate_bound_access_tokens
+            .is_some()
+        {
+            client.tls_client_certificate_bound_access_tokens =
+                metadata.tls_client_certificate_bound_access_tokens;
+        }
+
+        if metadata.authorization_signed_response_alg.is_some() {
+            client.authorization_signed_response_alg = metadata.authorization_signed_response_alg;
+        }
 
         client.client_options = options;
 
