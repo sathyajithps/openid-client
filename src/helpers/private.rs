@@ -191,8 +191,8 @@ pub(crate) fn validate_hash(
         Ok(sha) => {
             expected = sha;
             format!(
-                "{} mismatch, expected {}, got: {}",
-                name.claim, expected, actual
+                "{} mismatch, expected {expected}, got: {actual}",
+                name.claim
             )
         }
         Err(err) => format!(

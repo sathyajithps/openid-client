@@ -325,14 +325,14 @@ impl Client {
             "introspection" => self.introspection_endpoint_auth_method.as_ref(),
             _ => {
                 return Err(OidcClientError::new_type_error(
-                    &format!("missing, or unsupported, {}_endpoint_auth_method", endpoint),
+                    &format!("missing, or unsupported, {endpoint}_endpoint_auth_method"),
                     None,
                 ))
             }
         };
 
         let auth_method = endpiont_auth_method.ok_or(OidcClientError::new_type_error(
-            &format!("missing, or unsupported, {}_endpoint_auth_method", endpoint),
+            &format!("missing, or unsupported, {endpoint}_endpoint_auth_method"),
             None,
         ))?;
 
@@ -450,7 +450,7 @@ impl Client {
 
                 headers.insert(
                     "Authorization",
-                    HeaderValue::from_bytes(format!("Basic {}", b64).as_bytes()).map_err(|_| {
+                    HeaderValue::from_bytes(format!("Basic {b64}").as_bytes()).map_err(|_| {
                         OidcClientError::new_error(
                             "error converting client_secret_basic value to header value",
                             None,
@@ -463,7 +463,7 @@ impl Client {
                 Ok(request)
             }
             _ => Err(OidcClientError::new_type_error(
-                &format!("missing, or unsupported, {}_endpoint_auth_method", endpoint),
+                &format!("missing, or unsupported, {endpoint}_endpoint_auth_method"),
                 None,
             )),
         }
@@ -489,7 +489,7 @@ impl Client {
             ),
             _ => {
                 return Err(OidcClientError::new_type_error(
-                    &format!("missing, or unsupported, {}_endpoint_auth_method", endpoint),
+                    &format!("missing, or unsupported, {endpoint}_endpoint_auth_method"),
                     None,
                 ))
             }
@@ -511,13 +511,13 @@ impl Client {
                     .as_ref(),
                 _ => {
                     return Err(OidcClientError::new_type_error(
-                        &format!("missing, or unsupported, {}_endpoint_auth_method", endpoint),
+                        &format!("missing, or unsupported, {endpoint}_endpoint_auth_method"),
                         None,
                     ))
                 }
             };
 
-            auth_signing_alg_values_supported = values.ok_or(OidcClientError::new_type_error(&format!("{}_endpoint_auth_signing_alg_values_supported must be configured on the issuer", endpoint), None))?;
+            auth_signing_alg_values_supported = values.ok_or(OidcClientError::new_type_error(&format!("{endpoint}_endpoint_auth_signing_alg_values_supported must be configured on the issuer"), None))?;
         }
 
         if endpiont_auth_method.unwrap_or(&"".to_string()) == "client_secret_jwt" {
@@ -527,7 +527,7 @@ impl Client {
                     .find(|a| HS_REGEX.is_match(a));
             }
 
-            let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {}_endpoint_auth_method Client Assertion", endpoint), None, None))?;
+            let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {endpoint}_endpoint_auth_method Client Assertion"), None, None))?;
 
             let mut header = JwsHeader::new();
             header.set_algorithm(algorithm);
@@ -562,13 +562,12 @@ impl Client {
             });
         }
 
-        let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {}_endpoint_auth_method Client Assertion", endpoint), None, None))?;
+        let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {endpoint}_endpoint_auth_method Client Assertion"), None, None))?;
 
         let keys = jwks.get(Some(algorithm.to_string()), Some("sig".to_string()), None)?;
         let key = keys.first().ok_or(OidcClientError::new_rp_error(
             &format!(
-                "no key found in client jwks to sign a client assertion with using alg {}",
-                algorithm
+                "no key found in client jwks to sign a client assertion with using alg {algorithm}",
             ),
             None,
             None,
@@ -639,8 +638,7 @@ impl Client {
 
             return Err(OidcClientError::new_rp_error(
                 &format!(
-                    "unexpected JWE alg received, expected {0}, got: {1}",
-                    expected_alg,
+                    "unexpected JWE alg received, expected {expected_alg}, got: {}",
                     alg.unwrap().as_str().unwrap()
                 ),
                 None,
@@ -660,8 +658,7 @@ impl Client {
 
             return Err(OidcClientError::new_rp_error(
                 &format!(
-                    "unexpected JWE enc received, expected {0}, got: {1}",
-                    expected_enc,
+                    "unexpected JWE enc received, expected {expected_enc}, got: {}",
                     enc.unwrap().as_str().unwrap()
                 ),
                 None,
@@ -792,7 +789,7 @@ impl Client {
                 };
 
                 return Err(OidcClientError::new_rp_error(
-                    &format!("failed to decode JWT ({}: {})", name, message),
+                    &format!("failed to decode JWT ({name}: {message})"),
                     None,
                     Some(extra_data),
                 ));
@@ -815,10 +812,7 @@ impl Client {
             extra_data.insert("jwt".to_string(), json!(jwt));
 
             return Err(OidcClientError::new_rp_error(
-                &format!(
-                    "unexpected JWT alg received, expected {}, got: {}",
-                    expected_alg, header_alg
-                ),
+                &format!("unexpected JWT alg received, expected {expected_alg}, got: {header_alg}"),
                 None,
                 Some(extra_data),
             ));
@@ -844,10 +838,7 @@ impl Client {
                 extra_data.insert("jwt".to_string(), json!(jwt));
 
                 return Err(OidcClientError::new_rp_error(
-                    &format!(
-                        "unexpected iss value, expected {}, got: {}",
-                        expected_iss, iss
-                    ),
+                    &format!("unexpected iss value, expected {expected_iss}, got: {iss}",),
                     None,
                     Some(extra_data),
                 ));
@@ -895,9 +886,8 @@ impl Client {
 
                 return Err(OidcClientError::new_rp_error(
                     &format!(
-                        "JWT not active yet, now {}, nbf {}",
-                        timestamp.wrapping_add(self.clock_tolerance.as_secs() as i64),
-                        nbf_value
+                        "JWT not active yet, now {}, nbf {nbf_value}",
+                        timestamp.wrapping_add(self.clock_tolerance.as_secs() as i64)
                     ),
                     None,
                     Some(extra_data),
@@ -933,9 +923,8 @@ impl Client {
 
                 return Err(OidcClientError::new_rp_error(
                     &format!(
-                        "JWT expired, now {}, exp {}",
-                        timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64),
-                        exp_value
+                        "JWT expired, now {}, exp {exp_value}",
+                        timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64)
                     ),
                     None,
                     Some(extra_data),
@@ -1000,7 +989,7 @@ impl Client {
                 extra_data.insert("jwt".to_string(), json!(jwt));
 
                 return Err(OidcClientError::new_rp_error(
-                    &format!("azp mismatch, got: {}", azp),
+                    &format!("azp mismatch, got: {azp}"),
                     None,
                     Some(extra_data),
                 ));
@@ -1246,7 +1235,7 @@ impl Client {
                         );
 
                         return Err(OidcClientError::new_rp_error(
-                                             &format!("too much time has elapsed since the last End-User authentication, max_age {}, auth_time: {}, now {}", ma, auth_time, timestamp),
+                                             &format!("too much time has elapsed since the last End-User authentication, max_age {ma}, auth_time: {auth_time}, now {timestamp}"),
                                              None,
                                              Some(extra_data),
                                          ));
@@ -1385,10 +1374,7 @@ impl Client {
                 extra_data.insert("jwt".to_string(), json!(id_token));
 
                 return Err(OidcClientError::new_rp_error(
-                    &format!(
-                        "JWT issued too far in the past, now {}, iat {}",
-                        timestamp, payload_iat
-                    ),
+                    &format!("JWT issued too far in the past, now {timestamp}, iat {payload_iat}"),
                     None,
                     Some(extra_data),
                 ));
@@ -1728,7 +1714,7 @@ fn verify_presence(payload: &JwtPayload, jwt: &str, prop: &str) -> Result<(), Oi
         extra_data.insert("jwt".to_string(), json!(jwt));
 
         return Err(OidcClientError::new_rp_error(
-            &format!("missing required JWT property {}", prop),
+            &format!("missing required JWT property {prop}"),
             None,
             Some(extra_data),
         ));
