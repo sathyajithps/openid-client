@@ -404,7 +404,7 @@ impl Issuer {
 
             if let Some(host_str) = url.host_str() {
                 host = match url.port() {
-                    Some(port) => Some(host_str.to_string() + &format!(":{}", port)),
+                    Some(port) => Some(host_str.to_string() + &format!(":{port}")),
                     None => Some(host_str.to_string()),
                 }
             }
@@ -476,7 +476,7 @@ impl Issuer {
         if !expected_issuer.starts_with("https://") {
             return Err(OidcClientError::new_op_error(
                 "invalid_location".to_string(),
-                Some(format!("invalid issuer location {}", expected_issuer)),
+                Some(format!("invalid issuer location {expected_issuer}")),
                 None,
                 None,
                 None,
@@ -507,7 +507,7 @@ impl Issuer {
                     if error_res.status == StatusCode::NOT_FOUND {
                         return Err(OidcClientError::new_op_error(
                             "no_issuer".to_string(),
-                            Some(format!("invalid issuer location {}", expected_issuer)),
+                            Some(format!("invalid issuer location {expected_issuer}")),
                             None,
                             None,
                             None,
@@ -524,8 +524,8 @@ impl Issuer {
             return Err(OidcClientError::new_op_error(
                 "issuer_mismatch".to_string(),
                 Some(format!(
-                    "discovered issuer mismatch, expected {}, got: {}",
-                    expected_issuer, issuer.issuer
+                    "discovered issuer mismatch, expected {expected_issuer}, got: {}",
+                    issuer.issuer
                 )),
                 None,
                 None,

@@ -76,7 +76,7 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         if let Some(acr_arr) = val.acr_values {
             let mut acr_str = String::new();
             for acr in acr_arr {
-                acr_str += &format!("{} ", acr);
+                acr_str += &format!("{acr} ");
             }
 
             insert_query(
@@ -89,7 +89,7 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         if let Some(aud_arr) = val.audience {
             let mut aud_str = String::new();
             for aud in aud_arr {
-                aud_str += &format!("{} ", aud);
+                aud_str += &format!("{aud} ");
             }
 
             insert_query(&mut query, "audience", Some(aud_str.trim_end().to_owned()));
@@ -98,7 +98,7 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         if let Some(locale_arr) = val.claims_locales {
             let mut locale_str = String::new();
             for locale in locale_arr {
-                locale_str += &format!("{} ", locale);
+                locale_str += &format!("{locale} ");
             }
 
             insert_query(
@@ -122,7 +122,7 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         if let Some(prompt_arr) = val.prompt {
             let mut prompt_str = String::new();
             for prompt in prompt_arr {
-                prompt_str += &format!("{} ", prompt);
+                prompt_str += &format!("{prompt} ");
             }
 
             insert_query(&mut query, "prompt", Some(prompt_str.trim_end().to_owned()));
@@ -137,7 +137,7 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         if let Some(res_arr) = val.response_type {
             let mut res_str = String::new();
             for res in res_arr {
-                res_str += &format!("{} ", res);
+                res_str += &format!("{res} ");
             }
 
             insert_query(
@@ -150,7 +150,7 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         if let Some(scope_arr) = val.scope {
             let mut scope_str = String::new();
             for scope in scope_arr {
-                scope_str += &format!("{} ", scope);
+                scope_str += &format!("{scope} ");
             }
 
             insert_query(&mut query, "scope", Some(scope_str.trim_end().to_owned()));
@@ -161,7 +161,7 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         if let Some(ui_locales_arr) = val.ui_locales {
             let mut ui_locales_str = String::new();
             for ui_locale in ui_locales_arr {
-                ui_locales_str += &format!("{} ", ui_locale);
+                ui_locales_str += &format!("{ui_locale} ");
             }
 
             insert_query(
@@ -180,7 +180,7 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         if let Some(resource) = &val.resource {
             let mut resource_str = String::new();
             for r in resource {
-                resource_str += &format!("{} ", r);
+                resource_str += &format!("{r} ");
             }
 
             insert_query(

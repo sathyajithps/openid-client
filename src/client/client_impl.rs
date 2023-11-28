@@ -519,8 +519,8 @@ impl Client {
 
                 return Err(OidcClientError::new_rp_error(
                     &format!(
-                        "iss mismatch, expected {0}, got: {1}",
-                        issuer.issuer, params_iss
+                        "iss mismatch, expected {}, got: {params_iss}",
+                        issuer.issuer
                     ),
                     None,
                     Some(extra_data),
@@ -897,8 +897,8 @@ impl Client {
 
                 return Err(OidcClientError::new_rp_error(
                     &format!(
-                        "iss mismatch, expected {0}, got: {1}",
-                        issuer.issuer, params_iss
+                        "iss mismatch, expected {}, got: {params_iss}",
+                        issuer.issuer
                     ),
                     None,
                     Some(extra_data),
@@ -1420,7 +1420,7 @@ impl Client {
                         extra_data.insert("jwt".to_string(), json!(id_token));
 
                         return Err(OidcClientError::new_rp_error(
-                            &format!("sub mismatch, expected {}, got: {}", expected_sub, new_sub),
+                            &format!("sub mismatch, expected {expected_sub}, got: {new_sub}"),
                             None,
                             Some(extra_data),
                         ));
@@ -1744,8 +1744,7 @@ impl Client {
 
                         return Err(OidcClientError::new_rp_error(
                             &format!(
-                                "userinfo sub mismatch, expected {}, got: {}",
-                                expected_sub, new_sub
+                                "userinfo sub mismatch, expected {expected_sub}, got: {new_sub}"
                             ),
                             None,
                             Some(extra_data),
@@ -1810,11 +1809,10 @@ impl Client {
 
         if header_alg == "none" {
             let encoded_header = base64_url::encode(&format!(
-                "{{\"alg\":\"{}\",\"typ\":\"{}\"}}",
-                &header_alg, header_typ
+                "{{\"alg\":\"{header_alg}\",\"typ\":\"{header_typ}\"}}"
             ));
             let encoded_payload = base64_url::encode(&payload);
-            signed = format!("{}.{}.", encoded_header, encoded_payload);
+            signed = format!("{encoded_header}.{encoded_payload}.");
         } else {
             let symmetric = &header_alg.starts_with("HS");
             if *symmetric {

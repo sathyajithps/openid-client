@@ -399,7 +399,7 @@ impl Client {
                 && issuer_supported_alg_values.is_none()
             {
                 return Err(OidcClientError::new_type_error(
-                &format!("{0}_endpoint_auth_signing_alg_values_supported must be configured on the issuer if {0}_endpoint_auth_signing_alg is not defined on a client", endpoint),
+                &format!("{endpoint}_endpoint_auth_signing_alg_values_supported must be configured on the issuer if {endpoint}_endpoint_auth_signing_alg is not defined on a client"),
                 None
             ));
             }
@@ -526,11 +526,11 @@ impl Client {
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
         if let Some(rat) = registration_access_token {
-            let header_value = match HeaderValue::from_str(&format!("Bearer {}", rat)) {
+            let header_value = match HeaderValue::from_str(&format!("Bearer {rat}")) {
                 Ok(v) => v,
                 Err(_) => {
                     return Err(OidcClientError::new_type_error(
-                        &format!("registration_access_token {} is invalid", rat),
+                        &format!("registration_access_token {rat} is invalid"),
                         None,
                     ))
                 }
@@ -719,7 +719,7 @@ impl Client {
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
         if let Some(iat) = initial_access_token {
-            let header_value = match HeaderValue::from_str(&format!("Bearer {}", iat)) {
+            let header_value = match HeaderValue::from_str(&format!("Bearer {iat}")) {
                 Ok(v) => v,
                 Err(_) => {
                     return Err(OidcClientError::new_error(
