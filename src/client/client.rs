@@ -428,93 +428,63 @@ impl Client {
     /// - `jwks` - Private [Jwks] of the client
     /// - `client_options` - The [ClientOptions]
     /// - `issuer` - [Issuer]
-    /// - `interceptor` - [RequestInterceptor]
-    /// - `is_fapi` - Marks the client as FAPI client
+    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
+    /// - `fapi` - [Fapi] version.
     ///
     /// ### *Example:*
     ///
     /// ```rust
-    ///     let _client = Client::from_uri_async(
-    ///         "https://auth.example.com/client/id",
-    ///         None,
-    ///         None,
-    ///         None,
-    ///         None,
-    ///         None,
-    ///         false
-    ///     )
-    ///     .await
-    ///     .unwrap();
+    ///    let issuer = Issuer::discover_async("https://auth.example.com", None)
+    ///        .await
+    ///        .unwrap();
+    ///
+    ///    let _client = Client::from_uri_async(
+    ///        "https://auth.example.com/client/id",
+    ///        &issuer,
+    ///        None,
+    ///        None,
+    ///        None,
+    ///        None,
+    ///        None,
+    ///    )
+    ///    .await
+    ///    .unwrap();
     /// ```
     ///
-    /// ### *Example: with all params*
+    /// ### *Example: with other params*
     ///
     /// ```rust
-    ///     let jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///    let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///    jwk.set_algorithm("PS256");
     ///
-    ///     let jwks = Jwks::from(vec![jwk]);
+    ///    let jwks = Jwks::from(vec![jwk]);
     ///
-    ///     let client_options = ClientOptions {
-    ///         additional_authorized_parties: Some(vec!["authParty".to_string()]),
-    ///     };
-    ///
-    ///    #[derive(Debug, Clone)]
-    ///    pub(crate) struct CustomInterceptor {
-    ///        pub some_header: String,
-    ///        pub some_header_value: String,
-    ///    }
-    ///
-    ///    impl Interceptor for CustomInterceptor {
-    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
-    ///            let mut headers: HeaderMap = HeaderMap::new();
-    ///
-    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
-    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
-    ///
-    ///            headers.append(header, header_value);
-    ///
-    ///            RequestOptions {
-    ///                headers,
-    ///                timeout: Duration::from_millis(5000),
-    ///                ..Default::default()
-    ///            }
-    ///        }
-    ///
-    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
-    ///            Box::new(CustomInterceptor {
-    ///                some_header: self.some_header.clone(),
-    ///                some_header_value: self.some_header_value.clone(),
-    ///            })
-    ///        }
-    ///    }
-    ///
-    ///    let interceptor = CustomInterceptor {
-    ///        some_header: "foo".to_string(),
-    ///        some_header_value: "bar".to_string(),
+    ///    let client_options = ClientOptions {
+    ///        additional_authorized_parties: Some(vec!["authParty".to_string()]),
     ///    };
     ///
-    ///     let issuer = Issuer::discover_async("https://auth.example.com", Some(Box::new(interceptor)))
-    ///         .await
-    ///         .unwrap();
+    ///    let issuer = Issuer::discover_async("https://auth.example.com", None)
+    ///        .await
+    ///        .unwrap();
     ///
-    ///     let _client = Client::from_uri_async(
-    ///         "https://auth.example.com/client/id",
-    ///         Some("token".to_string()),
-    ///         Some(jwks),
-    ///         Some(client_options),
-    ///         Some(&issuer),
-    ///         Some(Box::new(interceptor)),
-    ///         false
-    ///     )
-    ///     .await
-    ///     .unwrap();
+    ///    let _client = Client::from_uri_async(
+    ///        "https://auth.example.com/client/id",
+    ///        &issuer,
+    ///        Some("token".to_string()),
+    ///        Some(jwks),
+    ///        Some(client_options),
+    ///        None,
+    ///        None,
+    ///    )
+    ///    .await
+    ///    .unwrap();
     ///```
     pub async fn from_uri_async(
         registration_client_uri: &str,
+        issuer: &Issuer,
         registration_access_token: Option<String>,
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
-        issuer: Option<&Issuer>,
         mut interceptor: Option<RequestInterceptor>,
         fapi: Option<Fapi>,
     ) -> Result<Self, OidcClientError> {
@@ -564,7 +534,7 @@ impl Client {
 
         Self::from_internal(
             client_metadata,
-            issuer,
+            Some(issuer),
             interceptor,
             jwks,
             client_options,
@@ -582,96 +552,50 @@ impl Client {
     /// - `issuer` - The [Issuer] client should be registered to.
     /// - `client_metadata` - The [ClientMetadata] to be sent using the registration request.
     /// - `register_options` - [ClientRegistrationOptions]
-    /// - `interceptor` - [RequestInterceptor]
-    /// - `is_fapi` - Marks the client as FAPI client
+    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
+    /// - `fapi` - [Fapi] version.
     ///
     /// ### *Example:*
     ///
     /// ```rust
-    ///     let issuer = Issuer::discover_async("https://auth.example.com", None)
-    ///         .await
-    ///         .unwrap();
+    ///    let issuer = Issuer::discover_async("https://auth.example.com", None)
+    ///        .await
+    ///        .unwrap();
     ///
-    ///     let metadata = ClientMetadata {
-    ///         client_id: Some("identifier".to_string()),
-    ///         ..ClientMetadata::default()
-    ///     };
-    ///
-    ///     let _client = Client::register_async(&issuer, metadata, None, None, false)
-    ///         .await
-    ///         .unwrap();
+    ///    let metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        ..ClientMetadata::default()
+    ///    };
+    ///   
+    ///    let _client = Client::register_async(&issuer, metadata, None, None, None)
+    ///        .await
+    ///        .unwrap();
     /// ```
     ///
-    /// ### *Example: with all params*
+    /// ### *Example: with other params*
     ///
     /// ```rust
+    ///      let issuer = Issuer::discover_async("https://auth.example.com", None)
+    ///        .await
+    ///        .unwrap();
     ///
-    ///    #[derive(Debug, Clone)]
-    ///    pub(crate) struct CustomInterceptor {
-    ///        pub some_header: String,
-    ///        pub some_header_value: String,
-    ///    }
-    ///
-    ///    impl Interceptor for CustomInterceptor {
-    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
-    ///            let mut headers: HeaderMap = HeaderMap::new();
-    ///
-    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
-    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
-    ///
-    ///            headers.append(header, header_value);
-    ///
-    ///            RequestOptions {
-    ///                headers,
-    ///                timeout: Duration::from_millis(5000),
-    ///                ..Default::default()
-    ///            }
-    ///        }
-    ///
-    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
-    ///            Box::new(CustomInterceptor {
-    ///                some_header: self.some_header.clone(),
-    ///                some_header_value: self.some_header_value.clone(),
-    ///            })
-    ///        }
-    ///    }
-    ///
-    ///    let interceptor1 = CustomInterceptor {
-    ///        some_header: "foo".to_string(),
-    ///        some_header_value: "bar".to_string(),
+    ///    let metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        ..ClientMetadata::default()
     ///    };
     ///
-    ///     let interceptor2 = CustomInterceptor {
-    ///         some_header: "foo".to_string(),
-    ///         some_header_value: "bar".to_string(),
-    ///     };
+    ///    let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///    jwk.set_algorithm("PS256");
     ///
-    ///     let issuer = Issuer::discover_async("https://auth.example.com", Some(Box::new(interceptor1)))
-    ///         .await
-    ///         .unwrap();
+    ///    let registration_options = ClientRegistrationOptions {
+    ///        initial_access_token: Some("initial_access_token".to_string()),
+    ///        jwks: Some(Jwks::from(vec![jwk])),
+    ///        client_options: Default::default(),
+    ///    };
     ///
-    ///     let metadata = ClientMetadata {
-    ///         client_id: Some("identifier".to_string()),
-    ///         ..ClientMetadata::default()
-    ///     };
-    ///
-    ///     let jwk = Jwk::generate_rsa_key(2048).unwrap();
-    ///
-    ///     let registration_options = ClientRegistrationOptions {
-    ///         initial_access_token: Some("initial_access_token".to_string()),
-    ///         jwks: Some(Jwks::from(vec![jwk])),
-    ///         client_options: Default::default(),
-    ///     };
-    ///
-    ///     let _client = Client::register_async(
-    ///         &issuer,
-    ///         metadata,
-    ///         Some(registration_options),
-    ///         Some(Box::new(interceptor2)),
-    ///         false
-    ///     )
-    ///     .await
-    ///     .unwrap();
+    ///    let _client = Client::register_async(&issuer, metadata, Some(registration_options), None, None)
+    ///        .await
+    ///        .unwrap();
     /// ```
     ///
     pub async fn register_async(
@@ -767,7 +691,7 @@ impl Client {
     }
 
     /// # Get Client Metadata
-    /// Gets the [ClientMetadata] of the `client`/`self`
+    /// Gets the [ClientMetadata] of this [Client] instance
     pub fn metadata(&self) -> ClientMetadata {
         ClientMetadata {
             client_id: Some(self.client_id.clone()),
