@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::Deserialize;
+use serde_json::Value;
 
 /// # MtlsEndpoints
 /// [OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens](https://datatracker.ietf.org/doc/html/rfc8705)
@@ -70,5 +71,5 @@ pub struct IssuerMetadata {
     pub require_pushed_authorization_requests: bool,
     /// Any extra data that was read from the discovery document
     #[serde(flatten)]
-    pub other_fields: HashMap<String, String>,
+    pub other_fields: HashMap<String, Value>,
 }

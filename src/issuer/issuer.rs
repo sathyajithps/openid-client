@@ -11,6 +11,7 @@ use crate::types::{
 };
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
+use serde_json::Value;
 
 use super::keystore::KeyStore;
 
@@ -38,7 +39,7 @@ pub struct Issuer {
     pub(crate) revocation_endpoint_auth_methods_supported: Option<Vec<String>>,
     pub(crate) revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
     pub(crate) end_session_endpoint: Option<String>,
-    pub(crate) other_fields: HashMap<String, String>,
+    pub(crate) other_fields: HashMap<String, Value>,
     pub(crate) keystore: Option<KeyStore>,
     pub(crate) mtls_endpoint_aliases: Option<MtlsEndpoints>,
     pub(crate) introspection_endpoint: Option<String>,
@@ -987,7 +988,7 @@ impl Issuer {
     }
 
     /// Get other fields
-    pub fn get_other_fields(&self) -> HashMap<String, String> {
+    pub fn get_other_fields(&self) -> HashMap<String, Value> {
         self.other_fields.clone()
     }
 
