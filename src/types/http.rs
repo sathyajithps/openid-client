@@ -51,7 +51,46 @@ pub struct Response {
 }
 
 /// # Request Interceptor
-/// Type is a [Box]'ed [Interceptor] trait type.
+/// Request Interceptor is used for intercepting all http request made from this client.
+/// It can be used for setting the certificates in the request, headers, custom url to route to.
+/// Here is an example of a custom interceptor that adds a foo: bar header for all urls that contains `userinfo`.
+///
+/// ```rust
+///    #[derive(Debug, Clone)]
+///    pub(crate) struct CustomInterceptor {
+///        pub some_header: String,
+///        pub some_header_value: String,
+///    }
+///
+///    impl Interceptor for CustomInterceptor {
+///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
+///            let mut headers: HeaderMap = HeaderMap::new();
+///
+///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
+///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
+///
+///            headers.append(header, header_value);
+///
+///            RequestOptions {
+///                headers,
+///                timeout: Duration::from_millis(5000),
+///                ..Default::default()
+///            }
+///        }
+///
+///        fn clone_box(&self) -> Box<dyn Interceptor> {
+///            Box::new(CustomInterceptor {
+///                some_header: self.some_header.clone(),
+///                some_header_value: self.some_header_value.clone(),
+///            })
+///        }
+///    }
+///
+///    let interceptor = Box::new(CustomInterceptor {
+///        some_header: "foo".to_string(),
+///        some_header_value: "bar".to_string(),
+///    });
+/// ```
 pub type RequestInterceptor = Box<dyn Interceptor>;
 
 /// # Lookup
@@ -99,6 +138,8 @@ pub trait Lookup: Debug {
 }
 
 /// # Interceptor
+/// Interceptor trait that needs to be implemented if you want to intercept and customize the requests made
+/// by this client.
 pub trait Interceptor: Debug {
     /// This method which is called before making a request
     fn intercept(&mut self, req: &Request) -> RequestOptions;

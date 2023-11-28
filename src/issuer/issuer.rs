@@ -164,7 +164,7 @@ impl Issuer {
     /// Create an [Issuer] instance using [IssuerMetadata].
     ///
     /// - `metadata` - [IssuerMetadata]
-    /// - `interceptor` - [RequestInterceptor]
+    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
     ///
     /// No OIDC Discovery defaults are set if Issuer is created using this method.
     ///
@@ -187,60 +187,6 @@ impl Issuer {
     ///
     ///     let issuer = Issuer::new(metadata, None);
     /// ```
-    ///
-    /// ### *Example: with a request interceptor*
-    ///
-    /// ```rust
-    ///     let metadata = IssuerMetadata {
-    ///         issuer: "https://auth.example.com".to_string(),
-    ///         authorization_endpoint: Some("https://auth.example.com/authorize".to_string()),
-    ///         token_endpoint: Some("https://auth.example.com/token".to_string()),
-    ///         userinfo_endpoint: Some("https://auth.example.com/userinfo".to_string()),
-    ///         jwks_uri: Some("https://auth.example.com/certs".to_string()),
-    ///         ..IssuerMetadata::default()
-    ///     };
-    ///
-    ///    #[derive(Debug, Clone)]
-    ///    pub(crate) struct CustomInterceptor {
-    ///        pub some_header: String,
-    ///        pub some_header_value: String,
-    ///    }
-    ///
-    ///    impl Interceptor for CustomInterceptor {
-    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
-    ///            let mut headers: HeaderMap = HeaderMap::new();
-    ///
-    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
-    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
-    ///
-    ///            headers.append(header, header_value);
-    ///
-    ///            RequestOptions {
-    ///                headers,
-    ///                timeout: Duration::from_millis(5000),
-    ///                ..Default::default()
-    ///            }
-    ///        }
-    ///
-    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
-    ///            Box::new(CustomInterceptor {
-    ///                some_header: self.some_header.clone(),
-    ///                some_header_value: self.some_header_value.clone(),
-    ///            })
-    ///        }
-    ///    }
-    ///
-    ///    let interceptor = CustomInterceptor {
-    ///        some_header: "foo".to_string(),
-    ///        some_header_value: "bar".to_string(),
-    ///    };
-    ///
-    ///     let issuer = Issuer::new(metadata, Some(Box::new(interceptor)));
-    ///
-    ///     // Get jwks request will send the header foo: bar in the request
-    ///     let _ = issuer.get_jwks();
-    /// ```
-    ///
     pub fn new(metadata: IssuerMetadata, interceptor: Option<RequestInterceptor>) -> Self {
         let introspection_endpoint_auth_methods_supported =
             match metadata.introspection_endpoint_auth_methods_supported {
@@ -319,7 +265,7 @@ impl Issuer {
     /// Discover an OIDC Issuer using the issuer url.
     ///
     /// - `issuer` - The issuer url (absolute).
-    /// - `interceptor` - [RequestInterceptor]
+    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
     ///
     /// *Only an absolute urls are accepted, passing in `auth.example.com` will result in an error.*
     ///
@@ -343,56 +289,6 @@ impl Issuer {
     ///     )
     ///     .await
     ///     .unwrap();
-    /// ```
-    ///
-    /// ### *Example: with interceptor*
-    ///
-    /// ```rust
-    ///
-    ///    #[derive(Debug, Clone)]
-    ///    pub(crate) struct CustomInterceptor {
-    ///        pub some_header: String,
-    ///        pub some_header_value: String,
-    ///    }
-    ///
-    ///    impl Interceptor for CustomInterceptor {
-    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
-    ///            let mut headers: HeaderMap = HeaderMap::new();
-    ///
-    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
-    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
-    ///
-    ///            headers.append(header, header_value);
-    ///
-    ///            RequestOptions {
-    ///                headers,
-    ///                timeout: Duration::from_millis(5000),
-    ///                ..Default::default()
-    ///            }
-    ///        }
-    ///
-    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
-    ///            Box::new(CustomInterceptor {
-    ///                some_header: self.some_header.clone(),
-    ///                some_header_value: self.some_header_value.clone(),
-    ///            })
-    ///        }
-    ///    }
-    ///
-    ///    let interceptor = CustomInterceptor {
-    ///        some_header: "foo".to_string(),
-    ///        some_header_value: "bar".to_string(),
-    ///    };
-    ///
-    ///     // The discovery request will send header foo: bar in the request headers
-    ///
-    ///     let _ = Issuer::discover_async(
-    ///         "https://auth.example.com/.well-known/openid-configuration",
-    ///         Some(Box::new(interceptor)),
-    ///     )
-    ///     .await
-    ///     .unwrap();
-    ///
     /// ```
     pub async fn discover_async(
         issuer: &str,
@@ -455,13 +351,12 @@ impl Issuer {
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
     /// - `input` - The resource.
-    /// - `interceptor` - [RequestInterceptor]
+    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
+    ///
     ///
     /// ### *Example:*
     ///
     /// ```rust
-    /// #[tokio::main]
-    /// async fn main() {
     ///     let _issuer_email = Issuer::webfinger_async("joe@auth.example.com", None)
     ///         .await
     ///         .unwrap();
@@ -475,54 +370,6 @@ impl Issuer {
     ///         .await
     ///         .unwrap();
     ///     let _issuer_acct_host = Issuer::webfinger_async("acct:auth.example.com", None)
-    ///         .await
-    ///         .unwrap();
-    /// }
-    ///
-    /// ```
-    ///
-    /// ### *Example: with interceptor*
-    ///
-    /// ```rust
-    ///     // This interceptor will insert a header foo: bar for the discovery request made
-    ///     // internally after webfinger request
-    ///
-    ///    #[derive(Debug, Clone)]
-    ///    pub(crate) struct CustomInterceptor {
-    ///        pub some_header: String,
-    ///        pub some_header_value: String,
-    ///    }
-    ///
-    ///    impl Interceptor for CustomInterceptor {
-    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
-    ///            let mut headers: HeaderMap = HeaderMap::new();
-    ///
-    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
-    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
-    ///
-    ///            headers.append(header, header_value);
-    ///
-    ///            RequestOptions {
-    ///                headers,
-    ///                timeout: Duration::from_millis(5000),
-    ///                ..Default::default()
-    ///            }
-    ///        }
-    ///
-    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
-    ///            Box::new(CustomInterceptor {
-    ///                some_header: self.some_header.clone(),
-    ///                some_header_value: self.some_header_value.clone(),
-    ///            })
-    ///        }
-    ///    }
-    ///
-    ///    let interceptor = CustomInterceptor {
-    ///        some_header: "foo".to_string(),
-    ///        some_header_value: "bar".to_string(),
-    ///    };
-    ///
-    ///     let _issuer = Issuer::webfinger_async("joe@auth.example.com", Some(Box::new(interceptor)))
     ///         .await
     ///         .unwrap();
     /// ```
@@ -541,7 +388,6 @@ impl Issuer {
         Self::process_webfinger_issuer_result(issuer_result, expected_issuer)
     }
 
-    /// Private function that builds the webfinger request
     fn build_webfinger_request(input: &str) -> Result<Request, OidcClientError> {
         let resource = webfinger_normalize(input);
 
@@ -595,7 +441,6 @@ impl Issuer {
         })
     }
 
-    /// Private function that process the webfinger response
     fn process_webfinger_response(response: Response) -> Result<String, OidcClientError> {
         let webfinger_response =
             match convert_json_to::<WebFingerResponse>(response.body.as_ref().unwrap()) {
@@ -642,7 +487,6 @@ impl Issuer {
         Ok(expected_issuer.to_string())
     }
 
-    /// Private function that process the issuer response
     fn process_webfinger_issuer_result(
         issuer_result: Result<Issuer, OidcClientError>,
         expected_issuer: String,
@@ -701,10 +545,10 @@ impl Issuer {
     /// A client metadata with a required `client_id` field is also required
     ///
     /// - `metadata` - [ClientMetadata]
-    /// - `interceptor` - [RequestInterceptor]
+    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
     /// - `jwks` - The client jwks with private keys.
     /// - `client_options` - Client options.
-    /// - `is_fapi` - Marks the client as FAPI client
+    /// - `fapi` - Version of FAPI
     ///
     /// Note: If the [Issuer] already have a request interceptor and none was passed in through `interceptor`,
     ///       the interceptor from the [Issuer] is used.
@@ -712,97 +556,37 @@ impl Issuer {
     /// ### *Example:*
     ///
     /// ```rust
-    ///     let issuer = Issuer::discover("https://auth.example.com", None).unwrap();
+    ///     let issuer = Issuer::discover_async("https://auth.example.com", None)
+    ///         .await
+    ///         .unwrap();
     ///     
     ///     let client_metadata = ClientMetadata {
     ///         client_id: Some("client_id".to_string()),
     ///         ..ClientMetadata::default()
     ///     };
     ///     
-    ///     let _client = issuer.client(client_metadata, None, None, None, false).unwrap();
+    ///     let _client = issuer.client(client_metadata, None, None, None, None).unwrap();
     /// ```
     ///
     /// ### *Example: with jwks*
     ///
     /// ```rust
-    ///     let issuer = Issuer::discover("https://auth.example.com", None).unwrap();
-    ///
-    ///     let client_metadata = ClientMetadata {
-    ///         client_id: Some("client_id".to_string()),
-    ///         ..ClientMetadata::default()
-    ///     };
-    ///
-    ///     let jwk = jwk::Jwk::generate_rsa_key(2048).unwrap();
-    ///
-    ///     let jwks = Jwks::from(vec![jwk]);
-    ///
-    ///     let _client = issuer
-    ///         .client(client_metadata, None, Some(jwks), None, false)
+    ///     let issuer = Issuer::discover_async("https://auth.example.com", None)
+    ///         .await
     ///         .unwrap();
-    /// ```
-    ///
-    /// ### *Example: with all params*
-    ///
-    /// ```rust
-    ///     let issuer = Issuer::discover("https://auth.example.com", None).unwrap();
-    ///
-    ///     // Adds a foo: bar header for all urls that contains `userinfo`
-    ///
-    ///    #[derive(Debug, Clone)]
-    ///    pub(crate) struct CustomInterceptor {
-    ///        pub some_header: String,
-    ///        pub some_header_value: String,
-    ///    }
-    ///
-    ///    impl Interceptor for CustomInterceptor {
-    ///        fn intercept(&mut self, _req: &Request) -> RequestOptions {
-    ///            let mut headers: HeaderMap = HeaderMap::new();
-    ///
-    ///            let header = HeaderName::from_bytes(self.some_header.as_bytes()).unwrap();
-    ///            let header_value = HeaderValue::from_bytes(self.some_header_value.as_bytes()).unwrap();
-    ///
-    ///            headers.append(header, header_value);
-    ///
-    ///            RequestOptions {
-    ///                headers,
-    ///                timeout: Duration::from_millis(5000),
-    ///                ..Default::default()
-    ///            }
-    ///        }
-    ///
-    ///        fn clone_box(&self) -> Box<dyn Interceptor> {
-    ///            Box::new(CustomInterceptor {
-    ///                some_header: self.some_header.clone(),
-    ///                some_header_value: self.some_header_value.clone(),
-    ///            })
-    ///        }
-    ///    }
-    ///
-    ///    let interceptor = CustomInterceptor {
-    ///        some_header: "foo".to_string(),
-    ///        some_header_value: "bar".to_string(),
-    ///    };
-    ///
-    ///     let jwk = Jwk::generate_rsa_key(2048).unwrap();
-    ///
-    ///     let jwks = Jwks::from(vec![jwk]);
-    ///
-    ///     let client_options = ClientOptions {
-    ///         additional_authorized_parties: Some(vec!["authParty".to_string()]),
-    ///     };
-    ///
+    ///    
     ///     let client_metadata = ClientMetadata {
     ///         client_id: Some("client_id".to_string()),
+    ///         token_endpoint_auth_method: Some("private_key_jwt".to_string()),
     ///         ..ClientMetadata::default()
     ///     };
-    ///
+    ///    
+    ///     let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///     jwk.set_algorithm("PS256");
+    ///     let jwks = Jwks::from(vec![jwk]);
+    ///    
     ///     let _client = issuer
-    ///         .client(
-    ///         client_metadata,
-    ///         Some(Box::new(interceptor)),
-    ///         Some(jwks),
-    ///         Some(client_options),
-    ///         false)
+    ///         .client(client_metadata, None, Some(jwks), None, None)
     ///         .unwrap();
     /// ```
     pub fn client(
@@ -889,117 +673,47 @@ impl Clone for Issuer {
 }
 
 impl Issuer {
-    /// Get issuer
-    pub fn get_issuer(&self) -> String {
-        self.issuer.clone()
-    }
-
-    /// Get authorization endpoint
-    pub fn get_authorization_endpoint(&self) -> Option<String> {
-        self.authorization_endpoint.clone()
-    }
-
-    /// Get token endpoint
-    pub fn get_token_endpoint(&self) -> Option<String> {
-        self.token_endpoint.clone()
-    }
-
-    /// Get jwks uri
-    pub fn get_jwks_uri(&self) -> Option<String> {
-        self.jwks_uri.clone()
-    }
-
-    /// Get userinfo endpoint
-    pub fn get_userinfo_endpoint(&self) -> Option<String> {
-        self.userinfo_endpoint.clone()
-    }
-
-    /// Get revocation endpoint
-    pub fn get_revocation_endpoint(&self) -> Option<String> {
-        self.revocation_endpoint.clone()
-    }
-
-    /// Get claims paramter supported
-    pub fn get_claims_parameter_supported(&self) -> Option<bool> {
-        self.claims_parameter_supported
-    }
-
-    /// Get grant types supported
-    pub fn get_grant_types_supported(&self) -> Option<Vec<String>> {
-        Some(self.grant_types_supported.clone()?.to_vec())
-    }
-
-    /// Get request parameter supported
-    pub fn get_request_parameter_supported(&self) -> Option<bool> {
-        self.request_parameter_supported
-    }
-
-    /// Get request uri parameter supported
-    pub fn get_request_uri_parameter_supported(&self) -> Option<bool> {
-        self.request_uri_parameter_supported
-    }
-
-    /// Get require request uri registration
-    pub fn get_require_request_uri_registration(&self) -> Option<bool> {
-        self.require_request_uri_registration
-    }
-
-    /// Get response modes supported
-    pub fn get_response_modes_supported(&self) -> Option<Vec<String>> {
-        Some(self.response_modes_supported.clone()?.to_vec())
-    }
-
-    /// Get claim types supported
-    pub fn get_claim_types_supported(&self) -> Vec<String> {
-        self.claim_types_supported.clone().to_vec()
-    }
-
-    /// Get token endpoint auth methods supported
-    pub fn get_token_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
-        Some(self.token_endpoint_auth_methods_supported.clone()?.to_vec())
-    }
-
-    /// Get introspection endpoint auth methods supported
-    pub fn get_introspection_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
-        Some(
-            self.introspection_endpoint_auth_methods_supported
-                .clone()?
-                .to_vec(),
-        )
-    }
-
-    /// Get introspection endpoint auth signing algorithm values supported
-    pub fn get_introspection_endpoint_auth_signing_alg_values_supported(
-        &self,
-    ) -> Option<Vec<String>> {
-        Some(
-            self.introspection_endpoint_auth_signing_alg_values_supported
-                .clone()?
-                .to_vec(),
-        )
-    }
-
-    /// Get revocation endpoint auth methods supported
-    pub fn get_revocation_endpoint_auth_methods_supported(&self) -> Option<Vec<String>> {
-        Some(
-            self.revocation_endpoint_auth_methods_supported
-                .clone()?
-                .to_vec(),
-        )
-    }
-
-    /// Get revocation endpoint auth signing algorithm values supported
-    pub fn get_revocation_endpoint_auth_signing_alg_values_supported(&self) -> Option<Vec<String>> {
-        Some(
-            self.revocation_endpoint_auth_signing_alg_values_supported
-                .clone()?
-                .to_vec(),
-        )
-    }
-
-    /// Get other fields
-    pub fn get_other_fields(&self) -> HashMap<String, Value> {
-        self.other_fields.clone()
+    /// Gets the [IssuerMetadata] of the [Issuer]
+    pub fn get_metadata(&self) -> IssuerMetadata {
+        IssuerMetadata {
+            issuer: self.issuer.clone(),
+            authorization_endpoint: self.authorization_endpoint.clone(),
+            device_authorization_endpoint: self.device_authorization_endpoint.clone(),
+            token_endpoint: self.token_endpoint.clone(),
+            jwks_uri: self.jwks_uri.clone(),
+            userinfo_endpoint: self.userinfo_endpoint.clone(),
+            revocation_endpoint: self.revocation_endpoint.clone(),
+            end_session_endpoint: self.end_session_endpoint.clone(),
+            registration_endpoint: self.registration_endpoint.clone(),
+            introspection_endpoint: self.introspection_endpoint.clone(),
+            token_endpoint_auth_methods_supported: self
+                .token_endpoint_auth_methods_supported
+                .clone(),
+            token_endpoint_auth_signing_alg_values_supported: self
+                .token_endpoint_auth_signing_alg_values_supported
+                .clone(),
+            introspection_endpoint_auth_methods_supported: self
+                .introspection_endpoint_auth_methods_supported
+                .clone(),
+            introspection_endpoint_auth_signing_alg_values_supported: self
+                .introspection_endpoint_auth_signing_alg_values_supported
+                .clone(),
+            revocation_endpoint_auth_methods_supported: self
+                .revocation_endpoint_auth_methods_supported
+                .clone(),
+            revocation_endpoint_auth_signing_alg_values_supported: self
+                .revocation_endpoint_auth_signing_alg_values_supported
+                .clone(),
+            mtls_endpoint_aliases: self.mtls_endpoint_aliases.clone(),
+            authorization_response_iss_parameter_supported: self
+                .authorization_response_iss_parameter_supported,
+            dpop_signing_alg_values_supported: self.dpop_signing_alg_values_supported.clone(),
+            pushed_authorization_request_endpoint: self
+                .pushed_authorization_request_endpoint
+                .clone(),
+            require_pushed_authorization_requests: self.require_pushed_authorization_requests,
+            other_fields: self.other_fields.clone(),
+        }
     }
 
     /// Get Jwks
@@ -1009,21 +723,6 @@ impl Issuer {
         }
 
         None
-    }
-
-    /// Get registration endpoint
-    pub fn get_registration_endpoint(&self) -> Option<String> {
-        self.registration_endpoint.clone()
-    }
-
-    /// Get authorization response issuer parameter supported
-    pub fn get_authorization_response_iss_parameter_supported(&self) -> Option<bool> {
-        self.authorization_response_iss_parameter_supported
-    }
-
-    /// Get DPoP alg valued supported
-    pub fn get_dpop_signing_alg_values_supported(&self) -> Option<Vec<String>> {
-        self.dpop_signing_alg_values_supported.clone()
     }
 
     /// Sets an [RequestInterceptor]
