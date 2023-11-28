@@ -1,3 +1,5 @@
+use serde_json::{json, Value};
+
 use crate::issuer::Issuer;
 use crate::types::IssuerMetadata;
 use std::collections::HashMap;
@@ -94,8 +96,8 @@ fn assigns_introspection_and_revocation_auth_method_meta_from_token_if_both_are_
 
 #[test]
 fn is_able_to_discover_custom_or_non_recognized_properties() {
-    let mut other_fields: HashMap<String, String> = HashMap::new();
-    other_fields.insert("foo".to_string(), "bar".to_string());
+    let mut other_fields: HashMap<String, Value> = HashMap::new();
+    other_fields.insert("foo".to_string(), json!("bar"));
 
     let metadata = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
@@ -107,5 +109,8 @@ fn is_able_to_discover_custom_or_non_recognized_properties() {
 
     assert_eq!("https://op.example.com".to_string(), issuer.issuer);
     assert!(issuer.other_fields.contains_key("foo"));
-    assert_eq!(Some(&"bar".to_string()), issuer.other_fields.get("foo"),);
+    assert_eq!(
+        "bar",
+        issuer.other_fields.get("foo").unwrap().as_str().unwrap()
+    );
 }
