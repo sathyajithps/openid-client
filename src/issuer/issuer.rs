@@ -144,6 +144,16 @@ impl Issuer {
             revocation_endpoint_auth_methods_supported,
             revocation_endpoint_auth_signing_alg_values_supported,
             end_session_endpoint: metadata.end_session_endpoint,
+            registration_endpoint: metadata.registration_endpoint,
+            introspection_endpoint: metadata.introspection_endpoint,
+            token_endpoint_auth_signing_alg_values_supported: metadata
+                .token_endpoint_auth_signing_alg_values_supported,
+            mtls_endpoint_aliases: metadata.mtls_endpoint_aliases,
+            authorization_response_iss_parameter_supported: metadata
+                .authorization_response_iss_parameter_supported,
+            dpop_signing_alg_values_supported: metadata.dpop_signing_alg_values_supported,
+            pushed_authorization_request_endpoint: metadata.pushed_authorization_request_endpoint,
+            require_pushed_authorization_requests: metadata.require_pushed_authorization_requests,
             other_fields: metadata.other_fields,
             ..Issuer::default()
         }
