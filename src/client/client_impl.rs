@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::time::Duration;
 
-use reqwest::header::HeaderValue;
+use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Method, StatusCode};
 use serde_json::{json, Value};
 use url::{form_urlencoded, Url};
@@ -1535,8 +1535,6 @@ impl Client {
             ));
         }
 
-        let mut req = Request::default();
-
         if options.method != Method::GET && options.method != Method::POST {
             return Err(OidcClientError::new_type_error(
                 "userinfo_async() method can only be POST or a GET",
@@ -1554,12 +1552,12 @@ impl Client {
         let jwt = self.userinfo_signed_response_alg.is_some()
             || self.userinfo_encrypted_response_alg.is_some();
 
+        let mut headers = HeaderMap::new();
+
         if jwt {
-            req.headers
-                .insert("Accept", HeaderValue::from_static("application/jwt"));
+            headers.insert("Accept", HeaderValue::from_static("application/jwt"));
         } else {
-            req.headers
-                .insert("Accept", HeaderValue::from_static("application/json"));
+            headers.insert("Accept", HeaderValue::from_static("application/json"));
         }
 
         let mtls = self
@@ -1583,8 +1581,8 @@ impl Client {
 
         if options.via == "body" {
             // What?
-            req.headers.remove("Authorization");
-            req.headers.insert(
+            headers.remove("Authorization");
+            headers.insert(
                 "Content-Type",
                 HeaderValue::from_static("application/x-www-form-urlencoded"),
             );
@@ -1608,8 +1606,8 @@ impl Client {
                     form_body.insert(k, v);
                 }
             } else {
-                req.headers.remove("Content-Type");
-                req.headers.insert(
+                headers.remove("Content-Type");
+                headers.insert(
                     "Content-Type",
                     HeaderValue::from_static("application/x-www-form-urlencoded"),
                 );
@@ -1626,7 +1624,7 @@ impl Client {
 
         req_res_params.body = body;
         req_res_params.method = options.method;
-        req_res_params.headers = req.headers;
+        req_res_params.headers = headers;
 
         let res = self
             .request_resource_async(
