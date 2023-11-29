@@ -1313,6 +1313,42 @@ impl Client {
     /// - `token_type` : Type of the `token`. Eg: `Bearer`, `DPoP`
     /// - `retry` : Whether to retry if the request failed or not
     /// - `options` : See [RequestResourceOptions]
+    ///
+    /// ### *Example:*
+    ///
+    /// ```rust
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: "https://auth.example.com".to_string(),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        client_secret: Some("secure".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
+    ///    let resource_response = client
+    ///        .request_resource_async(
+    ///            "https://resource.example.com/resource",
+    ///            "token",
+    ///            Some("Bearer"),
+    ///            true,
+    ///            RequestResourceOptions::default(),
+    ///        )
+    ///        .await
+    ///        .unwrap();
+    ///
+    ///    let _body = resource_response.body;
+    ///    let _headers = resource_response.headers;
+    ///    let _status = resource_response.status;
+    /// ```
     #[async_recursion::async_recursion(? Send)]
     pub async fn request_resource_async(
         &mut self,
