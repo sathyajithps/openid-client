@@ -111,27 +111,31 @@ impl Client {
     }
 
     /// # End Session Url
-    /// Builds an endsession url with respect to the `params`
+    /// Builds an endsession url with respect to the `parameters`
     ///
-    /// - `params` - [EndSessionParameters] : Customize the endsession url
+    /// - `parameters` - [EndSessionParameters] : Customize the endsession url
     ///
     /// ### *Example:*
-    ///  ```
+    ///  ```rust
     ///    let issuer_metadata = IssuerMetadata {
-    ///        end_session_endpoint: Some("https://auth.example.com/end".to_string()),
-    ///        ..Default::default()
-    ///    };
+    ///       end_session_endpoint: Some("https://auth.example.com/end".to_string()),
+    ///       ..Default::default()
+    ///   };
     ///
-    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///   let issuer = Issuer::new(issuer_metadata, None);
     ///
-    ///    let client_metadata = ClientMetadata {
-    ///        client_id: Some("identifier".to_string()),
-    ///        ..Default::default()
-    ///    };
+    ///   let client_metadata = ClientMetadata {
+    ///       client_id: Some("identifier".to_string()),
+    ///       ..Default::default()
+    ///   };
     ///
-    ///    let client = issuer.client(client_metadata, None, None, None).unwrap();
+    ///   let client = issuer
+    ///       .client(client_metadata, None, None, None, None)
+    ///       .unwrap();
     ///
-    ///    let url = client.end_session_url(EndSessionParameters::default()).unwrap();
+    ///   let _url = client
+    ///       .end_session_url(EndSessionParameters::default())
+    ///       .unwrap();
     /// ```
     pub fn end_session_url(
         &self,
