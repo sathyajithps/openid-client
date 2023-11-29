@@ -84,7 +84,7 @@ async fn only_get_and_post_is_supported() {
 
     let mut options = UserinfoOptions::default();
 
-    options.method = reqwest::Method::PUT;
+    options.method = "PUT";
 
     let err = client
         .userinfo_async(&token_set, options)
@@ -288,7 +288,7 @@ async fn can_do_a_post_call() {
     let token_set = TokenSet::new(token_set_params);
 
     let mut options = UserinfoOptions::default();
-    options.method = reqwest::Method::POST;
+    options.method = "POST";
 
     let _ = client.userinfo_async(&token_set, options).await;
 
@@ -339,7 +339,7 @@ async fn can_submit_access_token_in_a_body_when_post() {
     let token_set = TokenSet::new(token_set_params);
 
     let mut options = UserinfoOptions::default();
-    options.method = reqwest::Method::POST;
+    options.method = "POST";
     options.via = "body";
 
     let _ = client.userinfo_async(&token_set, options).await.unwrap();
@@ -391,7 +391,7 @@ async fn can_add_extra_params_in_a_body_when_post() {
     let token_set = TokenSet::new(token_set_params);
 
     let mut options = UserinfoOptions::default();
-    options.method = reqwest::Method::POST;
+    options.method = "POST";
     options.via = "body";
     let mut params = HashMap::new();
     params.insert("foo".to_string(), "bar".to_string());
@@ -445,7 +445,7 @@ async fn can_add_extra_params_in_a_body_when_post_but_via_header() {
     let token_set = TokenSet::new(token_set_params);
 
     let mut options = UserinfoOptions::default();
-    options.method = reqwest::Method::POST;
+    options.method = "POST";
 
     let mut params = HashMap::new();
     params.insert("foo".to_string(), "bar".to_string());
@@ -533,7 +533,7 @@ async fn can_only_submit_access_token_in_a_body_when_post() {
 
     let mut options = UserinfoOptions::default();
 
-    options.method = reqwest::Method::GET;
+    options.method = "GET";
     options.via = "body";
 
     let err = client
