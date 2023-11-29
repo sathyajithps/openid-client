@@ -2058,6 +2058,38 @@ impl Client {
     /// Creates a request object for JAR
     ///
     /// - `request_object` : A [Value] which should be an object
+    ///
+    /// ###*Example:*
+    ///
+    /// ```rust
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: "https://auth.example.com".to_string(),
+    ///        jwks_uri: Some("https://auth.example.com/certs".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        request_object_signing_alg: Some("EdDSA".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
+    ///    let req_object = json!({
+    ///      "scope": "read write",
+    ///      "response_type": "code",
+    ///      "redirect_uri": "https://example.com",
+    ///      "state": "93d33d57-59c7-4b41-9a15-80e2ed1482e2",
+    ///      "client_id": "123"
+    ///    });
+    ///
+    ///    let _request_object_jwt = client.request_object_async(req_object).await.unwrap();
+    /// ```
     pub async fn request_object_async(
         &mut self,
         mut request_object: Value,
