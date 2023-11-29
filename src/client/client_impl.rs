@@ -1655,6 +1655,41 @@ impl Client {
     /// - `token` : The token to be revoked
     /// - `token_type_hint` : Hint to which type of token is being revoked
     /// - `extras` : See [RevokeExtras]
+    ///
+    /// ###*Example:*
+    /// ```rust
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: "https://auth.example.com".to_string(),
+    ///        revocation_endpoint: Some("https://auth.example.com/token/revoke".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        token_endpoint_auth_method: Some("none".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
+    ///    let extras = RevokeExtras {
+    ///        client_assertion_payload: Some(HashMap::new()),
+    ///        revocation_body: Some(HashMap::new()),
+    ///    };
+    ///
+    ///    let revoke_response = client
+    ///        .revoke_async("token", Some("hint"), Some(extras))
+    ///        .await
+    ///        .unwrap();
+    ///
+    ///    let _body = revoke_response.body; // Should be None
+    ///    let _headers = revoke_response.headers;
+    ///    let _status = revoke_response.status;
+    /// ```
     pub async fn revoke_async(
         &mut self,
         token: &str,
