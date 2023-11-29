@@ -48,28 +48,32 @@ impl Client {
     }
 
     /// # Authorization Url
-    /// Builds an authorization url with respect to the `params`
+    /// Builds an authorization url with respect to the `parameters`
     ///
-    /// - `params` - [AuthorizationParameters] : Customize the authorization request
+    /// - `parameters` - [AuthorizationParameters] : Customize the authorization request
     ///
     /// ### *Example:*
-    ///  ```
-    ///    let issuer_metadata = IssuerMetadata {
-    ///        issuer: "https://auth.example.com".to_string(),
-    ///        authorization_endpoint: Some("https://auth.example.com/auth".to_string()),
-    ///        ..Default::default()
-    ///    };
-    ///
-    ///    let issuer = Issuer::new(issuer_metadata, None);
-    ///
-    ///    let client_metadata = ClientMetadata {
-    ///        client_id: Some("identifier".to_string()),
-    ///        ..Default::default()
-    ///    };
-    ///
-    ///    let client = issuer.client(client_metadata, None, None, None).unwrap();
-    ///
-    ///    let url = client.authorization_url(AuthorizationParameters::default()).unwrap();
+    ///  ```rust
+    ///     let issuer_metadata = IssuerMetadata {
+    ///         issuer: "https://auth.example.com".to_string(),
+    ///         authorization_endpoint: Some("https://auth.example.com/auth".to_string()),
+    ///         ..Default::default()
+    ///     };
+    ///     
+    ///     let issuer = Issuer::new(issuer_metadata, None);
+    ///     
+    ///     let client_metadata = ClientMetadata {
+    ///         client_id: Some("identifier".to_string()),
+    ///         ..Default::default()
+    ///     };
+    ///     
+    ///     let client = issuer
+    ///         .client(client_metadata, None, None, None, None)
+    ///         .unwrap();
+    ///     
+    ///     let _url = client
+    ///         .authorization_url(AuthorizationParameters::default())
+    ///         .unwrap();
     /// ```
     pub fn authorization_url(
         &self,
