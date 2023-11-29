@@ -1217,6 +1217,41 @@ impl Client {
     /// - `token` : The token to introspect
     /// - `token_type_hint` : Type of the token passed in `token`. Usually `access_token` or `refresh_token`
     /// - `extras`: See [IntrospectionExtras]
+    ///
+    /// ### *Example:*
+    ///  ```rust
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: "https://auth.example.com".to_string(),
+    ///        introspection_endpoint: Some("https://auth.example.com/introspect".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        client_secret: Some("secure".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
+    ///    let extras = IntrospectionExtras {
+    ///        client_assertion_payload: Some(HashMap::new()),
+    ///        introspect_body: Some(HashMap::new()),
+    ///    };
+    ///
+    ///    let introspection_response = client
+    ///        .introspect_async("token".to_string(), Some("hint".to_string()), Some(extras))
+    ///        .await
+    ///        .unwrap();
+    ///
+    ///    let _body = introspection_response.body;
+    ///    let _headers = introspection_response.headers;
+    ///    let _status = introspection_response.status;
+    /// ```
     pub async fn introspect_async(
         &mut self,
         token: String,
