@@ -1753,6 +1753,48 @@ impl Client {
     ///
     /// - `token_set` : [TokenSet] with `access_token` that will be used to perform the request
     /// - `options` : See [UserinfoOptions]
+    ///
+    /// ###*Example:*
+    ///
+    /// ```rust
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: "https://auth.example.com".to_string(),
+    ///        userinfo_endpoint: Some("https://auth.example.com/me".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        id_token_signed_response_alg: Some("none".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///    let params = TokenSetParams {
+    ///        id_token: Some("id_token".to_string()),
+    ///        refresh_token: Some("refresh".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let token_set = TokenSet::new(params);
+    ///
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
+    ///    // let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///    // jwk.set_algorithm("PS256");
+    ///
+    ///    let options = UserinfoOptions {
+    ///        params: Some(HashMap::new()),
+    ///        method: "POST",
+    ///        via: "body",
+    ///        // dpop: Some(&jwk),
+    ///        dpop: None,
+    ///    };
+    ///
+    ///    let _serde_json_value = client.userinfo_async(&token_set, options).await.unwrap();
+    /// ```
     pub async fn userinfo_async(
         &mut self,
         token_set: &TokenSet,
@@ -1787,14 +1829,14 @@ impl Client {
             ));
         }
 
-        if options.method != Method::GET && options.method != Method::POST {
+        if options.method != "GET" && options.method != "POST" {
             return Err(OidcClientError::new_type_error(
                 "userinfo_async() method can only be POST or a GET",
                 None,
             ));
         }
 
-        if options.via == "body" && options.method != Method::POST {
+        if options.via == "body" && options.method != "POST" {
             return Err(OidcClientError::new_type_error(
                 "can only send body on POST",
                 None,
@@ -1875,7 +1917,11 @@ impl Client {
         }
 
         req_res_params.body = body;
-        req_res_params.method = options.method;
+        req_res_params.method = if options.method == "GET" {
+            Method::GET
+        } else {
+            Method::POST
+        };
         req_res_params.headers = headers;
 
         let res = self

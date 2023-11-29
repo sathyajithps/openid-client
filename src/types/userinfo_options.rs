@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
 use josekit::jwk::Jwk;
-use reqwest::Method;
 
 /// # UserinfoRequestParams
 /// Parameters for customizing Userinfo request
 pub struct UserinfoOptions<'a> {
-    /// Request method
-    pub method: Method,
+    /// Request method: POST or GET
+    pub method: &'a str,
     /// How to send the access token. Valid values: `header` or `body` (POST request)
     pub via: &'a str,
     /// Additional params to sent with the userinfo request
@@ -19,7 +18,7 @@ pub struct UserinfoOptions<'a> {
 impl Default for UserinfoOptions<'_> {
     fn default() -> Self {
         Self {
-            method: Method::GET,
+            method: "GET",
             via: "header",
             params: None,
             dpop: None,
