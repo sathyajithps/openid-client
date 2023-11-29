@@ -1437,6 +1437,42 @@ impl Client {
     /// - `incoming_body` : Incoming body. Use this param if the request is of the type POST
     ///
     /// > Only one of the above parameter is parsed.
+    ///
+    /// ###*Example:*
+    ///
+    /// ```rust
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: "https://auth.example.com".to_string(),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        client_secret: Some("secure".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
+    ///    let _params = client
+    ///        .callback_params(None, Some("code=123&id_token=token".to_string()))
+    ///        .unwrap();
+    ///    // Or
+    ///    let _params = client
+    ///        .callback_params(
+    ///            Some(
+    ///                &"https:://example.com/cb?code=123&id_token=token"
+    ///                    .parse()
+    ///                    .unwrap(),
+    ///            ),
+    ///            None,
+    ///        )
+    ///        .unwrap();
+    /// ```
     pub fn callback_params(
         &self,
         incoming_url: Option<&Url>,
