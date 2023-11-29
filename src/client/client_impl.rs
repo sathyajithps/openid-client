@@ -2385,8 +2385,60 @@ impl Client {
     /// # Device Authorization Grant
     /// Performs a Device Authorization Grant at `device_authorization_request_endpoint`.
     ///
-    /// `params` : See [DeviceAuthorizationParams]
-    /// `extras` : See [DeviceAuthorizationExtras]
+    /// - `params` - See [DeviceAuthorizationParams]
+    /// - `extras` - See [DeviceAuthorizationExtras]
+    ///
+    /// ###*Example:*
+    ///
+    /// ```rust
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: "https://auth.example.com".to_string(),
+    ///        device_authorization_endpoint: Some("https://auth.example/device".to_string()),
+    ///        token_endpoint: Some("https://op.example.com/token".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        client_secret: Some("secure".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
+    ///    let mut other = HashMap::new();
+    ///    other.insert("acr_values".to_string(), json!(["acr1"]));
+    ///    other.insert("claims_locales".to_string(), json!(["some"]));
+    ///
+    ///    let params = DeviceAuthorizationParams {
+    ///        client_id: Some("client_id".to_string()), // not necessary
+    ///        scope: Some(vec!["some".to_string()]),
+    ///        max_age: Some(300),
+    ///        // Authorization Paramters for the auth request is extracted from other
+    ///        other,
+    ///    };
+    ///
+    ///    // let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///    // jwk.set_algorithm("PS256");
+    ///
+    ///    let extras = DeviceAuthorizationExtras {
+    ///        client_assertion_payload: Some(HashMap::new()),
+    ///        exchange_body: Some(HashMap::new()),
+    ///        // dpop: Some(&jwk),
+    ///        dpop: None,
+    ///    };
+    ///
+    ///    let mut device_flow_handle = client
+    ///        .device_authorization_async(params, Some(extras))
+    ///        .await
+    ///        .unwrap();
+    ///
+    ///    let _device_grant_response = device_flow_handle.grant_async();
+    /// ```
     pub async fn device_authorization_async(
         &mut self,
         params: DeviceAuthorizationParams,
@@ -2483,10 +2535,6 @@ impl Client {
                 if let Some(claims_locales) = v.as_str() {
                     let locale_arr = vec![claims_locales.to_string()];
                     auth_params.claims_locales = Some(locale_arr);
-                }
-            } else if k == "client_id" {
-                if let Some(client_id) = v.as_str() {
-                    auth_params.client_id = Some(client_id.to_string());
                 }
             } else if k == "code_challenge_method" {
                 if let Some(code_challenge_method) = v.as_str() {
