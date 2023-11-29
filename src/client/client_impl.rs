@@ -223,12 +223,12 @@ impl Client {
     }
 
     /// # Authorization Post
-    /// Builds an authorization post page with respect to the `params`
+    /// Builds an authorization post page with respect to the `parameters`
     ///
-    /// - `params` - [AuthorizationParameters] : Customize the authorization request
+    /// - `parameters` - [AuthorizationParameters] : Customize the authorization request
     ///
     /// ### *Example:*
-    ///  ```
+    ///  ```rust
     ///    let issuer_metadata = IssuerMetadata {
     ///        authorization_endpoint: Some("https://auth.example.com/auth".to_string()),
     ///        ..Default::default()
@@ -241,9 +241,13 @@ impl Client {
     ///        ..Default::default()
     ///    };
     ///
-    ///    let client = issuer.client(client_metadata, None, None, None).unwrap();
+    ///    let client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
     ///
-    ///    let html = client.authorization_post(AuthorizationParameters::default()).unwrap();
+    ///    let _html = client
+    ///        .authorization_post(AuthorizationParameters::default())
+    ///        .unwrap();
     /// ```
     pub fn authorization_post(
         &self,
