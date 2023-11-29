@@ -8,7 +8,7 @@ use crate::types::{
 use super::Client;
 
 /// # DeviceFlowHandle
-/// Handle used to poll Device Grant
+/// Handle used for Device Grant
 #[derive(Debug)]
 pub struct DeviceFlowHandle {
     client: Client,
@@ -97,7 +97,12 @@ impl DeviceFlowHandle {
         self.response.verification_uri_complete.as_ref()
     }
 
-    /// Performs grant request at the `token_endpoint`
+    /// ## Device Flow Grant
+    ///
+    /// Performs grant request at the [`crate::types::IssuerMetadata::token_endpoint`]. This method will
+    /// not poll itself. It is left to the implementor to create that logic.
+    ///
+    /// See [DeviceFlowGrantResponse] for the possible responses that will be obtained from the grant.
     pub async fn grant_async(&mut self) -> Result<DeviceFlowGrantResponse, OidcClientError> {
         if self.expired() {
             return Err(OidcClientError::new_rp_error(&format!("the device code {} has expired and the device authorization session has concluded", self.device_code()), None, None));
