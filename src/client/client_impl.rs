@@ -394,14 +394,14 @@ impl Client {
     /// Performs the callback for Authorization Server's authorization response.
     ///
     /// - `redirect_uri` - The redirect uri of the [Client]
-    /// - `params` - [CallbackParams] : Parameters recieved from the callback response
+    /// - `parameters` - [CallbackParams] : Parameters recieved from the callback response
     /// - `checks` - [OAuthCallbackChecks] : Checks to be performed against `params`
     /// - `extras` - [CallbackExtras] : Extra details to be used for token grant
     ///
     /// ### *Example:*
-    ///  ```
+    ///  ```rust
     ///    let issuer_metadata = IssuerMetadata {
-    ///        issuer: Some("https://auth.example.com".to_string()),
+    ///        issuer: "https://auth.example.com".to_string(),
     ///        token_endpoint: Some("https://auth.example.com/token".to_string()),
     ///        ..Default::default()
     ///    };
@@ -414,24 +414,29 @@ impl Client {
     ///        ..Default::default()
     ///    };
     ///
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
     ///    let callback_params = CallbackParams {
     ///        code: Some("code".to_string()),
     ///        ..Default::default()
     ///    };
     ///
     ///    let checks = OAuthCallbackChecks {
-    ///        response_type: Some("code".to_string()),
+    ///        response_type: Some("code"),
     ///        ..Default::default()
     ///    };
     ///
-    ///    let token_set = client
+    ///    let _token_set = client
     ///        .oauth_callback_async(
-    ///            Some("https://rp.example.com/cb".to_string()),
+    ///            Some("https://rp.example.com/cb"),
     ///            callback_params,
     ///            Some(checks),
     ///            None,
     ///        )
-    ///        .await.unwrap();
+    ///        .await
+    ///        .unwrap();
     /// ```
     pub async fn oauth_callback_async(
         &mut self,
