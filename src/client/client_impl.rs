@@ -729,6 +729,14 @@ impl Client {
             None => None,
         };
 
+        let mut tokenset_others = HashMap::new();
+
+        for (k, v) in other_fields {
+            if let Ok(val) = serde_json::to_value(v) {
+                tokenset_others.insert(k, val);
+            }
+        }
+
         let token_params = TokenSetParams {
             access_token: parameters.access_token,
             id_token: parameters.id_token,
@@ -738,7 +746,7 @@ impl Client {
             token_type,
             session_state,
             refresh_token,
-            other: Some(other_fields),
+            other: Some(tokenset_others),
         };
 
         Ok(TokenSet::new(token_params))
@@ -1041,6 +1049,14 @@ impl Client {
                 None => None,
             };
 
+            let mut tokenset_others = HashMap::new();
+
+            for (k, v) in other_fields {
+                if let Ok(val) = serde_json::to_value(v) {
+                    tokenset_others.insert(k, val);
+                }
+            }
+
             let token_params = TokenSetParams {
                 access_token: parameters.access_token.clone(),
                 id_token: parameters.id_token.clone(),
@@ -1050,7 +1066,7 @@ impl Client {
                 token_type,
                 session_state,
                 refresh_token,
-                other: Some(other_fields),
+                other: Some(tokenset_others),
             };
 
             let mut token_set = TokenSet::new(token_params);
@@ -1150,6 +1166,14 @@ impl Client {
             None => None,
         };
 
+        let mut tokenset_others = HashMap::new();
+
+        for (k, v) in other_fields {
+            if let Ok(val) = serde_json::to_value(v) {
+                tokenset_others.insert(k, val);
+            }
+        }
+
         let token_params = TokenSetParams {
             access_token: parameters.access_token,
             id_token: parameters.id_token,
@@ -1159,7 +1183,7 @@ impl Client {
             token_type,
             session_state,
             refresh_token,
-            other: Some(other_fields),
+            other: Some(tokenset_others),
         };
 
         Ok(TokenSet::new(token_params))
