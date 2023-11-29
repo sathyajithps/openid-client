@@ -2249,6 +2249,50 @@ impl Client {
     ///
     /// - `parameters` : See [AuthorizationParameters]
     /// - `extras` : See [PushedAuthorizationRequestExtras]
+    ///
+    /// ###*Example:*
+    ///
+    /// ```rust
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: "https://auth.example.com".to_string(),
+    ///        pushed_authorization_request_endpoint: Some("https://auth.example.com/par".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        client_secret: Some("secure".to_string()),
+    ///        response_type: Some("code".to_string()),
+    ///        grant_types: Some(vec!["authrorization_code".to_string()]),
+    ///        redirect_uri: Some("https://example.com/cb".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
+    ///    let auth_params = AuthorizationParameters {
+    ///        scope: Some(vec!["some".to_string()]),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    // let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///    // jwk.set_algorithm("PS256");
+    ///
+    ///    let extras = PushedAuthorizationRequestExtras {
+    ///        client_assertion_payload: Some(HashMap::new()),
+    ///        // dpop: Some(&jwk),
+    ///        dpop: None,
+    ///    };
+    ///
+    ///    let _request_object_jwt = client
+    ///        .pushed_authorization_request_async(Some(auth_params), Some(extras))
+    ///        .await
+    ///        .unwrap();
+    /// ```
     pub async fn pushed_authorization_request_async(
         &mut self,
         parameters: Option<AuthorizationParameters>,
