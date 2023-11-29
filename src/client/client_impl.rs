@@ -295,13 +295,14 @@ impl Client {
     }
 
     /// # Token Grant
-    /// Performs a grant at the `token_endpoint`
+    /// Performs a grant at the [`crate::types::IssuerMetadata::token_endpoint`]
     ///
     /// - `body` - HashMap<String, Value> : Request body
-    /// - `params` - [GrantExtras] : Parameters for customizing auth request
+    /// - `extras` - [GrantExtras] : Parameters for customizing auth request
+    /// - `retry` - Will retry exactly once if true.
     ///
     /// ### *Example:*
-    ///  ```
+    ///  ```rust
     ///    let issuer_metadata = IssuerMetadata {
     ///        token_endpoint: Some("https://auth.example.com/token".to_string()),
     ///        ..Default::default()
@@ -314,11 +315,16 @@ impl Client {
     ///        ..Default::default()
     ///    };
     ///
-    ///    let client = issuer.client(client_metadata, None, None, None).unwrap();
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
     ///
-    ///    let body: HashMap<String, Value> = HashMap::new();
+    ///    let body: HashMap<String, String> = HashMap::new();
     ///
-    ///    let token_set = client.grant(body, GrantExtras::default()).await.unwrap();
+    ///    let _token_set = client
+    ///        .grant_async(body, GrantExtras::default(), true)
+    ///        .await
+    ///        .unwrap();
     /// ```
     #[async_recursion::async_recursion(? Send)]
     pub async fn grant_async(
