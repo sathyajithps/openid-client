@@ -757,18 +757,21 @@ impl Client {
         Ok(TokenSet::new(token_params))
     }
 
-    /// When `skip_max_age_check` is set to true, Id token's
+    /// # Skip Max Age Check
+    /// When `skip_max_age_check` is set to true, Id Token's
     /// Max age wont be validated
     pub fn set_skip_max_age_check(&mut self, max_age_check: bool) {
         self.skip_max_age_check = max_age_check;
     }
 
+    /// # Skip Nonce Check
     /// When `skip_nonce_check` is set to true, Id token's
     /// Nonce wont be validated
     pub fn set_skip_nonce_check(&mut self, nonce_check: bool) {
         self.skip_nonce_check = nonce_check;
     }
 
+    /// # Set Clock Skew
     /// It is possible the RP or OP environment has a system clock skew,
     /// which can result in the error "JWT not active yet".
     pub fn set_clock_skew_duration(&mut self, duration: Duration) {
