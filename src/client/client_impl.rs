@@ -1536,7 +1536,53 @@ impl Client {
     /// Performs a Token Refresh request at Issuer's `token_endpoint`
     ///
     /// - `token_set` : [TokenSet] with refresh token that will be used to perform the request
-    /// - `params` : See [RefreshTokenExtras]
+    /// - `extras` : See [RefreshTokenExtras]
+    ///
+    /// ###*Example:*
+    ///
+    /// ```rust
+    ///    let issuer_metadata = IssuerMetadata {
+    ///        issuer: "https://auth.example.com".to_string(),
+    ///        token_endpoint: Some("https://auth.example.com/token".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let issuer = Issuer::new(issuer_metadata, None);
+    ///
+    ///    let client_metadata = ClientMetadata {
+    ///        client_id: Some("identifier".to_string()),
+    ///        client_secret: Some("larger_than_32_char_client_secret".to_string()),
+    ///        id_token_signed_response_alg: Some("HS256".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let mut client = issuer
+    ///        .client(client_metadata, None, None, None, None)
+    ///        .unwrap();
+    ///
+    ///    let params = TokenSetParams {
+    ///        id_token: Some("id_token".to_string()),
+    ///        refresh_token: Some("refresh".to_string()),
+    ///        ..Default::default()
+    ///    };
+    ///
+    ///    let old_token_set = TokenSet::new(params);
+    ///
+    ///    // let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
+    ///    // jwk.set_algorithm("PS256");
+    ///
+    ///    let extras = RefreshTokenExtras {
+    ///        client_assertion_payload: Some(HashMap::new()),
+    ///        exchange_body: Some(HashMap::new()),
+    ///        // dpop: Some(&jwk),
+    ///        dpop: None,
+    ///    };
+    ///
+    ///    let _token_set = client
+    ///        .refresh_async(old_token_set, Some(extras))
+    ///        .await
+    ///        .unwrap();
+    /// ```
     pub async fn refresh_async(
         &mut self,
         token_set: TokenSet,
