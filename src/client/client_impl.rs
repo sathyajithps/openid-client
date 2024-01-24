@@ -169,10 +169,8 @@ impl Client {
         let mut post_logout: Option<String> = None;
 
         if let Some(plrus) = &self.post_logout_redirect_uris {
-            if plrus.len() == 1 {
-                if let Some(first) = plrus.get(0) {
-                    post_logout = Some(first.clone());
-                }
+            if let Some(first) = plrus.first() {
+                post_logout = Some(first.clone());
             }
         }
 
