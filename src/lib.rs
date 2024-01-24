@@ -3,14 +3,14 @@
 #![doc(html_favicon_url = "https://i.ibb.co/1TNK5bY/oidc-1.png")]
 
 //! # OpenID Client
-//! 
+//!
 //! A feature complete OpenID Client library for Rust. Not stable, kindly report any bugs.
-//! 
+//!
 //! ## Implemented specs & features
-//! 
+//!
 //! The following client/RP features from OpenID Connect/OAuth2.0 specifications are implemented by
 //! openid-client.
-//! 
+//!
 //! - [OpenID Connect Core 1.0][feature-core]
 //!   - Authorization Callback
 //!     - Authorization Code Flow
@@ -50,7 +50,7 @@
 //! - [Financial-grade API Security Profile 1.0 - Part 2: Advanced (FAPI)][feature-fapi]
 //! - [JWT Secured Authorization Response Mode for OAuth 2.0 (JARM)][feature-jarm]
 //! - [OAuth 2.0 Authorization Server Issuer Identification][feature-iss]
-//! 
+//!
 //! [openid-connect]: https://openid.net/connect/
 //! [feature-core]: https://openid.net/specs/openid-connect-core-1_0.html
 //! [feature-discovery]: https://openid.net/specs/openid-connect-discovery-1_0.html
