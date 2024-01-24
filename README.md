@@ -49,7 +49,7 @@ openid-client.
 
 ## Documentation
 
-Work In Progress: [Documentation](https://docs.rs/openid-client)
+[Documentation](https://docs.rs/openid-client)
 
 ## Alternatives
 
