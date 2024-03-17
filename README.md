@@ -2,6 +2,13 @@
 
 A feature complete OpenID Client library for Rust. Not stable, kindly report any bugs.
 
+**TODO**
+- Code cleanup
+- Thin up a lot of inefficient decisions made for the sake of completion of the library
+- Test out the ported features
+- Add more features
+
+
 ## Implemented specs & features
 
 The following client/RP features from OpenID Connect/OAuth2.0 specifications are implemented by
