@@ -3,11 +3,13 @@
 A feature complete OpenID Client library for Rust. Not stable, kindly report any bugs.
 
 **TODO**
-- Code cleanup
-- Thin up a lot of inefficient decisions made for the sake of completion of the library
-- Test out the ported features
-- Add more features
 
+- [ ] Write and Pass conformance
+- [ ] Allow to use custom http client instead of interceptor
+- [ ] Code cleanup
+- [ ] Thin up a lot of inefficient decisions made for the sake of completion of the library
+- [ ] Test out the ported features
+- [ ] Add more features?
 
 ## Implemented specs & features
 
@@ -60,8 +62,8 @@ openid-client.
 
 ## Alternatives
 
--   [openidconnect](https://crates.io/crates/openidconnect)
--   [openid](https://crates.io/crates/openid)
+- [openidconnect](https://crates.io/crates/openidconnect)
+- [openid](https://crates.io/crates/openid)
 
 [openid-connect]: https://openid.net/connect/
 [feature-core]: https://openid.net/specs/openid-connect-core-1_0.html
