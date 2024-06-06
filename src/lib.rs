@@ -111,6 +111,8 @@ pub mod client;
 /// Helpers
 pub mod helpers;
 mod http;
+#[cfg(feature = "http_client")]
+pub mod http_client;
 pub mod issuer;
 pub mod jwks;
 mod tests;

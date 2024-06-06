@@ -1,20 +1,20 @@
-use httpmock::{Method::POST, MockServer};
-
 use crate::{
     client::Client,
+    http_client::DefaultHttpClient,
     issuer::Issuer,
-    tests::test_interceptors::get_default_test_interceptor,
-    types::{CallbackParams, ClientMetadata, IssuerMetadata},
+    types::{CallbackParams, ClientMetadata, HttpMethod, IssuerMetadata, OAuthCallbackParams},
 };
 
-fn get_iss_client_iss(port: Option<u16>) -> (Issuer, Client, Issuer) {
+use crate::tests::test_http_client::TestHttpReqRes;
+
+fn get_iss_client_iss() -> (Issuer, Client, Issuer) {
     let issuer_metadata = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
         token_endpoint: Some("https://op.example.com/token".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, get_default_test_interceptor(port));
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -22,15 +22,7 @@ fn get_iss_client_iss(port: Option<u16>) -> (Issuer, Client, Issuer) {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(
-            client_metadata,
-            get_default_test_interceptor(port),
-            None,
-            None,
-            None,
-        )
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let issuer_metadata_with_iss = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
@@ -39,73 +31,63 @@ fn get_iss_client_iss(port: Option<u16>) -> (Issuer, Client, Issuer) {
         ..Default::default()
     };
 
-    (
-        issuer,
-        client,
-        Issuer::new(issuer_metadata_with_iss, get_default_test_interceptor(port)),
-    )
+    (issuer, client, Issuer::new(issuer_metadata_with_iss))
 }
 
 #[tokio::test]
 async fn does_an_authorization_code_grant_with_code_and_redirect_uri() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header(
+            "authorization",
+            vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
+        )
+        .assert_request_header("content-length", vec!["91".to_string()])
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_body(
+            "grant_type=authorization_code&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&code=codeValue",
+        )
+        .set_response_body(r#"{"access_token":"tokenValue"}"#)
+        .build();
 
-    let oauth_callback_server = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .header("Accept", "application/json")
-            .matches(|req| {
-                let decoded =
-                    urlencoding::decode(std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap())
-                        .unwrap();
-
-                let kvp = querystring::querify(&decoded);
-
-                let code = kvp.iter().find(|(k, v)| k == &"code" && v == &"codeValue");
-                let redirect_uri = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"redirect_uri" && v == &"https://rp.example.com/cb");
-                let grant_type = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"grant_type" && v == &"authorization_code");
-                code.is_some() && redirect_uri.is_some() && grant_type.is_some()
-            })
-            .path("/token");
-        then.status(200).body("{\"access_token\":\"tokenValue\"}");
-    });
-
-    let (_, mut client, _) = get_iss_client_iss(Some(mock_http_server.port()));
+    let (_, mut client, _) = get_iss_client_iss();
 
     let callback_params = CallbackParams {
         code: Some("codeValue".to_string()),
         ..Default::default()
     };
 
+    let params = OAuthCallbackParams::default()
+        .redirect_uri("https://rp.example.com/cb")
+        .parameters(callback_params);
+
     let token_set = client
-        .oauth_callback_async(
-            Some("https://rp.example.com/cb"),
-            callback_params,
-            None,
-            None,
-        )
+        .oauth_callback_async(&http_client, params)
         .await
         .unwrap();
 
-    oauth_callback_server.assert();
+    http_client.assert();
 
     assert_eq!("tokenValue", token_set.get_access_token().unwrap());
 }
 
 #[tokio::test]
 async fn handles_implicit_responses_too() {
-    let (_, mut client, _) = get_iss_client_iss(None);
+    let (_, mut client, _) = get_iss_client_iss();
 
     let callback_params = CallbackParams {
         access_token: Some("tokenValue".to_string()),
         ..Default::default()
     };
 
+    let params = OAuthCallbackParams::default().parameters(callback_params);
+
     let token_set = client
-        .oauth_callback_async(None, callback_params, None, None)
+        .oauth_callback_async(&DefaultHttpClient, params)
         .await
         .unwrap();
 
@@ -117,19 +99,23 @@ mod oauth_2_0_authorization_server_issuer_identification {
 
     // TODO: after callback_async(), implement the respective tests for those methods below
 
+    use crate::types::OpenIdCallbackParams;
+
     use super::*;
 
     #[tokio::test]
     async fn iss_mismatch_in_oauth_callback_async() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let callback_params = CallbackParams {
             iss: Some("https://other-op.example.com".to_string()),
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default().parameters(callback_params);
+
         let token_set = client
-            .oauth_callback_async(None, callback_params, None, None)
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -144,15 +130,17 @@ mod oauth_2_0_authorization_server_issuer_identification {
 
     #[tokio::test]
     async fn iss_mismatch_in_callback_async() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let callback_params = CallbackParams {
             iss: Some("https://other-op.example.com".to_string()),
             ..Default::default()
         };
 
+        let params = OpenIdCallbackParams::default().parameters(callback_params);
+
         let token_set = client
-            .callback_async(None, callback_params, None, None)
+            .callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -167,17 +155,19 @@ mod oauth_2_0_authorization_server_issuer_identification {
 
     #[tokio::test]
     async fn iss_missing_in_oauth_callback_async() {
-        let (_, _, iss) = get_iss_client_iss(None);
+        let (_, _, iss) = get_iss_client_iss();
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
             ..Default::default()
         };
 
-        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
+        let mut client = iss.client(client_metadata, None, None, None).unwrap();
+
+        let params = OAuthCallbackParams::default();
 
         let token_set = client
-            .oauth_callback_async(None, Default::default(), None, None)
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -189,17 +179,17 @@ mod oauth_2_0_authorization_server_issuer_identification {
 
     #[tokio::test]
     async fn iss_missing_in_callback_async() {
-        let (_, _, iss) = get_iss_client_iss(None);
+        let (_, _, iss) = get_iss_client_iss();
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
             ..Default::default()
         };
 
-        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
+        let mut client = iss.client(client_metadata, None, None, None).unwrap();
 
         let token_set = client
-            .callback_async(None, Default::default(), None, None)
+            .callback_async(&DefaultHttpClient, OpenIdCallbackParams::default())
             .await
             .unwrap_err();
 
@@ -226,52 +216,25 @@ mod jarm_response_mode {
 
     #[tokio::test]
     async fn consumes_jarm_responses() {
-        let mock_http_server = MockServer::start();
+        let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header(
+            "authorization",
+            vec!["Basic aWRlbnRpZmllcjpsYXJnZXJfdGhhbl8zMl9jaGFyX2NsaWVudF9zZWNyZXQ=".to_string()],
+        )
+        .assert_request_header("content-length", vec!["85".to_string()])
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_body(
+            "grant_type=authorization_code&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&code=foo",
+        )
+        .set_response_body("{}")
+        .build();
 
-        let oauth_callback_server = mock_http_server.mock(|when, then| {
-            when.method(POST)
-                .header("accept", "application/json")
-                .matches(|req| {
-                    let mut content_length_exists = false;
-                    let mut no_transfer_encoding = false;
-
-                    if let Some(headers) = &req.headers {
-                        content_length_exists = headers
-                            .iter()
-                            .find(|x| x.0 == "content-length" && x.1.parse::<u64>().is_ok())
-                            .is_some();
-
-                        no_transfer_encoding = headers
-                            .iter()
-                            .find(|x| x.0 == "transfer-encoding")
-                            .is_none();
-                    }
-
-                    let decoded = urlencoding::decode(
-                        std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap(),
-                    )
-                    .unwrap();
-
-                    let kvp = querystring::querify(&decoded);
-
-                    let code = kvp.iter().find(|(k, v)| k == &"code" && v == &"foo");
-                    let redirect_uri = kvp
-                        .iter()
-                        .find(|(k, v)| k == &"redirect_uri" && v == &"https://rp.example.com/cb");
-                    let grant_type = kvp
-                        .iter()
-                        .find(|(k, v)| k == &"grant_type" && v == &"authorization_code");
-                    code.is_some()
-                        && redirect_uri.is_some()
-                        && grant_type.is_some()
-                        && content_length_exists
-                        && no_transfer_encoding
-                })
-                .path("/token");
-            then.status(200).body("{}");
-        });
-
-        let (_, _, iss) = get_iss_client_iss(Some(mock_http_server.port()));
+        let (_, _, iss) = get_iss_client_iss();
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -301,7 +264,7 @@ mod jarm_response_mode {
 
         let response = josekit::jwt::encode_with_signer(&payload, &header, &signer).unwrap();
 
-        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
+        let mut client = iss.client(client_metadata, None, None, None).unwrap();
 
         let callback_params = CallbackParams {
             response: Some(response),
@@ -313,66 +276,37 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let _ = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                callback_params,
-                Some(checks),
-                None,
-            )
-            .await;
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(callback_params)
+            .checks(checks);
 
-        oauth_callback_server.assert_async().await;
+        let _ = client.oauth_callback_async(&http_client, params).await;
+
+        http_client.assert();
     }
 
     #[tokio::test]
     async fn consumes_encrypted_jarm_responses() {
-        let mock_http_server = MockServer::start();
+        let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header(
+            "authorization",
+            vec!["Basic aWRlbnRpZmllcjpsYXJnZXJfdGhhbl8zMl9jaGFyX2NsaWVudF9zZWNyZXQ=".to_string()],
+        )
+        .assert_request_header("content-length", vec!["85".to_string()])
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_body(
+            "grant_type=authorization_code&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&code=foo",
+        )
+        .set_response_body("{}")
+        .build();
 
-        let oauth_callback_server = mock_http_server.mock(|when, then| {
-            when.method(POST)
-                .header("accept", "application/json")
-                .matches(|req| {
-                    let mut content_length_exists = false;
-                    let mut no_transfer_encoding = false;
-
-                    if let Some(headers) = &req.headers {
-                        content_length_exists = headers
-                            .iter()
-                            .find(|x| x.0 == "content-length" && x.1.parse::<u64>().is_ok())
-                            .is_some();
-
-                        no_transfer_encoding = headers
-                            .iter()
-                            .find(|x| x.0 == "transfer-encoding")
-                            .is_none();
-                    }
-
-                    let decoded = urlencoding::decode(
-                        std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap(),
-                    )
-                    .unwrap();
-
-                    let kvp = querystring::querify(&decoded);
-
-                    let code = kvp.iter().find(|(k, v)| k == &"code" && v == &"foo");
-                    let redirect_uri = kvp
-                        .iter()
-                        .find(|(k, v)| k == &"redirect_uri" && v == &"https://rp.example.com/cb");
-                    let grant_type = kvp
-                        .iter()
-                        .find(|(k, v)| k == &"grant_type" && v == &"authorization_code");
-                    code.is_some()
-                        && redirect_uri.is_some()
-                        && grant_type.is_some()
-                        && content_length_exists
-                        && no_transfer_encoding
-                })
-                .path("/token");
-            then.status(200).body("{}");
-        });
-
-        let (_, _, iss) = get_iss_client_iss(Some(mock_http_server.port()));
+        let (_, _, iss) = get_iss_client_iss();
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -383,7 +317,7 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
+        let mut client = iss.client(client_metadata, None, None, None).unwrap();
 
         let secret = client.secret_for_alg("A128GCM").unwrap();
 
@@ -428,16 +362,14 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let _ = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                callback_params,
-                Some(checks),
-                None,
-            )
-            .await;
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(callback_params)
+            .checks(checks);
 
-        oauth_callback_server.assert_async().await;
+        let _ = client.oauth_callback_async(&http_client, params).await;
+
+        http_client.assert();
     }
 
     #[tokio::test]
@@ -452,15 +384,15 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
+
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(callback_params)
+            .checks(checks);
 
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                callback_params,
-                Some(checks),
-                None,
-            )
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -470,7 +402,7 @@ mod jarm_response_mode {
 
     #[tokio::test]
     async fn verifies_the_jarm_alg() {
-        let (_, _, iss) = get_iss_client_iss(None);
+        let (_, _, iss) = get_iss_client_iss();
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -500,7 +432,7 @@ mod jarm_response_mode {
 
         let response = josekit::jwt::encode_with_signer(&payload, &header, &signer).unwrap();
 
-        let mut client = iss.client(client_metadata, None, None, None, None).unwrap();
+        let mut client = iss.client(client_metadata, None, None, None).unwrap();
 
         let callback_params = CallbackParams {
             response: Some(response),
@@ -512,13 +444,13 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(callback_params)
+            .checks(checks);
+
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                callback_params,
-                Some(checks),
-                None,
-            )
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -536,7 +468,7 @@ mod cannot_be_used_for_id_token_responses {
 
     #[tokio::test]
     async fn rejects_when_id_token_was_issued_by_the_authorization_endpoint() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             id_token: Some("foo".to_string()),
@@ -544,8 +476,12 @@ mod cannot_be_used_for_id_token_responses {
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params);
+
         let err = client
-            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -555,7 +491,7 @@ mod cannot_be_used_for_id_token_responses {
 
     #[tokio::test]
     async fn ignores_the_id_token_when_falsy() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             id_token: Some("".to_string()),
@@ -564,8 +500,12 @@ mod cannot_be_used_for_id_token_responses {
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params);
+
         let tokens = client
-            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap();
 
@@ -574,42 +514,37 @@ mod cannot_be_used_for_id_token_responses {
 
     #[tokio::test]
     async fn rejects_when_id_token_was_issued_by_the_token_endpoint() {
-        let mock_http_server = MockServer::start();
+        let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header(
+            "authorization",
+            vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
+        )
+        .assert_request_header("content-length", vec!["85".to_string()])
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_body(
+            "grant_type=authorization_code&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&code=foo",
+        )
+        .set_response_body(r#"{"id_token":"foo"}"#)
+        .build();
 
-        let _oauth_callback_server = mock_http_server.mock(|when, then| {
-            when.method(POST)
-                .header("accept", "application/json")
-                .matches(|req| {
-                    let mut content_length_exists = false;
-                    let mut no_transfer_encoding = false;
-
-                    if let Some(headers) = &req.headers {
-                        content_length_exists = headers
-                            .iter()
-                            .find(|x| x.0 == "content-length" && x.1.parse::<u64>().is_ok())
-                            .is_some();
-
-                        no_transfer_encoding = headers
-                            .iter()
-                            .find(|x| x.0 == "transfer-encoding")
-                            .is_none();
-                    }
-
-                    content_length_exists && no_transfer_encoding
-                })
-                .path("/token");
-            then.status(200).body(r#"{"id_token":"foo"}"#);
-        });
-
-        let (_, mut client, _) = get_iss_client_iss(Some(mock_http_server.port()));
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             code: Some("foo".to_string()),
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params);
+
         let err = client
-            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
+            .oauth_callback_async(&http_client, params)
             .await
             .unwrap_err();
 
@@ -619,42 +554,37 @@ mod cannot_be_used_for_id_token_responses {
 
     #[tokio::test]
     async fn ignores_the_the_token_endpoint_id_token_property_when_falsy() {
-        let mock_http_server = MockServer::start();
+        let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header(
+            "authorization",
+            vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
+        )
+        .assert_request_header("content-length", vec!["85".to_string()])
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_body(
+            "grant_type=authorization_code&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&code=foo",
+        )
+        .set_response_body(r#"{"id_token":""}"#)
+        .build();
 
-        let _oauth_callback_server = mock_http_server.mock(|when, then| {
-            when.method(POST)
-                .header("accept", "application/json")
-                .matches(|req| {
-                    let mut content_length_exists = false;
-                    let mut no_transfer_encoding = false;
-
-                    if let Some(headers) = &req.headers {
-                        content_length_exists = headers
-                            .iter()
-                            .find(|x| x.0 == "content-length" && x.1.parse::<u64>().is_ok())
-                            .is_some();
-
-                        no_transfer_encoding = headers
-                            .iter()
-                            .find(|x| x.0 == "transfer-encoding")
-                            .is_none();
-                    }
-
-                    content_length_exists && no_transfer_encoding
-                })
-                .path("/token");
-            then.status(200).body(r#"{"id_token":""}"#);
-        });
-
-        let (_, mut client, _) = get_iss_client_iss(Some(mock_http_server.port()));
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             code: Some("foo".to_string()),
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params);
+
         let tokens = client
-            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
+            .oauth_callback_async(&http_client, params)
             .await
             .unwrap();
 
@@ -664,13 +594,13 @@ mod cannot_be_used_for_id_token_responses {
 
 #[cfg(test)]
 mod response_type_checks {
-    use crate::types::OAuthCallbackChecks;
+    use crate::{http_client::DefaultHttpClient, types::OAuthCallbackChecks};
 
     use super::*;
 
     #[tokio::test]
     async fn rejects_with_an_error_when_code_is_missing() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             // code: Some("foo".to_string()),
@@ -684,13 +614,13 @@ mod response_type_checks {
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params)
+            .checks(checks);
+
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                params,
-                Some(checks),
-                None,
-            )
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -701,7 +631,7 @@ mod response_type_checks {
 
     #[tokio::test]
     async fn rejects_with_an_error_when_token_type_is_missing() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             code: Some("foo".to_string()),
@@ -715,13 +645,13 @@ mod response_type_checks {
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params)
+            .checks(checks);
+
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                params,
-                Some(checks),
-                None,
-            )
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -735,7 +665,7 @@ mod response_type_checks {
 
     #[tokio::test]
     async fn rejects_with_an_error_when_access_token_is_missing() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             code: Some("foo".to_string()),
@@ -749,13 +679,13 @@ mod response_type_checks {
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params)
+            .checks(checks);
+
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                params,
-                Some(checks),
-                None,
-            )
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -769,7 +699,7 @@ mod response_type_checks {
 
     #[tokio::test]
     async fn rejects_with_an_error_when_code_param_is_encoutered_during_none_response() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             code: Some("foo".to_string()),
@@ -781,13 +711,13 @@ mod response_type_checks {
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params)
+            .checks(checks);
+
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                params,
-                Some(checks),
-                None,
-            )
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -801,7 +731,7 @@ mod response_type_checks {
 
     #[tokio::test]
     async fn rejects_with_an_error_when_access_token_param_is_encoutered_during_none_response() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             access_token: Some("foo".to_string()),
@@ -813,13 +743,13 @@ mod response_type_checks {
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params)
+            .checks(checks);
+
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                params,
-                Some(checks),
-                None,
-            )
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -834,15 +764,19 @@ mod response_type_checks {
 
 #[tokio::test]
 async fn rejects_with_op_error_when_part_of_the_response() {
-    let (_, mut client, _) = get_iss_client_iss(None);
+    let (_, mut client, _) = get_iss_client_iss();
 
     let params = CallbackParams {
         error: Some("invalid_request".to_string()),
         ..Default::default()
     };
 
+    let params = OAuthCallbackParams::default()
+        .redirect_uri("https://rp.example.com/cb")
+        .parameters(params);
+
     let err = client
-        .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
+        .oauth_callback_async(&DefaultHttpClient, params)
         .await
         .unwrap_err();
 
@@ -853,21 +787,25 @@ async fn rejects_with_op_error_when_part_of_the_response() {
 
 #[cfg(test)]
 mod state_checks {
-    use crate::types::OAuthCallbackChecks;
+    use crate::{http_client::DefaultHttpClient, types::OAuthCallbackChecks};
 
     use super::*;
 
     #[tokio::test]
     async fn rejects_with_an_error_when_states_mismatch_returned() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             state: Some("should be checked for this".to_string()),
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params);
+
         let err = client
-            .oauth_callback_async(Some("https://rp.example.com/cb"), params, None, None)
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -881,20 +819,19 @@ mod state_checks {
 
     #[tokio::test]
     async fn rejects_with_an_error_when_states_mismatch_not_returned() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let checks = OAuthCallbackChecks {
             state: Some("should be this"),
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .checks(checks);
+
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                Default::default(),
-                Some(checks),
-                None,
-            )
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 
@@ -908,7 +845,7 @@ mod state_checks {
 
     #[tokio::test]
     async fn rejects_with_an_error_when_states_mismatch_general_mismatch() {
-        let (_, mut client, _) = get_iss_client_iss(None);
+        let (_, mut client, _) = get_iss_client_iss();
 
         let params = CallbackParams {
             state: Some("foo".to_string()),
@@ -920,13 +857,13 @@ mod state_checks {
             ..Default::default()
         };
 
+        let params = OAuthCallbackParams::default()
+            .redirect_uri("https://rp.example.com/cb")
+            .parameters(params)
+            .checks(checks);
+
         let err = client
-            .oauth_callback_async(
-                Some("https://rp.example.com/cb"),
-                params,
-                Some(checks),
-                None,
-            )
+            .oauth_callback_async(&DefaultHttpClient, params)
             .await
             .unwrap_err();
 

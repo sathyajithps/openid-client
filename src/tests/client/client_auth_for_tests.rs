@@ -2,17 +2,14 @@
 mod when_none {
     use std::collections::HashMap;
 
-    use assert_json_diff::assert_json_eq;
-    use serde_json::json;
-
     use crate::{
         issuer::Issuer,
-        types::{ClientMetadata, IssuerMetadata, Request},
+        types::{ClientMetadata, HttpRequest, IssuerMetadata},
     };
 
     #[test]
     fn returns_the_body_http_options() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -21,33 +18,37 @@ mod when_none {
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let request = client.auth_for("token", None).unwrap();
 
-        let mut expected_request = Request::default();
+        let mut expected_request = HttpRequest::new();
         let mut form: HashMap<String, String> = HashMap::new();
 
         form.insert("client_id".to_string(), "identifier".to_owned());
 
-        expected_request.form = Some(form);
+        expected_request = expected_request.form(form);
 
-        assert_json_eq!(json!(expected_request.form), json!(request.form));
-        assert_eq!(expected_request.bearer, request.bearer);
+        assert_eq!(
+            expected_request.expectations.bearer,
+            request.expectations.bearer
+        );
         assert_eq!(expected_request.body, request.body);
-        assert_eq!(expected_request.expect_body, request.expect_body);
-        assert_eq!(expected_request.expected, request.expected);
+        assert_eq!(
+            expected_request.expectations.body,
+            request.expectations.body
+        );
+        assert_eq!(
+            expected_request.expectations.status_code,
+            request.expectations.status_code
+        );
         assert_eq!(expected_request.headers, request.headers);
-        assert_eq!(expected_request.json, request.json);
         assert_eq!(expected_request.method, request.method);
         assert_eq!(expected_request.mtls, request.mtls);
         assert_eq!(
-            expected_request.expect_body_to_be_json,
-            request.expect_body_to_be_json
+            expected_request.expectations.json_body,
+            request.expectations.json_body
         );
-        assert_eq!(expected_request.search_params, request.search_params);
         assert_eq!(expected_request.url, request.url);
     }
 }
@@ -57,17 +58,15 @@ mod when_client_secret_post {
 
     use std::collections::HashMap;
 
-    use assert_json_diff::assert_json_eq;
-    use serde_json::json;
-
     use crate::{
+        helpers::form_url_encoded_to_string_map,
         issuer::Issuer,
-        types::{ClientMetadata, IssuerMetadata, Request},
+        types::{ClientMetadata, HttpRequest, IssuerMetadata},
     };
 
     #[test]
     fn returns_the_body_http_options() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -76,40 +75,47 @@ mod when_client_secret_post {
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let request = client.auth_for("token", None).unwrap();
 
-        let mut expected_request = Request::default();
+        let mut expected_request = HttpRequest::new();
         let mut form: HashMap<String, String> = HashMap::new();
 
         form.insert("client_id".to_string(), "identifier".to_owned());
         form.insert("client_secret".to_string(), "secure".to_owned());
 
-        expected_request.form = Some(form);
+        expected_request = expected_request.form(form);
 
-        assert_json_eq!(json!(expected_request.form), json!(request.form));
-        assert_eq!(expected_request.bearer, request.bearer);
-        assert_eq!(expected_request.body, request.body);
-        assert_eq!(expected_request.expect_body, request.expect_body);
-        assert_eq!(expected_request.expected, request.expected);
+        assert_eq!(
+            expected_request.expectations.bearer,
+            request.expectations.bearer
+        );
+        assert_eq!(
+            form_url_encoded_to_string_map(&expected_request.body.unwrap()),
+            form_url_encoded_to_string_map(&request.body.unwrap())
+        );
+        assert_eq!(
+            expected_request.expectations.body,
+            request.expectations.body
+        );
+        assert_eq!(
+            expected_request.expectations.status_code,
+            request.expectations.status_code
+        );
         assert_eq!(expected_request.headers, request.headers);
-        assert_eq!(expected_request.json, request.json);
         assert_eq!(expected_request.method, request.method);
         assert_eq!(expected_request.mtls, request.mtls);
         assert_eq!(
-            expected_request.expect_body_to_be_json,
-            request.expect_body_to_be_json
+            expected_request.expectations.json_body,
+            request.expectations.json_body
         );
-        assert_eq!(expected_request.search_params, request.search_params);
         assert_eq!(expected_request.url, request.url);
     }
 
     #[test]
     fn requires_client_secret_to_be_set() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
 
         let client_metadata = ClientMetadata {
             client_id: Some("an:identifier".to_string()),
@@ -117,9 +123,7 @@ mod when_client_secret_post {
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let err = client.auth_for("token", None).unwrap_err();
 
@@ -135,7 +139,7 @@ mod when_client_secret_post {
 
     #[test]
     fn allows_client_secret_to_be_empty_string() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
 
         let client_metadata = ClientMetadata {
             client_id: Some("an:identifier".to_string()),
@@ -144,13 +148,14 @@ mod when_client_secret_post {
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let req = client.auth_for("token", None).unwrap();
 
-        let form = req.form.unwrap();
+        let form = req
+            .body
+            .map(|b| form_url_encoded_to_string_map(&b))
+            .unwrap();
 
         assert_eq!("an:identifier", form.get("client_id").unwrap());
         assert_eq!("", form.get("client_secret").unwrap());
@@ -160,16 +165,14 @@ mod when_client_secret_post {
 #[cfg(test)]
 mod when_client_secret_basic {
 
-    use reqwest::header::HeaderValue;
-
     use crate::{
         issuer::Issuer,
-        types::{ClientMetadata, IssuerMetadata, Request},
+        types::{ClientMetadata, HttpRequest, IssuerMetadata},
     };
 
     #[test]
     fn it_is_the_default() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -177,39 +180,43 @@ mod when_client_secret_basic {
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let request = client.auth_for("token", None).unwrap();
 
-        let mut expected_request = Request::default();
+        let mut expected_request = HttpRequest::new();
 
         expected_request.headers.insert(
-            "Authorization",
-            HeaderValue::from_static("Basic aWRlbnRpZmllcjpzZWN1cmU="),
+            "authorization".to_string(),
+            vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
         );
 
-        assert_eq!(expected_request.form, request.form);
-        assert_eq!(expected_request.bearer, request.bearer);
+        assert_eq!(
+            expected_request.expectations.bearer,
+            request.expectations.bearer
+        );
         assert_eq!(expected_request.body, request.body);
-        assert_eq!(expected_request.expect_body, request.expect_body);
-        assert_eq!(expected_request.expected, request.expected);
+        assert_eq!(
+            expected_request.expectations.body,
+            request.expectations.body
+        );
+        assert_eq!(
+            expected_request.expectations.status_code,
+            request.expectations.status_code
+        );
         assert_eq!(expected_request.headers, request.headers);
-        assert_eq!(expected_request.json, request.json);
         assert_eq!(expected_request.method, request.method);
         assert_eq!(expected_request.mtls, request.mtls);
         assert_eq!(
-            expected_request.expect_body_to_be_json,
-            request.expect_body_to_be_json
+            expected_request.expectations.json_body,
+            request.expectations.json_body
         );
-        assert_eq!(expected_request.search_params, request.search_params);
         assert_eq!(expected_request.url, request.url);
     }
 
     #[test]
     fn works_with_non_text_characters() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
 
         let client_metadata = ClientMetadata {
             client_id: Some("an:identifier".to_string()),
@@ -217,50 +224,53 @@ mod when_client_secret_basic {
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let request = client.auth_for("token", None).unwrap();
 
-        let mut expected_request = Request::default();
+        let mut expected_request = HttpRequest::new();
 
         expected_request.headers.insert(
-            "Authorization",
-            HeaderValue::from_static(
-                "Basic YW4lM0FpZGVudGlmaWVyOnNvbWUrc2VjdXJlKyUyNitub24tc3RhbmRhcmQrc2VjcmV0",
-            ),
+            "authorization".to_string(),
+            vec![
+                "Basic YW4lM0FpZGVudGlmaWVyOnNvbWUrc2VjdXJlKyUyNitub24tc3RhbmRhcmQrc2VjcmV0"
+                    .to_string(),
+            ],
         );
 
-        assert_eq!(expected_request.form, request.form);
-        assert_eq!(expected_request.bearer, request.bearer);
+        assert_eq!(
+            expected_request.expectations.bearer,
+            request.expectations.bearer
+        );
         assert_eq!(expected_request.body, request.body);
-        assert_eq!(expected_request.expect_body, request.expect_body);
-        assert_eq!(expected_request.expected, request.expected);
+        assert_eq!(
+            expected_request.expectations.body,
+            request.expectations.body
+        );
+        assert_eq!(
+            expected_request.expectations.status_code,
+            request.expectations.status_code
+        );
         assert_eq!(expected_request.headers, request.headers);
-        assert_eq!(expected_request.json, request.json);
         assert_eq!(expected_request.method, request.method);
         assert_eq!(expected_request.mtls, request.mtls);
         assert_eq!(
-            expected_request.expect_body_to_be_json,
-            request.expect_body_to_be_json
+            expected_request.expectations.json_body,
+            request.expectations.json_body
         );
-        assert_eq!(expected_request.search_params, request.search_params);
         assert_eq!(expected_request.url, request.url);
     }
 
     #[test]
     fn requires_client_secret_to_be_set() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
 
         let client_metadata = ClientMetadata {
             client_id: Some("an:identifier".to_string()),
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let err = client.auth_for("token", None).unwrap_err();
 
@@ -276,7 +286,7 @@ mod when_client_secret_basic {
 
     #[test]
     fn allows_client_secret_to_be_empty_string() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
 
         let client_metadata = ClientMetadata {
             client_id: Some("an:identifier".to_string()),
@@ -284,15 +294,13 @@ mod when_client_secret_basic {
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let req = client.auth_for("token", None).unwrap();
 
         assert_eq!(
             "Basic YW4lM0FpZGVudGlmaWVyOg==",
-            req.headers.get("authorization").unwrap()
+            req.headers.get("authorization").unwrap().first().unwrap()
         );
     }
 }
@@ -305,11 +313,12 @@ mod when_client_secret_jwt {
     use serde_json::{json, Value};
 
     use crate::{
+        helpers::form_url_encoded_to_string_map,
         issuer::Issuer,
-        types::{ClientMetadata, IssuerMetadata, Request},
+        types::{ClientMetadata, HttpRequest, IssuerMetadata},
     };
 
-    fn get_auth_and_auth_with_assertion_payload() -> (Request, Request) {
+    fn get_auth_and_auth_with_assertion_payload() -> (HttpRequest, HttpRequest) {
         let issuer_metadata = IssuerMetadata {
             issuer: "https://op.example.com".to_string(),
             token_endpoint: Some("https://op.example.com/token".to_string()),
@@ -320,7 +329,7 @@ mod when_client_secret_jwt {
             ..Default::default()
         };
 
-        let issuer = Issuer::new(issuer_metadata, None);
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -331,9 +340,7 @@ mod when_client_secret_jwt {
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let mut payload: HashMap<String, Value> = HashMap::new();
 
@@ -349,9 +356,12 @@ mod when_client_secret_jwt {
     fn promises_a_body() {
         let (auth, _) = get_auth_and_auth_with_assertion_payload();
 
-        assert!(auth.form.is_some());
+        assert!(auth.body.is_some());
 
-        let form = auth.form.unwrap();
+        let form = auth
+            .body
+            .map(|b| form_url_encoded_to_string_map(&b))
+            .unwrap();
 
         assert_eq!(
             form.get("client_assertion_type").map(|x| x.as_str()),
@@ -366,7 +376,8 @@ mod when_client_secret_jwt {
         let (auth, _) = get_auth_and_auth_with_assertion_payload();
 
         let split_assertion: Vec<String> = auth
-            .form
+            .body
+            .map(|b| form_url_encoded_to_string_map(&b))
             .unwrap()
             .get("client_assertion")
             .unwrap()
@@ -402,7 +413,8 @@ mod when_client_secret_jwt {
         let (_, auth_with_assertion_payload) = get_auth_and_auth_with_assertion_payload();
 
         let split_assertion: Vec<String> = auth_with_assertion_payload
-            .form
+            .body
+            .map(|b| form_url_encoded_to_string_map(&b))
             .unwrap()
             .get("client_assertion")
             .unwrap()
@@ -436,7 +448,8 @@ mod when_client_secret_jwt {
         let (auth, _) = get_auth_and_auth_with_assertion_payload();
 
         let split_assertion: Vec<String> = auth
-            .form
+            .body
+            .map(|b| form_url_encoded_to_string_map(&b))
             .unwrap()
             .get("client_assertion")
             .unwrap()
@@ -462,7 +475,7 @@ mod when_client_secret_jwt {
             ..Default::default()
         };
 
-        let issuer = Issuer::new(issuer_metadata, None);
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -471,9 +484,7 @@ mod when_client_secret_jwt {
             ..Default::default()
         };
 
-        let client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let error = client.auth_for("token", None).unwrap_err();
 
@@ -498,13 +509,13 @@ mod when_private_key_jwt {
         use serde_json::{json, Value};
 
         use crate::{
-            helpers::generate_random,
+            helpers::{form_url_encoded_to_string_map, generate_random},
             issuer::Issuer,
             jwks::Jwks,
-            types::{ClientMetadata, IssuerMetadata, Request},
+            types::{ClientMetadata, HttpRequest, IssuerMetadata},
         };
 
-        fn get_client() -> (Request, Request) {
+        fn get_client() -> (HttpRequest, HttpRequest) {
             let issuer_metadata = IssuerMetadata {
                 issuer: "https://op.example.com".to_string(),
                 token_endpoint: Some("https://op.example.com/token".to_string()),
@@ -515,7 +526,7 @@ mod when_private_key_jwt {
                 ..Default::default()
             };
 
-            let issuer = Issuer::new(issuer_metadata, None);
+            let issuer = Issuer::new(issuer_metadata);
 
             let client_metadata = ClientMetadata {
                 client_id: Some("identifier".to_string()),
@@ -531,7 +542,7 @@ mod when_private_key_jwt {
             let jwks = Jwks::from(vec![jwk]);
 
             let client = issuer
-                .client(client_metadata, None, Some(jwks), None, None)
+                .client(client_metadata, Some(jwks), None, None)
                 .unwrap();
 
             let mut payload: HashMap<String, Value> = HashMap::new();
@@ -548,9 +559,12 @@ mod when_private_key_jwt {
         fn promises_a_body() {
             let (auth, _) = get_client();
 
-            assert!(auth.form.is_some());
+            assert!(auth.body.is_some());
 
-            let form = auth.form.unwrap();
+            let form = auth
+                .body
+                .map(|b| form_url_encoded_to_string_map(&b))
+                .unwrap();
 
             assert_eq!(
                 form.get("client_assertion_type").map(|x| x.as_str()),
@@ -565,7 +579,8 @@ mod when_private_key_jwt {
             let (auth, _) = get_client();
 
             let split_assertion: Vec<String> = auth
-                .form
+                .body
+                .map(|b| form_url_encoded_to_string_map(&b))
                 .unwrap()
                 .get("client_assertion")
                 .unwrap()
@@ -601,7 +616,8 @@ mod when_private_key_jwt {
             let (_, auth_with_assertion_payload) = get_client();
 
             let split_assertion: Vec<String> = auth_with_assertion_payload
-                .form
+                .body
+                .map(|b| form_url_encoded_to_string_map(&b))
                 .unwrap()
                 .get("client_assertion")
                 .unwrap()
@@ -635,7 +651,8 @@ mod when_private_key_jwt {
             let (auth, _) = get_client();
 
             let split_assertion: Vec<String> = auth
-                .form
+                .body
+                .map(|b| form_url_encoded_to_string_map(&b))
                 .unwrap()
                 .get("client_assertion")
                 .unwrap()
@@ -662,7 +679,7 @@ mod when_private_key_jwt {
                 ..Default::default()
             };
 
-            let issuer = Issuer::new(issuer_metadata, None);
+            let issuer = Issuer::new(issuer_metadata);
 
             let client_metadata = ClientMetadata {
                 client_id: Some("identifier".to_string()),
@@ -671,9 +688,7 @@ mod when_private_key_jwt {
                 ..Default::default()
             };
 
-            let client = issuer
-                .client(client_metadata, None, None, None, None)
-                .unwrap();
+            let client = issuer.client(client_metadata, None, None, None).unwrap();
 
             let error = client.auth_for("token", None).unwrap_err();
 
@@ -704,7 +719,7 @@ mod when_private_key_jwt {
                 ..Default::default()
             };
 
-            let issuer = Issuer::new(issuer_metadata, None);
+            let issuer = Issuer::new(issuer_metadata);
 
             let client_metadata = ClientMetadata {
                 client_id: Some("identifier".to_string()),
@@ -721,7 +736,7 @@ mod when_private_key_jwt {
             let jwks = Jwks::from(vec![jwk]);
 
             let client = issuer
-                .client(client_metadata, None, Some(jwks), None, None)
+                .client(client_metadata, Some(jwks), None, None)
                 .unwrap();
 
             let error = client.auth_for("token", None).unwrap_err();

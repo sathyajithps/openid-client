@@ -31,16 +31,14 @@ fn setup_client() -> Client {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
         ..Default::default()
     };
 
-    issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap()
+    issuer.client(client_metadata, None, None, None).unwrap()
 }
 
 #[test]

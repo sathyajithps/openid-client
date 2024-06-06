@@ -1,22 +1,23 @@
 use assert_json_diff::assert_json_include;
-use httpmock::{Method, MockServer};
 use serde_json::json;
 
 use crate::{
     client::Client,
+    http_client::DefaultHttpClient,
     issuer::Issuer,
-    tests::test_interceptors::get_default_test_interceptor,
-    types::{AuthorizationParameters, ClientMetadata, IssuerMetadata},
+    types::{AuthorizationParameters, ClientMetadata, HttpMethod, IssuerMetadata},
 };
 
-fn get_test_data(port: Option<u16>) -> (Issuer, Client) {
+use crate::tests::test_http_client::TestHttpReqRes;
+
+fn get_test_data() -> (Issuer, Client) {
     let issuer_metadata = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
         pushed_authorization_request_endpoint: Some("https://op.example.com/par".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, get_default_test_interceptor(port));
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -27,9 +28,7 @@ fn get_test_data(port: Option<u16>) -> (Issuer, Client) {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     (issuer, client)
 }
@@ -41,19 +40,17 @@ async fn requires_the_issuer_to_have_pushed_authorization_request_endpoint_decla
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .pushed_authorization_request_async(None, None)
+        .pushed_authorization_request_async(None, None, &DefaultHttpClient)
         .await
         .unwrap_err();
 
@@ -67,44 +64,24 @@ async fn requires_the_issuer_to_have_pushed_authorization_request_endpoint_decla
 
 #[tokio::test]
 async fn performs_an_authenticated_post_and_returns_the_response() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/par")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header("content-length", vec!["99".to_string()])
+        .assert_request_header("authorization", vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()])
+        .assert_request_body("client_id=identifier&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&response_type=code&scope=openid")
+        .set_response_status_code(201)
+        .set_response_body(r#"{"expires_in":60,"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#)
+        .build();
 
-    let _par = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .matches(|req| {
-                let decoded =
-                    urlencoding::decode(std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap())
-                        .unwrap();
-
-                let kvp = querystring::querify(&decoded);
-
-                let client_id = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"client_id" && v == &"identifier");
-                let redirect_uri = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"redirect_uri" && v == &"https://rp.example.com/cb");
-                let response_type = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"response_type" && v == &"code");
-                let scope = kvp.iter().find(|(k, v)| k == &"scope" && v == &"openid");
-
-                client_id.is_some()
-                    && redirect_uri.is_some()
-                    && response_type.is_some()
-                    && scope.is_some()
-            })
-            .path("/par");
-
-        then.status(201)
-            .body(r#"{"expires_in":60,"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#);
-    });
-
-    let (_, mut client) = get_test_data(Some(mock_http_server.port()));
+    let (_, mut client) = get_test_data();
 
     let res = client
-        .pushed_authorization_request_async(None, None)
+        .pushed_authorization_request_async(None, None, &http_client)
         .await
         .unwrap();
 
@@ -119,21 +96,24 @@ async fn performs_an_authenticated_post_and_returns_the_response() {
 
 #[tokio::test]
 async fn handles_incorrect_status_code() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/par")
+    .assert_request_method(HttpMethod::POST)
+    .assert_request_header("accept", vec!["application/json".to_string()])
+    .assert_request_header(
+        "content-type",
+        vec!["application/x-www-form-urlencoded".to_string()],
+    )
+    .assert_request_header("content-length", vec!["99".to_string()])
+    .assert_request_header("authorization", vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()])
+    .assert_request_body("client_id=identifier&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&response_type=code&scope=openid")
+    .set_response_status_code(200)
+    .set_response_body(r#"{"expires_in":60,"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#)
+    .build();
 
-    let _par = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .path("/par");
-
-        then.status(200)
-            .body(r#"{"expires_in":60,"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#);
-    });
-
-    let (_, mut client) = get_test_data(Some(mock_http_server.port()));
+    let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None)
+        .pushed_authorization_request_async(None, None, &http_client)
         .await
         .unwrap_err();
 
@@ -146,39 +126,33 @@ async fn handles_incorrect_status_code() {
 
 #[tokio::test]
 async fn handles_request_being_part_of_the_params() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/par")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header("content-length", vec!["32".to_string()])
+        .assert_request_header(
+            "authorization",
+            vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
+        )
+        .assert_request_body("client_id=identifier&request=jwt")
+        .set_response_status_code(201)
+        .set_response_body(
+            r#"{"expires_in":60,"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#,
+        )
+        .build();
 
-    let _par = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .matches(|req| {
-                let decoded =
-                    urlencoding::decode(std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap())
-                        .unwrap();
-
-                let kvp = querystring::querify(&decoded);
-
-                let client_id = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"client_id" && v == &"identifier");
-                let request = kvp.iter().find(|(k, v)| k == &"request" && v == &"jwt");
-
-                client_id.is_some() && request.is_some()
-            })
-            .path("/par");
-
-        then.status(201)
-            .body(r#"{"expires_in":60,"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#);
-    });
-
-    let (_, mut client) = get_test_data(Some(mock_http_server.port()));
+    let (_, mut client) = get_test_data();
 
     let mut params = AuthorizationParameters::default();
 
     params.request = Some("jwt".to_string());
 
     let res = client
-        .pushed_authorization_request_async(Some(params), None)
+        .pushed_authorization_request_async(Some(params), None, &http_client)
         .await
         .unwrap();
 
@@ -193,21 +167,27 @@ async fn handles_request_being_part_of_the_params() {
 
 #[tokio::test]
 async fn rejects_with_op_error_when_part_of_the_response() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/par")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header("content-length", vec!["99".to_string()])
+        .assert_request_header(
+            "authorization",
+            vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
+        )
+        .assert_request_body("client_id=identifier&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&response_type=code&scope=openid")
+        .set_response_status_code(400)
+        .set_response_body(r#"{"error":"invalid_request","error_description":"description"}"#)
+        .build();
 
-    let _par = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .path("/par");
-
-        then.status(400)
-            .body(r#"{"error":"invalid_request","error_description":"description"}"#);
-    });
-
-    let (_, mut client) = get_test_data(Some(mock_http_server.port()));
+    let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None)
+        .pushed_authorization_request_async(None, None, &http_client)
         .await
         .unwrap_err();
 
@@ -221,20 +201,27 @@ async fn rejects_with_op_error_when_part_of_the_response() {
 
 #[tokio::test]
 async fn rejects_with_rp_error_when_request_uri_is_missing_from_the_response() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/par")
+    .assert_request_method(HttpMethod::POST)
+    .assert_request_header("accept", vec!["application/json".to_string()])
+    .assert_request_header(
+        "content-type",
+        vec!["application/x-www-form-urlencoded".to_string()],
+    )
+    .assert_request_header("content-length", vec!["99".to_string()])
+    .assert_request_header(
+        "authorization",
+        vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
+    )
+    .assert_request_body("client_id=identifier&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&response_type=code&scope=openid")
+    .set_response_status_code(201)
+    .set_response_body(r#"{"expires_in":60}"#)
+    .build();
 
-    let _par = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .path("/par");
-
-        then.status(201).body(r#"{"expires_in":60}"#);
-    });
-
-    let (_, mut client) = get_test_data(Some(mock_http_server.port()));
+    let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None)
+        .pushed_authorization_request_async(None, None, &http_client)
         .await
         .unwrap_err();
 
@@ -251,21 +238,27 @@ async fn rejects_with_rp_error_when_request_uri_is_missing_from_the_response() {
 
 #[tokio::test]
 async fn rejects_with_rp_error_when_request_uri_is_not_a_string() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/par")
+    .assert_request_method(HttpMethod::POST)
+    .assert_request_header("accept", vec!["application/json".to_string()])
+    .assert_request_header(
+        "content-type",
+        vec!["application/x-www-form-urlencoded".to_string()],
+    )
+    .assert_request_header("content-length", vec!["99".to_string()])
+    .assert_request_header(
+        "authorization",
+        vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
+    )
+    .assert_request_body("client_id=identifier&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&response_type=code&scope=openid")
+    .set_response_status_code(201)
+    .set_response_body(r#"{"expires_in":60,"request_uri":null}"#)
+    .build();
 
-    let _par = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .path("/par");
-
-        then.status(201)
-            .body(r#"{"expires_in":60,"request_uri":null}"#);
-    });
-
-    let (_, mut client) = get_test_data(Some(mock_http_server.port()));
+    let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None)
+        .pushed_authorization_request_async(None, None, &http_client)
         .await
         .unwrap_err();
 
@@ -282,21 +275,27 @@ async fn rejects_with_rp_error_when_request_uri_is_not_a_string() {
 
 #[tokio::test]
 async fn rejects_with_rp_error_when_expires_in_is_missing_from_the_response() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/par")
+    .assert_request_method(HttpMethod::POST)
+    .assert_request_header("accept", vec!["application/json".to_string()])
+    .assert_request_header(
+        "content-type",
+        vec!["application/x-www-form-urlencoded".to_string()],
+    )
+    .assert_request_header("content-length", vec!["99".to_string()])
+    .assert_request_header(
+        "authorization",
+        vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
+    )
+    .assert_request_body("client_id=identifier&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&response_type=code&scope=openid")
+    .set_response_status_code(201)
+    .set_response_body(r#"{"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#)
+    .build();
 
-    let _par = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .path("/par");
-
-        then.status(201)
-            .body(r#"{"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#);
-    });
-
-    let (_, mut client) = get_test_data(Some(mock_http_server.port()));
+    let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None)
+        .pushed_authorization_request_async(None, None, &http_client)
         .await
         .unwrap_err();
 
@@ -313,22 +312,27 @@ async fn rejects_with_rp_error_when_expires_in_is_missing_from_the_response() {
 
 #[tokio::test]
 async fn rejects_with_rp_error_when_expires_in_is_not_a_string() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/par")
+    .assert_request_method(HttpMethod::POST)
+    .assert_request_header("accept", vec!["application/json".to_string()])
+    .assert_request_header(
+        "content-type",
+        vec!["application/x-www-form-urlencoded".to_string()],
+    )
+    .assert_request_header("content-length", vec!["99".to_string()])
+    .assert_request_header(
+        "authorization",
+        vec!["Basic aWRlbnRpZmllcjpzZWN1cmU=".to_string()],
+    )
+    .assert_request_body("client_id=identifier&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&response_type=code&scope=openid")
+    .set_response_status_code(201)
+    .set_response_body( r#"{"request_uri":"urn:ietf:params:oauth:request_uri:random","expires_in":null}"#)
+    .build();
 
-    let _par = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .path("/par");
-
-        then.status(201).body(
-            r#"{"request_uri":"urn:ietf:params:oauth:request_uri:random","expires_in":null}"#,
-        );
-    });
-
-    let (_, mut client) = get_test_data(Some(mock_http_server.port()));
+    let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None)
+        .pushed_authorization_request_async(None, None, &http_client)
         .await
         .unwrap_err();
 

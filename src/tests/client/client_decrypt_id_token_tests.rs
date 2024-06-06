@@ -6,7 +6,7 @@ use crate::{
 
 #[test]
 fn to_decrypt_tokenset_id_token_it_must_have_one() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -14,9 +14,7 @@ fn to_decrypt_tokenset_id_token_it_must_have_one() {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client.decrypt_id_token(TokenSet::default()).unwrap_err();
 
@@ -30,7 +28,7 @@ fn to_decrypt_tokenset_id_token_it_must_have_one() {
 
 #[test]
 fn verifies_the_id_token_using_the_right_alg() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -38,9 +36,7 @@ fn verifies_the_id_token_using_the_right_alg() {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let header = base64_url::encode(r#"{"alg":"RSA1_5","enc":"A128CBC-HS256"}"#);
 
@@ -65,7 +61,7 @@ fn verifies_the_id_token_using_the_right_alg() {
 
 #[test]
 fn verifies_the_id_token_is_using_the_right_enc_explicit() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -74,9 +70,7 @@ fn verifies_the_id_token_is_using_the_right_enc_explicit() {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let header = base64_url::encode(r#"{"alg":"RSA-OAEP","enc":"A128GCM"}"#);
 
@@ -101,7 +95,7 @@ fn verifies_the_id_token_is_using_the_right_enc_explicit() {
 
 #[test]
 fn verifies_the_id_token_is_using_the_right_enc_default_to() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -109,9 +103,7 @@ fn verifies_the_id_token_is_using_the_right_enc_default_to() {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let header = base64_url::encode(r#"{"alg":"RSA-OAEP","enc":"A128GCM"}"#);
 

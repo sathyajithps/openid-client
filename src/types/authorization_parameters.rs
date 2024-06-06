@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// # AuthorizationParameters
-/// Values that will be sent with the [`crate::client::Client::authorization_url()`] or  authorize request
+/// Values that will be sent with the authorize request
 #[derive(Debug, Default)]
 pub struct AuthorizationParameters {
     /// [Auth Context Class Reference Values](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)

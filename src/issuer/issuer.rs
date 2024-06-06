@@ -5,13 +5,14 @@ use crate::client::Client;
 use crate::helpers::{convert_json_to, now, validate_url, webfinger_normalize};
 use crate::http::request_async;
 use crate::jwks::Jwks;
+use crate::types::http_client::HttpMethod;
 use crate::types::{
-    ClientMetadata, ClientOptions, Fapi, IssuerMetadata, MtlsEndpoints, OidcClientError, Request,
-    RequestInterceptor, Response, WebFingerResponse,
+    ClientMetadata, ClientOptions, Fapi, HttpRequest, HttpResponse, IssuerMetadata, MtlsEndpoints,
+    OidcClientError, OidcHttpClient, OidcReturnType, WebFingerResponse,
 };
-use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest::{Method, StatusCode};
+
 use serde_json::Value;
+use url::Url;
 
 use super::keystore::KeyStore;
 
@@ -48,7 +49,6 @@ pub struct Issuer {
     pub(crate) dpop_signing_alg_values_supported: Option<Vec<String>>,
     pub(crate) pushed_authorization_request_endpoint: Option<String>,
     pub(crate) require_pushed_authorization_requests: bool,
-    pub(crate) request_interceptor: Option<RequestInterceptor>,
     pub(crate) now: fn() -> i64,
 }
 
@@ -73,7 +73,6 @@ impl Default for Issuer {
             jwks_uri: None,
             userinfo_endpoint: None,
             revocation_endpoint: None,
-            request_interceptor: None,
             revocation_endpoint_auth_methods_supported: None,
             token_endpoint_auth_signing_alg_values_supported: None,
             introspection_endpoint_auth_signing_alg_values_supported: None,
@@ -164,30 +163,13 @@ impl Issuer {
     /// Create an [Issuer] instance using [IssuerMetadata].
     ///
     /// - `metadata` - [IssuerMetadata]
-    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
     ///
     /// No OIDC Discovery defaults are set if Issuer is created using this method.
     ///
     /// If no introspection/revocation endpoint auth methods or algorithms are specified,
     /// value of token endpoint auth methods and algorithms are used as the the value for the said
     /// properties.
-    ///
-    ///
-    /// ### *Example:*
-    ///
-    /// ```rust
-    ///     let metadata = IssuerMetadata {
-    ///         issuer: "https://auth.example.com".to_string(),
-    ///         authorization_endpoint: Some("https://auth.example.com/authorize".to_string()),
-    ///         token_endpoint: Some("https://auth.example.com/token".to_string()),
-    ///         userinfo_endpoint: Some("https://auth.example.com/userinfo".to_string()),
-    ///         jwks_uri: Some("https://auth.example.com/certs".to_string()),
-    ///         ..IssuerMetadata::default()
-    ///     };
-    ///
-    ///     let issuer = Issuer::new(metadata, None);
-    /// ```
-    pub fn new(metadata: IssuerMetadata, interceptor: Option<RequestInterceptor>) -> Self {
+    pub fn new(metadata: IssuerMetadata) -> Self {
         let introspection_endpoint_auth_methods_supported =
             match metadata.introspection_endpoint_auth_methods_supported {
                 None => metadata.token_endpoint_auth_methods_supported.clone(),
@@ -217,7 +199,6 @@ impl Issuer {
             };
 
         let jwks_uri = metadata.jwks_uri.clone();
-        let cloned_interceptor = interceptor.as_ref().map(|i| i.clone_box());
 
         Self {
             issuer: metadata.issuer,
@@ -241,8 +222,7 @@ impl Issuer {
             revocation_endpoint_auth_methods_supported,
             revocation_endpoint_auth_signing_alg_values_supported,
             other_fields: metadata.other_fields,
-            request_interceptor: interceptor,
-            keystore: Some(KeyStore::new(jwks_uri, cloned_interceptor)),
+            keystore: Some(KeyStore::new(jwks_uri)),
             mtls_endpoint_aliases: metadata.mtls_endpoint_aliases,
             introspection_endpoint: metadata.introspection_endpoint,
             registration_endpoint: metadata.registration_endpoint,
@@ -265,35 +245,13 @@ impl Issuer {
     /// Discover an OIDC Issuer using the issuer url.
     ///
     /// - `issuer` - The issuer url (absolute).
-    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
+    /// - `http_client` - The http client used to make the request.
     ///
     /// *Only an absolute urls are accepted, passing in `auth.example.com` will result in an error.*
-    ///
-    ///
-    /// ### *Example:*
-    ///
-    /// ```rust
-    ///     let _ = Issuer::discover_async("https://auth.example.com", None)
-    ///         .await
-    ///         .unwrap();
-    /// ```
-    ///
-    /// ### *Example: with .well-known/openid-configuration*
-    ///
-    /// Urls with `.well-known/openid-configuration` can also be used to discover issuer.
-    ///
-    /// ```rust
-    ///     let _ = Issuer::discover_async(
-    ///         "https://auth.example.com/.well-known/openid-configuration",
-    ///         None,
-    ///     )
-    ///     .await
-    ///     .unwrap();
-    /// ```
-    pub async fn discover_async(
-        issuer: &str,
-        mut interceptor: Option<RequestInterceptor>,
-    ) -> Result<Issuer, OidcClientError> {
+    pub async fn discover_async<T>(issuer: &str, http_client: &T) -> OidcReturnType<Issuer>
+    where
+        T: OidcHttpClient,
+    {
         let mut url = match validate_url(issuer) {
             Ok(parsed) => parsed,
             Err(err) => return Err(err),
@@ -312,35 +270,26 @@ impl Issuer {
 
         url.set_path(&path);
 
-        let mut headers = HeaderMap::new();
-        headers.append("accept", HeaderValue::from_static("application/json"));
+        let mut headers = HashMap::new();
+        headers.insert("accept".to_string(), vec!["application/json".to_string()]);
 
-        let req = Request {
-            url: url.to_string(),
-            headers,
-            ..Request::default()
-        };
+        let req = HttpRequest::new().url(url).headers(headers);
 
-        let res = request_async(&req, interceptor.as_mut()).await?;
+        let res = request_async(req, http_client).await?;
 
         let issuer_metadata = match convert_json_to::<IssuerMetadata>(res.body.as_ref().unwrap()) {
             Ok(metadata) => metadata,
             Err(_) => {
-                return Err(OidcClientError::new_op_error(
+                return Err(Box::new(OidcClientError::new_op_error(
                     "invalid_issuer_metadata".to_string(),
                     None,
                     None,
-                    None,
-                    None,
                     Some(res),
-                ));
+                )));
             }
         };
 
-        let mut issuer = Issuer::from(issuer_metadata);
-        issuer.request_interceptor = interceptor;
-
-        Ok(issuer)
+        Ok(Issuer::from(issuer_metadata))
     }
 }
 
@@ -351,51 +300,31 @@ impl Issuer {
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
     /// - `input` - The resource.
-    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
+    /// - `http_client` - The http client to make the request
     ///
-    ///
-    /// ### *Example:*
-    ///
-    /// ```rust
-    ///     let _issuer_email = Issuer::webfinger_async("joe@auth.example.com", None)
-    ///         .await
-    ///         .unwrap();
-    ///     let _issuer_url = Issuer::webfinger_async("https://auth.example.com/joe", None)
-    ///         .await
-    ///         .unwrap();
-    ///     let _issuer_url_port = Issuer::webfinger_async("auth.example.com:3000/joe", None)
-    ///         .await
-    ///         .unwrap();
-    ///     let _issuer_acct_email = Issuer::webfinger_async("acct:joe@auth.example.com", None)
-    ///         .await
-    ///         .unwrap();
-    ///     let _issuer_acct_host = Issuer::webfinger_async("acct:auth.example.com", None)
-    ///         .await
-    ///         .unwrap();
-    /// ```
-    pub async fn webfinger_async(
-        input: &str,
-        mut interceptor: Option<RequestInterceptor>,
-    ) -> Result<Issuer, OidcClientError> {
+    pub async fn webfinger_async<T>(input: &str, http_client: &T) -> OidcReturnType<Issuer>
+    where
+        T: OidcHttpClient,
+    {
         let req = Self::build_webfinger_request(input)?;
 
-        let res = request_async(&req, interceptor.as_mut()).await?;
+        let res = request_async(req, http_client).await?;
 
         let expected_issuer = Self::process_webfinger_response(res)?;
 
-        let issuer_result = Issuer::discover_async(&expected_issuer, interceptor).await;
+        let issuer_result = Issuer::discover_async(&expected_issuer, http_client).await;
 
         Self::process_webfinger_issuer_result(issuer_result, expected_issuer)
     }
 
-    fn build_webfinger_request(input: &str) -> Result<Request, OidcClientError> {
+    fn build_webfinger_request(input: &str) -> OidcReturnType<HttpRequest> {
         let resource = webfinger_normalize(input);
 
         let mut host: Option<String> = None;
 
         if resource.starts_with("acct:") {
             let split: Vec<&str> = resource.split('@').collect();
-            host = Some(split[1].to_string());
+            host = split.last().map(|s| s.to_string());
         } else if resource.starts_with("https://") {
             let url = match validate_url(&resource) {
                 Ok(parsed) => parsed,
@@ -411,49 +340,43 @@ impl Issuer {
         }
 
         if host.is_none() {
-            return Err(OidcClientError::new_type_error(
+            return Err(Box::new(OidcClientError::new_type_error(
                 "given input was invalid",
                 None,
-            ));
+            )));
         }
 
-        let web_finger_url = format!("https://{}/.well-known/webfinger", host.unwrap());
+        let mut web_finger_url =
+            Url::parse(&format!("https://{}/.well-known/webfinger", host.unwrap())).unwrap();
 
-        let mut headers = HeaderMap::new();
-        headers.append("accept", HeaderValue::from_static("application/json"));
+        let mut headers = HashMap::new();
+        headers.insert("accept".to_string(), vec!["application/json".to_string()]);
 
-        let mut search_params = HashMap::new();
-        search_params.insert("resource".to_string(), vec![resource]);
-        search_params.insert(
-            "rel".to_string(),
-            vec!["http://openid.net/specs/connect/1.0/issuer".to_string()],
-        );
+        web_finger_url.set_query(Some(&format!(
+            "resource={}&rel=http%3A%2F%2Fopenid.net%2Fspecs%2Fconnect%2F1.0%2Fissuer",
+            urlencoding::encode(&resource)
+        )));
 
-        Ok(Request {
-            url: web_finger_url,
-            method: Method::GET,
-            headers,
-            bearer: false,
-            expected: StatusCode::OK,
-            expect_body: true,
-            search_params,
-            ..Default::default()
-        })
+        Ok(HttpRequest::new()
+            .url(web_finger_url)
+            .method(HttpMethod::GET)
+            .headers(headers)
+            .expect_bearer(false)
+            .expect_status_code(200)
+            .expect_body(true))
     }
 
-    fn process_webfinger_response(response: Response) -> Result<String, OidcClientError> {
+    fn process_webfinger_response(response: HttpResponse) -> OidcReturnType<String> {
         let webfinger_response =
             match convert_json_to::<WebFingerResponse>(response.body.as_ref().unwrap()) {
                 Ok(res) => res,
                 Err(_) => {
-                    return Err(OidcClientError::new_op_error(
+                    return Err(Box::new(OidcClientError::new_op_error(
                         "invalid  webfinger response".to_string(),
                         None,
                         None,
-                        None,
-                        None,
                         Some(response),
-                    ));
+                    )));
                 }
             };
 
@@ -465,38 +388,35 @@ impl Issuer {
         let expected_issuer = match location_link_result {
             Some(link) => link.href.as_ref().unwrap(),
             None => {
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     "no issuer found in webfinger response",
                     Some(response),
-                    None,
-                ));
+                )));
             }
         };
 
         if !expected_issuer.starts_with("https://") {
-            return Err(OidcClientError::new_op_error(
+            return Err(Box::new(OidcClientError::new_op_error(
                 "invalid_location".to_string(),
                 Some(format!("invalid issuer location {expected_issuer}")),
                 None,
-                None,
-                None,
                 Some(response),
-            ));
+            )));
         }
 
         Ok(expected_issuer.to_string())
     }
 
     fn process_webfinger_issuer_result(
-        issuer_result: Result<Issuer, OidcClientError>,
+        issuer_result: OidcReturnType<Issuer>,
         expected_issuer: String,
-    ) -> Result<Issuer, OidcClientError> {
+    ) -> OidcReturnType<Issuer> {
         let mut response = None;
 
         let issuer = match issuer_result {
             Ok(i) => i,
             Err(err) => {
-                response = match &err {
+                response = match err.as_ref() {
                     OidcClientError::Error(_, response) => response.as_ref(),
                     OidcClientError::TypeError(_, response) => response.as_ref(),
                     OidcClientError::RPError(_, response) => response.as_ref(),
@@ -504,15 +424,13 @@ impl Issuer {
                 };
 
                 if let Some(error_res) = response {
-                    if error_res.status == StatusCode::NOT_FOUND {
-                        return Err(OidcClientError::new_op_error(
+                    if error_res.status_code == 404 {
+                        return Err(Box::new(OidcClientError::new_op_error(
                             "no_issuer".to_string(),
                             Some(format!("invalid issuer location {expected_issuer}")),
                             None,
-                            None,
-                            None,
                             Some(error_res.clone()),
-                        ));
+                        )));
                     }
                 }
 
@@ -521,17 +439,15 @@ impl Issuer {
         };
 
         if issuer.issuer != expected_issuer {
-            return Err(OidcClientError::new_op_error(
+            return Err(Box::new(OidcClientError::new_op_error(
                 "issuer_mismatch".to_string(),
                 Some(format!(
                     "discovered issuer mismatch, expected {expected_issuer}, got: {}",
                     issuer.issuer
                 )),
                 None,
-                None,
-                None,
-                response.cloned(),
-            ));
+                response.map(|r| r.to_owned()),
+            )));
         }
 
         Ok(issuer)
@@ -545,81 +461,27 @@ impl Issuer {
     /// A client metadata with a required `client_id` field is also required
     ///
     /// - `metadata` - [ClientMetadata]
-    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
     /// - `jwks` - The client jwks with private keys.
     /// - `client_options` - Client options.
     /// - `fapi` - Version of FAPI
     ///
     /// Note: If the [Issuer] already have a request interceptor and none was passed in through `interceptor`,
     ///       the interceptor from the [Issuer] is used.
-    ///
-    /// ### *Example:*
-    ///
-    /// ```rust
-    ///     let issuer = Issuer::discover_async("https://auth.example.com", None)
-    ///         .await
-    ///         .unwrap();
-    ///     
-    ///     let client_metadata = ClientMetadata {
-    ///         client_id: Some("client_id".to_string()),
-    ///         ..ClientMetadata::default()
-    ///     };
-    ///     
-    ///     let _client = issuer.client(client_metadata, None, None, None, None).unwrap();
-    /// ```
-    ///
-    /// ### *Example: with jwks*
-    ///
-    /// ```rust
-    ///     let issuer = Issuer::discover_async("https://auth.example.com", None)
-    ///         .await
-    ///         .unwrap();
-    ///    
-    ///     let client_metadata = ClientMetadata {
-    ///         client_id: Some("client_id".to_string()),
-    ///         token_endpoint_auth_method: Some("private_key_jwt".to_string()),
-    ///         ..ClientMetadata::default()
-    ///     };
-    ///    
-    ///     let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
-    ///     jwk.set_algorithm("PS256");
-    ///     let jwks = Jwks::from(vec![jwk]);
-    ///    
-    ///     let _client = issuer
-    ///         .client(client_metadata, None, Some(jwks), None, None)
-    ///         .unwrap();
-    /// ```
     pub fn client(
         &self,
         metadata: ClientMetadata,
-        interceptor: Option<RequestInterceptor>,
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
         fapi: Option<Fapi>,
-    ) -> Result<Client, OidcClientError> {
-        let request_interceptor = match (interceptor, &self.request_interceptor) {
-            (None, Some(i)) => Some(i.clone_box()),
-            (Some(i), None) | (Some(i), Some(_)) => Some(i),
-            _ => None,
-        };
-
+    ) -> OidcReturnType<Client> {
         Client::jwks_only_private_keys_validation(jwks.as_ref())?;
 
-        Client::from_internal(
-            metadata,
-            Some(self),
-            request_interceptor,
-            jwks,
-            client_options,
-            fapi,
-        )
+        Client::from_internal(metadata, Some(self), jwks, client_options, fapi)
     }
 }
 
 impl Clone for Issuer {
     fn clone(&self) -> Self {
-        let request_interceptor = self.request_interceptor.as_ref().map(|i| i.clone_box());
-
         Self {
             issuer: self.issuer.clone(),
             authorization_endpoint: self.authorization_endpoint.clone(),
@@ -656,7 +518,6 @@ impl Clone for Issuer {
             keystore: self.keystore.clone(),
             mtls_endpoint_aliases: self.mtls_endpoint_aliases.clone(),
             introspection_endpoint: self.introspection_endpoint.clone(),
-            request_interceptor,
             registration_endpoint: self.registration_endpoint.clone(),
             end_session_endpoint: self.end_session_endpoint.clone(),
             authorization_response_iss_parameter_supported: self
@@ -717,17 +578,15 @@ impl Issuer {
     }
 
     /// Get Jwks
-    pub async fn get_jwks(&mut self) -> Option<Jwks> {
+    pub async fn get_jwks<T>(&mut self, http_client: &T) -> Option<Jwks>
+    where
+        T: OidcHttpClient,
+    {
         if let Some(ks) = &mut self.keystore {
-            return ks.get_keystore_async(false).await.ok();
+            return ks.get_keystore_async(false, http_client).await.ok();
         }
 
         None
-    }
-
-    /// Sets an [RequestInterceptor]
-    pub fn set_request_interceptor(&mut self, interceptor: RequestInterceptor) {
-        self.request_interceptor = Some(interceptor);
     }
 }
 

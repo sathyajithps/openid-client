@@ -5,7 +5,7 @@ use crate::{
 
 #[test]
 fn secret_alg_test() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -13,9 +13,7 @@ fn secret_alg_test() {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let secret = client.secret_for_alg("HS256").unwrap();
 
@@ -27,16 +25,14 @@ fn secret_alg_test() {
 
 #[test]
 fn returns_error_if_client_secret_is_not_configured() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let error = client.secret_for_alg("HS256").unwrap_err();
 

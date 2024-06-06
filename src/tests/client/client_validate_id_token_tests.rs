@@ -1,6 +1,5 @@
 use std::{collections::HashMap, time::Duration};
 
-use httpmock::{Method::GET, MockServer};
 use josekit::{jwk::Jwk, jws::JwsHeader, jwt::JwtPayload};
 use serde_json::{json, Value};
 
@@ -9,13 +8,14 @@ use crate::{
     helpers::{generate_hash, now},
     issuer::Issuer,
     jwks::{jwks::CustomJwk, Jwks},
-    tests::test_interceptors::get_default_test_interceptor,
     tokenset::{TokenSet, TokenSetParams},
     types::{
         CallbackParams, ClientMetadata, ClientOptions, Fapi, IssuerMetadata, OAuthCallbackChecks,
-        OpenIDCallbackChecks,
+        OpenIDCallbackChecks, OpenIdCallbackParams,
     },
 };
+
+use crate::tests::test_http_client::{TestHttpClient, TestHttpReqRes};
 
 struct TestData {
     pub jwk: Jwk,
@@ -23,6 +23,7 @@ struct TestData {
     pub client: Client,
     pub client_with_3rd_party: Client,
     pub client_with_3rd_parties: Client,
+    pub http_client: TestHttpClient,
 }
 
 fn get_token_set(id_token: String, access_token: Option<String>, code: Option<String>) -> TokenSet {
@@ -66,20 +67,24 @@ fn get_id_token(key: &Jwk, alg: &str, payload: Vec<(String, Value)>) -> String {
     josekit::jwt::encode_with_signer(&p, &header, &*signer).unwrap()
 }
 
-fn get_test_data(mock_server: &MockServer) -> TestData {
+fn get_test_data() -> TestData {
     let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
 
     jwk.set_algorithm("RS256");
 
     let jwks = Jwks::from(vec![jwk.clone()]);
 
-    let _ = mock_server.mock(|when, then| {
-        when.method(GET)
-            .header("Accept", "application/json,application/jwk-set+json")
-            .path("/certs");
-        then.status(200)
-            .body(serde_json::to_string(&jwks.get_public_jwks()).unwrap());
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/certs")
+        .assert_request_header(
+            "accept",
+            vec![
+                "application/json".to_string(),
+                "application/jwk-set+json".to_string(),
+            ],
+        )
+        .set_response_content_type_header("application/jwk-set+json")
+        .set_response_body(serde_json::to_string(&jwks.get_public_jwks()).unwrap())
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
@@ -87,10 +92,7 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -98,9 +100,7 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let client_3rd_party_options = ClientOptions {
         additional_authorized_parties: Some(vec!["authorized third party".to_string()]),
@@ -115,7 +115,6 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
     let client_with_3rd_party = issuer
         .client(
             client_metadata_3rd_party,
-            None,
             None,
             Some(client_3rd_party_options),
             None,
@@ -139,7 +138,6 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
         .client(
             client_metadata_3rd_parties,
             None,
-            None,
             Some(client_3rd_parties_options),
             None,
         )
@@ -151,14 +149,13 @@ fn get_test_data(mock_server: &MockServer) -> TestData {
         client,
         client_with_3rd_party,
         client_with_3rd_parties,
+        http_client,
     }
 }
 
 #[tokio::test]
 async fn validates_the_id_token_and_fulfills_with_input_value() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -174,7 +171,7 @@ async fn validates_the_id_token_and_fulfills_with_input_value() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -183,9 +180,7 @@ async fn validates_the_id_token_and_fulfills_with_input_value() {
 
 #[tokio::test]
 async fn validates_the_id_token_signature() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -203,7 +198,7 @@ async fn validates_the_id_token_signature() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -217,9 +212,7 @@ async fn validates_the_id_token_signature() {
 
 #[tokio::test]
 async fn validates_the_id_token_and_fulfills_with_input_value_when_signed_by_secret() {
-    let mock_server = MockServer::start();
-
-    let test_data = get_test_data(&mock_server);
+    let test_data = get_test_data();
 
     let client_metadata = ClientMetadata {
         client_id: Some("hs256-client".to_string()),
@@ -230,7 +223,7 @@ async fn validates_the_id_token_and_fulfills_with_input_value_when_signed_by_sec
 
     let mut client = test_data
         .issuer
-        .client(client_metadata, None, None, None, None)
+        .client(client_metadata, None, None, None)
         .unwrap();
 
     let key = client.secret_for_alg("HS256").unwrap();
@@ -248,7 +241,7 @@ async fn validates_the_id_token_and_fulfills_with_input_value_when_signed_by_sec
     let token_set = get_token_set(id_token.clone(), None, None);
 
     let validated_token_set = client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -257,9 +250,7 @@ async fn validates_the_id_token_and_fulfills_with_input_value_when_signed_by_sec
 
 #[tokio::test]
 async fn validates_the_id_token_signed_response_alg_is_the_one_used() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let key = test_data.client.secret_for_alg("HS256").unwrap();
 
@@ -277,7 +268,7 @@ async fn validates_the_id_token_signed_response_alg_is_the_one_used() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -290,9 +281,7 @@ async fn validates_the_id_token_signed_response_alg_is_the_one_used() {
 
 #[tokio::test]
 async fn verifies_the_azp() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -309,7 +298,7 @@ async fn verifies_the_azp() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -322,9 +311,7 @@ async fn verifies_the_azp() {
 
 #[tokio::test]
 async fn verifies_azp_is_present_when_more_audiences_are_provided() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -343,7 +330,7 @@ async fn verifies_azp_is_present_when_more_audiences_are_provided() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -356,9 +343,7 @@ async fn verifies_azp_is_present_when_more_audiences_are_provided() {
 
 #[tokio::test]
 async fn verifies_the_audience_when_azp_is_there() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -378,7 +363,7 @@ async fn verifies_the_audience_when_azp_is_there() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -387,9 +372,7 @@ async fn verifies_the_audience_when_azp_is_there() {
 
 #[tokio::test]
 async fn rejects_unknown_additional_party_azp_values_single_additional_value() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -409,7 +392,7 @@ async fn rejects_unknown_additional_party_azp_values_single_additional_value() {
 
     let err = test_data
         .client_with_3rd_party
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -422,9 +405,7 @@ async fn rejects_unknown_additional_party_azp_values_single_additional_value() {
 
 #[tokio::test]
 async fn allows_configured_additional_party_azp_value_single_additional_value() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -444,7 +425,7 @@ async fn allows_configured_additional_party_azp_value_single_additional_value() 
 
     let validated_token_set = test_data
         .client_with_3rd_party
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -453,9 +434,7 @@ async fn allows_configured_additional_party_azp_value_single_additional_value() 
 
 #[tokio::test]
 async fn allows_the_default_client_id_additional_party_azp_value_single_additional_value() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -475,7 +454,7 @@ async fn allows_the_default_client_id_additional_party_azp_value_single_addition
 
     let validated_token_set = test_data
         .client_with_3rd_party
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -484,9 +463,7 @@ async fn allows_the_default_client_id_additional_party_azp_value_single_addition
 
 #[tokio::test]
 async fn rejects_unknown_additional_party_azp_values_multiple_additional_values() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -506,7 +483,7 @@ async fn rejects_unknown_additional_party_azp_values_multiple_additional_values(
 
     let err = test_data
         .client_with_3rd_parties
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -519,9 +496,7 @@ async fn rejects_unknown_additional_party_azp_values_multiple_additional_values(
 
 #[tokio::test]
 async fn allows_configured_additional_party_azp_value_multiple_additional_values() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -541,7 +516,7 @@ async fn allows_configured_additional_party_azp_value_multiple_additional_values
 
     let validated_token_set = test_data
         .client_with_3rd_parties
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -550,9 +525,7 @@ async fn allows_configured_additional_party_azp_value_multiple_additional_values
 
 #[tokio::test]
 async fn allows_the_default_client_id_additional_party_azp_value_multiple_additional_value() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -572,7 +545,7 @@ async fn allows_the_default_client_id_additional_party_azp_value_multiple_additi
 
     let validated_token_set = test_data
         .client_with_3rd_parties
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -581,9 +554,7 @@ async fn allows_the_default_client_id_additional_party_azp_value_multiple_additi
 
 #[tokio::test]
 async fn verifies_the_audience_when_string() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -599,7 +570,7 @@ async fn verifies_the_audience_when_string() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -612,9 +583,7 @@ async fn verifies_the_audience_when_string() {
 
 #[tokio::test]
 async fn verifies_the_audience_when_array() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -631,7 +600,7 @@ async fn verifies_the_audience_when_array() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -644,9 +613,7 @@ async fn verifies_the_audience_when_array() {
 
 #[tokio::test]
 async fn passes_with_nonce_check() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -667,7 +634,14 @@ async fn passes_with_nonce_check() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, Some("nonce!!!".to_string()), "", None, None)
+        .validate_id_token_async(
+            token_set,
+            Some("nonce!!!".to_string()),
+            "",
+            None,
+            None,
+            &test_data.http_client,
+        )
         .await
         .unwrap();
 
@@ -676,9 +650,7 @@ async fn passes_with_nonce_check() {
 
 #[tokio::test]
 async fn validates_nonce_when_provided_to_check_for() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -698,7 +670,14 @@ async fn validates_nonce_when_provided_to_check_for() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, Some("nonce!!!".to_string()), "", None, None)
+        .validate_id_token_async(
+            token_set,
+            Some("nonce!!!".to_string()),
+            "",
+            None,
+            None,
+            &test_data.http_client,
+        )
         .await
         .unwrap_err();
 
@@ -711,9 +690,7 @@ async fn validates_nonce_when_provided_to_check_for() {
 
 #[tokio::test]
 async fn validates_nonce_when_in_token() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -734,7 +711,7 @@ async fn validates_nonce_when_in_token() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -747,9 +724,7 @@ async fn validates_nonce_when_in_token() {
 
 #[tokio::test]
 async fn verifies_presence_of_payload_property_iss() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let mut payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -772,7 +747,7 @@ async fn verifies_presence_of_payload_property_iss() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -785,9 +760,7 @@ async fn verifies_presence_of_payload_property_iss() {
 
 #[tokio::test]
 async fn verifies_presence_of_payload_property_sub() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let mut payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -810,7 +783,7 @@ async fn verifies_presence_of_payload_property_sub() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -823,9 +796,7 @@ async fn verifies_presence_of_payload_property_sub() {
 
 #[tokio::test]
 async fn verifies_presence_of_payload_property_aud() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let mut payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -848,7 +819,7 @@ async fn verifies_presence_of_payload_property_aud() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -861,9 +832,7 @@ async fn verifies_presence_of_payload_property_aud() {
 
 #[tokio::test]
 async fn verifies_presence_of_payload_property_exp() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let mut payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -886,7 +855,7 @@ async fn verifies_presence_of_payload_property_exp() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -899,9 +868,7 @@ async fn verifies_presence_of_payload_property_exp() {
 
 #[tokio::test]
 async fn verifies_presence_of_payload_property_iat() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let mut payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -923,7 +890,7 @@ async fn verifies_presence_of_payload_property_iat() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -936,9 +903,7 @@ async fn verifies_presence_of_payload_property_iat() {
 
 #[tokio::test]
 async fn allows_iat_skew() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let payload = vec![
         ("iss".to_string(), json!(test_data.issuer.issuer)),
@@ -958,7 +923,7 @@ async fn allows_iat_skew() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -967,9 +932,7 @@ async fn allows_iat_skew() {
 
 #[tokio::test]
 async fn verifies_exp_is_in_the_future() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
     let time_exp = time - 100;
@@ -988,7 +951,7 @@ async fn verifies_exp_is_in_the_future() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -1001,9 +964,7 @@ async fn verifies_exp_is_in_the_future() {
 
 #[tokio::test]
 async fn allow_exp_skew() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
     let time_exp = time - 4;
@@ -1026,7 +987,7 @@ async fn allow_exp_skew() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -1035,9 +996,7 @@ async fn allow_exp_skew() {
 
 #[tokio::test]
 async fn verifies_nbf_is_in_the_past() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
     let nbf = time + 20;
@@ -1057,7 +1016,7 @@ async fn verifies_nbf_is_in_the_past() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -1070,9 +1029,7 @@ async fn verifies_nbf_is_in_the_past() {
 
 #[tokio::test]
 async fn allows_nbf_skew() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
     let nbf = time + 5;
@@ -1096,7 +1053,7 @@ async fn allows_nbf_skew() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -1105,9 +1062,7 @@ async fn allows_nbf_skew() {
 
 #[tokio::test]
 async fn passes_when_auth_time_is_within_max_age() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
     let auth_time = time - 200;
@@ -1127,18 +1082,17 @@ async fn passes_when_auth_time_is_within_max_age() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", Some(300), None)
+        .validate_id_token_async(token_set, None, "", Some(300), None, &test_data.http_client)
         .await
         .unwrap();
 
     assert_eq!(id_token, validated_token_set.get_id_token().unwrap());
 }
 
+// Had some issues with this test failing randomly x2
 #[tokio::test]
 async fn verifies_auth_time_did_not_exceed_max_age() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
     let auth_time = time - 600;
@@ -1162,7 +1116,7 @@ async fn verifies_auth_time_did_not_exceed_max_age() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", Some(300), None)
+        .validate_id_token_async(token_set, None, "", Some(300), None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -1172,9 +1126,7 @@ async fn verifies_auth_time_did_not_exceed_max_age() {
 
 #[tokio::test]
 async fn allows_auth_time_skew() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
     let auth_time = time - 303;
@@ -1198,7 +1150,7 @@ async fn allows_auth_time_skew() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -1207,9 +1159,7 @@ async fn allows_auth_time_skew() {
 
 #[tokio::test]
 async fn verifies_auth_time_is_a_number() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1228,7 +1178,7 @@ async fn verifies_auth_time_is_a_number() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", Some(300), None)
+        .validate_id_token_async(token_set, None, "", Some(300), None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -1241,9 +1191,7 @@ async fn verifies_auth_time_is_a_number() {
 
 #[tokio::test]
 async fn verifies_auth_time_is_present_when_require_auth_time_is_true() {
-    let mock_server = MockServer::start();
-
-    let test_data = get_test_data(&mock_server);
+    let test_data = get_test_data();
 
     let client_metadata = ClientMetadata {
         client_id: Some("with-require_auth_time".to_string()),
@@ -1253,7 +1201,7 @@ async fn verifies_auth_time_is_present_when_require_auth_time_is_true() {
 
     let mut client = test_data
         .issuer
-        .client(client_metadata, None, None, None, None)
+        .client(client_metadata, None, None, None)
         .unwrap();
 
     let time = now();
@@ -1271,7 +1219,7 @@ async fn verifies_auth_time_is_present_when_require_auth_time_is_true() {
     let token_set = get_token_set(id_token.clone(), None, None);
 
     let err = client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -1284,9 +1232,7 @@ async fn verifies_auth_time_is_present_when_require_auth_time_is_true() {
 
 #[tokio::test]
 async fn verifies_auth_time_is_present_when_max_age_is_passed() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1304,7 +1250,7 @@ async fn verifies_auth_time_is_present_when_max_age_is_passed() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", Some(300), None)
+        .validate_id_token_async(token_set, None, "", Some(300), None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -1320,9 +1266,7 @@ async fn passes_with_the_right_at_hash() {
     let access_token = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
     let at_hash = "77QmUPtjPfzWtF2AnpK9RQ";
 
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1341,7 +1285,7 @@ async fn passes_with_the_right_at_hash() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -1352,9 +1296,7 @@ async fn passes_with_the_right_at_hash() {
 async fn validates_at_hash_presence_for_implicit_flow() {
     let access_token = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
 
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1374,9 +1316,11 @@ async fn validates_at_hash_presence_for_implicit_flow() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default().parameters(params);
+
     let err = test_data
         .client
-        .callback_async(None, params, None, None)
+        .callback_async(&test_data.http_client, params)
         .await
         .unwrap_err();
 
@@ -1391,9 +1335,7 @@ async fn validates_at_hash_presence_for_implicit_flow() {
 async fn validates_c_hash_presence_for_hybrid_flow() {
     let code = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
 
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1413,9 +1355,11 @@ async fn validates_c_hash_presence_for_hybrid_flow() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default().parameters(params);
+
     let err = test_data
         .client
-        .callback_async(None, params, None, None)
+        .callback_async(&test_data.http_client, params)
         .await
         .unwrap_err();
 
@@ -1428,21 +1372,23 @@ async fn validates_c_hash_presence_for_hybrid_flow() {
 
 #[tokio::test]
 async fn fapi_client_validates_s_hash_presence() {
-    let mock_server = MockServer::start();
-
     let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
 
     jwk.set_algorithm("PS256");
 
     let jwks = Jwks::from(vec![jwk.clone()]);
 
-    let _ = mock_server.mock(|when, then| {
-        when.method(GET)
-            .header("Accept", "application/json,application/jwk-set+json")
-            .path("/certs");
-        then.status(200)
-            .body(serde_json::to_string(&jwks.get_public_jwks()).unwrap());
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/certs")
+        .assert_request_header(
+            "accept",
+            vec![
+                "application/json".to_string(),
+                "application/jwk-set+json".to_string(),
+            ],
+        )
+        .set_response_content_type_header("application/jwk-set+json")
+        .set_response_body(serde_json::to_string(&jwks.get_public_jwks()).unwrap())
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
@@ -1450,10 +1396,7 @@ async fn fapi_client_validates_s_hash_presence() {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let fapi_client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -1462,7 +1405,7 @@ async fn fapi_client_validates_s_hash_presence() {
     };
 
     let mut fapi_client = issuer
-        .client(fapi_client_metadata, None, None, None, Some(Fapi::V1))
+        .client(fapi_client_metadata, None, None, Some(Fapi::V1))
         .unwrap();
 
     let code = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
@@ -1496,8 +1439,12 @@ async fn fapi_client_validates_s_hash_presence() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default()
+        .parameters(params)
+        .checks(checks);
+
     let err = fapi_client
-        .callback_async(None, params, Some(checks), None)
+        .callback_async(&http_client, params)
         .await
         .unwrap_err();
 
@@ -1510,21 +1457,23 @@ async fn fapi_client_validates_s_hash_presence() {
 
 #[tokio::test]
 async fn fapi_client_checks_iat_is_fresh() {
-    let mock_server = MockServer::start();
-
     let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
 
     jwk.set_algorithm("PS256");
 
     let jwks = Jwks::from(vec![jwk.clone()]);
 
-    let _ = mock_server.mock(|when, then| {
-        when.method(GET)
-            .header("Accept", "application/json,application/jwk-set+json")
-            .path("/certs");
-        then.status(200)
-            .body(serde_json::to_string(&jwks.get_public_jwks()).unwrap());
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/certs")
+        .assert_request_header(
+            "accept",
+            vec![
+                "application/json".to_string(),
+                "application/jwk-set+json".to_string(),
+            ],
+        )
+        .set_response_content_type_header("application/jwk-set+json")
+        .set_response_body(serde_json::to_string(&jwks.get_public_jwks()).unwrap())
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
@@ -1532,10 +1481,7 @@ async fn fapi_client_checks_iat_is_fresh() {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let fapi_client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -1544,7 +1490,7 @@ async fn fapi_client_checks_iat_is_fresh() {
     };
 
     let mut fapi_client = issuer
-        .client(fapi_client_metadata, None, None, None, Some(Fapi::V1))
+        .client(fapi_client_metadata, None, None, Some(Fapi::V1))
         .unwrap();
 
     let code = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
@@ -1581,8 +1527,12 @@ async fn fapi_client_checks_iat_is_fresh() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default()
+        .parameters(params)
+        .checks(checks);
+
     let err = fapi_client
-        .callback_async(None, params, Some(checks), None)
+        .callback_async(&http_client, params)
         .await
         .unwrap_err();
 
@@ -1597,9 +1547,7 @@ async fn fapi_client_checks_iat_is_fresh() {
 async fn validates_state_presence_when_s_hash_is_returned() {
     let s_hash = "77QmUPtjPfzWtF2AnpK9RQ";
 
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1619,9 +1567,11 @@ async fn validates_state_presence_when_s_hash_is_returned() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default().parameters(params);
+
     let err = test_data
         .client
-        .callback_async(None, params, None, None)
+        .callback_async(&test_data.http_client, params)
         .await
         .unwrap_err();
 
@@ -1637,9 +1587,7 @@ async fn validates_s_hash() {
     let state = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
     let s_hash = "foobar";
 
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1668,9 +1616,13 @@ async fn validates_s_hash() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default()
+        .parameters(params)
+        .checks(checks);
+
     let err = test_data
         .client
-        .callback_async(None, params, Some(checks), None)
+        .callback_async(&test_data.http_client, params)
         .await
         .unwrap_err();
 
@@ -1690,9 +1642,7 @@ async fn passes_with_the_right_s_hash() {
     let state = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
     let s_hash = "77QmUPtjPfzWtF2AnpK9RQ";
 
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1721,9 +1671,13 @@ async fn passes_with_the_right_s_hash() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default()
+        .parameters(params)
+        .checks(checks);
+
     let result = test_data
         .client
-        .callback_async(None, params, Some(checks), None)
+        .callback_async(&test_data.http_client, params)
         .await;
 
     assert!(result.is_ok());
@@ -1734,9 +1688,7 @@ async fn fails_with_the_wrong_at_hash() {
     let access_token = "jHkWEdUXMU1BwAsC4vtUsZwnNvTIxEl0z9K3vx5KF0Y";
     let at_hash = "notvalid77QmUPtjPfzWtF2AnpK9RQ";
 
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1755,7 +1707,7 @@ async fn fails_with_the_wrong_at_hash() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 
@@ -1775,9 +1727,7 @@ async fn passes_with_the_right_c_hash() {
     let code = "Qcb0Orv1zh30vL1MPRsbm-diHiMwcLyZvn1arpZv-Jxf_11jnpEX3Tgfvk";
     let c_hash = "LDktKdoQak3Pk0cnXxCltA";
 
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let time = now();
 
@@ -1796,7 +1746,7 @@ async fn passes_with_the_right_c_hash() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap();
 
@@ -1805,9 +1755,7 @@ async fn passes_with_the_right_c_hash() {
 
 #[tokio::test]
 async fn fails_if_tokenset_without_id_token_is_passed_in() {
-    let mock_server = MockServer::start();
-
-    let mut test_data = get_test_data(&mock_server);
+    let mut test_data = get_test_data();
 
     let token_params = TokenSetParams {
         id_token: None,
@@ -1819,7 +1767,7 @@ async fn fails_if_tokenset_without_id_token_is_passed_in() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None)
+        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
         .await
         .unwrap_err();
 

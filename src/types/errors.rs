@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-
 use serde::Deserialize;
-use serde_json::Value;
 
-use super::http::Response;
+use super::HttpResponse;
+
+/// The return type of the methods used in this library
+pub type OidcReturnType<T> = Result<T, Box<OidcClientError>>;
 
 /// # ErrorWithResponse
 /// Returned error type from
@@ -15,7 +15,7 @@ pub struct ErrorWithResponse<T> {
     /// The error
     pub error: T,
     /// Response
-    pub response: Option<Response>,
+    pub response: Option<HttpResponse>,
 }
 
 /// # StandardBodyError
@@ -29,10 +29,6 @@ pub struct StandardBodyError {
     pub error_description: Option<String>,
     /// Error uri
     pub error_uri: Option<String>,
-    /// State from Auth Serverr
-    pub state: Option<String>,
-    /// Scope from Auth Server
-    pub scope: Option<String>,
 }
 
 /// # Error
@@ -59,9 +55,6 @@ pub struct TypeError {
 pub struct RPError {
     /// Error Message
     pub message: String,
-
-    /// Extra data about the error
-    pub extra_data: Option<HashMap<String, Value>>,
 }
 
 /// # OidcClientError
@@ -69,13 +62,13 @@ pub struct RPError {
 #[derive(Debug)]
 pub enum OidcClientError {
     /// [Error]
-    Error(Error, Option<Response>),
+    Error(Error, Option<HttpResponse>),
     /// [TypeError]
-    TypeError(TypeError, Option<Response>),
+    TypeError(TypeError, Option<HttpResponse>),
     /// [RPError]
-    RPError(RPError, Option<Response>),
+    RPError(RPError, Option<HttpResponse>),
     /// [StandardBodyError]
-    OPError(StandardBodyError, Option<Response>),
+    OPError(StandardBodyError, Option<HttpResponse>),
 }
 
 impl OidcClientError {
@@ -137,7 +130,7 @@ impl OidcClientError {
 }
 
 impl OidcClientError {
-    pub(crate) fn new_error(message: &str, response: Option<Response>) -> Self {
+    pub(crate) fn new_error(message: &str, response: Option<HttpResponse>) -> Self {
         OidcClientError::Error(
             Error {
                 message: message.to_string(),
@@ -146,7 +139,7 @@ impl OidcClientError {
         )
     }
 
-    pub(crate) fn new_type_error(message: &str, response: Option<Response>) -> Self {
+    pub(crate) fn new_type_error(message: &str, response: Option<HttpResponse>) -> Self {
         OidcClientError::TypeError(
             TypeError {
                 message: message.to_string(),
@@ -155,15 +148,10 @@ impl OidcClientError {
         )
     }
 
-    pub(crate) fn new_rp_error(
-        message: &str,
-        response: Option<Response>,
-        extra_data: Option<HashMap<String, Value>>,
-    ) -> Self {
+    pub(crate) fn new_rp_error(message: &str, response: Option<HttpResponse>) -> Self {
         OidcClientError::RPError(
             RPError {
                 message: message.to_string(),
-                extra_data,
             },
             response,
         )
@@ -173,17 +161,13 @@ impl OidcClientError {
         error: String,
         error_description: Option<String>,
         error_uri: Option<String>,
-        state: Option<String>,
-        scope: Option<String>,
-        response: Option<Response>,
+        response: Option<HttpResponse>,
     ) -> Self {
         OidcClientError::OPError(
             StandardBodyError {
                 error,
                 error_description,
                 error_uri,
-                state,
-                scope,
             },
             response,
         )

@@ -1,47 +1,30 @@
-use httpmock::{Method::POST, MockServer};
-
 use crate::{
     issuer::Issuer,
-    tests::test_interceptors::get_default_test_interceptor,
-    types::{ClientMetadata, IssuerMetadata},
+    types::{ClientMetadata, HttpMethod, IssuerMetadata},
 };
+
+use crate::tests::test_http_client::TestHttpReqRes;
 
 #[tokio::test]
 async fn posts_the_token_in_a_body_and_returns_the_parsed_response() {
-    let mock_http_server = MockServer::start();
-
-    let _introspection_server = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .header("Accept", "application/json")
-            .matches(|req| {
-                let decoded =
-                    urlencoding::decode(std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap())
-                        .unwrap();
-
-                let kvp = querystring::querify(&decoded);
-
-                let token = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"token" && v == &"tokenValue");
-                let client_id = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"client_id" && v == &"identifier");
-
-                token.is_some() && client_id.is_some()
-            })
-            .path("/token/introspect");
-        then.status(200).body(r#"{"endpoint":"response"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/introspect")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("content-length", vec!["37".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("token=tokenValue&client_id=identifier")
+        .set_response_body(r#"{"endpoint":"response"}"#)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         introspection_endpoint: Some("https://op.example.com/token/introspect".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -49,12 +32,10 @@ async fn posts_the_token_in_a_body_and_returns_the_parsed_response() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let response = client
-        .introspect_async("tokenValue".to_owned(), None, None)
+        .introspect_async("tokenValue".to_owned(), &http_client, None, None)
         .await
         .unwrap();
 
@@ -63,45 +44,24 @@ async fn posts_the_token_in_a_body_and_returns_the_parsed_response() {
 
 #[tokio::test]
 async fn posts_the_token_and_a_hint_in_a_body() {
-    let mock_http_server = MockServer::start();
-
-    let introspection_server = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .header("Accept", "application/json")
-            .matches(|req| {
-                let decoded =
-                    urlencoding::decode(std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap())
-                        .unwrap();
-
-                let kvp = querystring::querify(&decoded);
-
-                let token = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"token" && v == &"tokenValue");
-
-                let token_type_hint = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"token_type_hint" && v == &"access_token");
-
-                let client_id = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"client_id" && v == &"identifier");
-
-                token.is_some() && client_id.is_some() && token_type_hint.is_some()
-            })
-            .path("/token/introspect");
-        then.status(200).body(r#"{"endpoint":"response"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/introspect")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("content-length", vec!["66".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("token=tokenValue&client_id=identifier&token_type_hint=access_token")
+        .set_response_body(r#"{"endpoint":"response"}"#)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         introspection_endpoint: Some("https://op.example.com/token/introspect".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -109,43 +69,44 @@ async fn posts_the_token_and_a_hint_in_a_body() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let _ = client
         .introspect_async(
             "tokenValue".to_owned(),
+            &http_client,
             Some("access_token".to_owned()),
             None,
         )
         .await
         .unwrap();
 
-    introspection_server.assert_async().await;
+    http_client.assert();
 }
 
 #[tokio::test]
 async fn is_rejected_with_op_error_upon_oidc_error() {
-    let mock_http_server = MockServer::start();
-
-    let _introspection_server = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .header("Accept", "application/json")
-            .path("/token/introspect");
-        then.status(500)
-            .body(r#"{"error":"server_error","error_description":"bad things are happening"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/introspect")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("content-length", vec!["37".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("token=tokenValue&client_id=identifier")
+        .set_response_body(
+            r#"{"error":"server_error","error_description":"bad things are happening"}"#,
+        )
+        .set_response_status_code(500)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         introspection_endpoint: Some("https://op.example.com/token/introspect".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -153,12 +114,10 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .introspect_async("tokenValue".to_owned(), None, None)
+        .introspect_async("tokenValue".to_owned(), &http_client, None, None)
         .await
         .unwrap_err();
 
@@ -175,24 +134,25 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
 
 #[tokio::test]
 async fn is_rejected_with_when_non_200_is_returned() {
-    let mock_http_server = MockServer::start();
-
-    let _introspection_server = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .header("Accept", "application/json")
-            .path("/token/introspect");
-        then.status(500).body("Internal Server Error");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/introspect")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("content-length", vec!["37".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("token=tokenValue&client_id=identifier")
+        .set_response_body("Internal Server Error")
+        .set_response_status_code(500)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         introspection_endpoint: Some("https://op.example.com/token/introspect".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -200,12 +160,10 @@ async fn is_rejected_with_when_non_200_is_returned() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .introspect_async("tokenValue".to_owned(), None, None)
+        .introspect_async("tokenValue".to_owned(), &http_client, None, None)
         .await
         .unwrap_err();
 
@@ -223,24 +181,24 @@ async fn is_rejected_with_when_non_200_is_returned() {
 
 #[tokio::test]
 async fn is_rejected_with_error_upon_invalid_response() {
-    let mock_http_server = MockServer::start();
-
-    let _introspection_server = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .header("Accept", "application/json")
-            .path("/token/introspect");
-        then.status(200).body("{\"notavalid\"}");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/introspect")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("content-length", vec!["37".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("token=tokenValue&client_id=identifier")
+        .set_response_body(r#"{"notavalid"}"#)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         introspection_endpoint: Some("https://op.example.com/token/introspect".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -248,12 +206,10 @@ async fn is_rejected_with_error_upon_invalid_response() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .introspect_async("tokenValue".to_owned(), None, None)
+        .introspect_async("tokenValue".to_owned(), &http_client, None, None)
         .await
         .unwrap_err();
 

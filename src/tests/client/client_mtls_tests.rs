@@ -1,23 +1,17 @@
 use assert_json_diff::assert_json_include;
-use httpmock::{
-    Method::{GET, POST},
-    MockServer,
-};
 use serde_json::json;
 
 use crate::{
     client::Client,
-    helpers::decode_jwt,
+    helpers::{decode_jwt, form_url_encoded_to_string_map},
     issuer::Issuer,
-    tests::test_interceptors::{
-        get_default_test_interceptor, get_default_test_interceptor_with_crt_key,
-        get_default_test_interceptor_with_pfx,
-    },
     tokenset::{TokenSet, TokenSetParams},
-    types::{ClientMetadata, IssuerMetadata, MtlsEndpoints, UserinfoOptions},
+    types::{ClientMetadata, HttpMethod, IssuerMetadata, MtlsEndpoints, UserinfoOptions},
 };
 
-fn get_clients(port: Option<u16>) -> (Client, Client) {
+use crate::tests::test_http_client::TestHttpReqRes;
+
+fn get_clients() -> (Client, Client) {
     let issuer_metadata = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
@@ -36,7 +30,7 @@ fn get_clients(port: Option<u16>) -> (Client, Client) {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("client".to_string()),
@@ -45,15 +39,7 @@ fn get_clients(port: Option<u16>) -> (Client, Client) {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(
-            client_metadata,
-            get_default_test_interceptor_with_crt_key(port),
-            None,
-            None,
-            None,
-        )
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let jwt_client_metadata = ClientMetadata {
         client_id: Some("client".to_string()),
@@ -65,7 +51,7 @@ fn get_clients(port: Option<u16>) -> (Client, Client) {
     };
 
     let jwt_auth_client = issuer
-        .client(jwt_client_metadata, None, None, None, None)
+        .client(jwt_client_metadata, None, None, None)
         .unwrap();
 
     (client, jwt_auth_client)
@@ -73,10 +59,13 @@ fn get_clients(port: Option<u16>) -> (Client, Client) {
 
 #[tokio::test]
 async fn uses_the_issuer_identifier_and_token_endpoint_as_private_key_jwt_audiences() {
-    let (_, client) = get_clients(None);
+    let (_, client) = get_clients();
 
     let req_token = client.auth_for("token", None).unwrap();
-    let form_token = req_token.form.unwrap();
+    let form_token = req_token
+        .body
+        .map(|b| form_url_encoded_to_string_map(&b))
+        .unwrap();
 
     let decoded_token = decode_jwt(&form_token.get("client_assertion").unwrap()).unwrap();
 
@@ -88,7 +77,10 @@ async fn uses_the_issuer_identifier_and_token_endpoint_as_private_key_jwt_audien
     );
 
     let req_introspection = client.auth_for("introspection", None).unwrap();
-    let form_introspection = req_introspection.form.unwrap();
+    let form_introspection = req_introspection
+        .body
+        .map(|b| form_url_encoded_to_string_map(&b))
+        .unwrap();
 
     let decoded_introspection =
         decode_jwt(&form_introspection.get("client_assertion").unwrap()).unwrap();
@@ -101,7 +93,10 @@ async fn uses_the_issuer_identifier_and_token_endpoint_as_private_key_jwt_audien
     );
 
     let req_revocation = client.auth_for("introspection", None).unwrap();
-    let form_revocation = req_revocation.form.unwrap();
+    let form_revocation = req_revocation
+        .body
+        .map(|b| form_url_encoded_to_string_map(&b))
+        .unwrap();
 
     let decoded_revocation = decode_jwt(&form_revocation.get("client_assertion").unwrap()).unwrap();
 
@@ -115,14 +110,16 @@ async fn uses_the_issuer_identifier_and_token_endpoint_as_private_key_jwt_audien
 
 #[tokio::test]
 async fn requires_mtls_for_userinfo_when_tls_client_certificate_bound_access_tokens_is_true() {
-    let mock_http_server = MockServer::start();
+    let mut http_client = TestHttpReqRes::new("https://mtls.op.example.com/me")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["Bearer foo".to_string()])
+        .assert_request_mtls(true)
+        .set_response_body(r#"{"sub":"foo"}"#)
+        .set_response_status_code(200)
+        .build();
 
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/me");
-        then.status(200).body(r#"{"sub":"foo"}"#);
-    });
-
-    let (mut client, _) = get_clients(Some(mock_http_server.port()));
+    let (mut client, _) = get_clients();
 
     let token_params = TokenSetParams {
         access_token: Some("foo".to_string()),
@@ -131,15 +128,17 @@ async fn requires_mtls_for_userinfo_when_tls_client_certificate_bound_access_tok
 
     let token = TokenSet::new(token_params);
 
+    http_client.return_client_cert(true);
+
     client
-        .userinfo_async(&token, UserinfoOptions::default())
+        .userinfo_async(&token, UserinfoOptions::default(), &http_client)
         .await
         .unwrap();
 
-    client.request_interceptor = get_default_test_interceptor(Some(mock_http_server.port()));
+    http_client.return_client_cert(false);
 
     let err = client
-        .userinfo_async(&token, UserinfoOptions::default())
+        .userinfo_async(&token, UserinfoOptions::default(), &http_client)
         .await
         .unwrap_err();
 
@@ -153,24 +152,33 @@ async fn requires_mtls_for_userinfo_when_tls_client_certificate_bound_access_tok
 #[tokio::test]
 async fn requires_mtls_for_introspection_authentication_when_introspection_endpoint_auth_method_is_tls_client_auth(
 ) {
-    let mock_http_server = MockServer::start();
+    let mut http_client = TestHttpReqRes::new("https://mtls.op.example.com/token/introspect")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header("content-length", vec!["26".to_string()])
+        .assert_request_mtls(true)
+        .assert_request_body("token=foo&client_id=client")
+        .set_response_body("{}")
+        .set_response_status_code(200)
+        .build();
 
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token/introspect");
-        then.status(200).body("{}");
-    });
+    let (mut client, _) = get_clients();
 
-    let (mut client, _) = get_clients(Some(mock_http_server.port()));
+    http_client.return_client_cert(true);
 
     client
-        .introspect_async("foo".to_owned(), None, None)
+        .introspect_async("foo".to_owned(), &http_client, None, None)
         .await
         .unwrap();
 
-    client.request_interceptor = get_default_test_interceptor(Some(mock_http_server.port()));
+    http_client.return_client_cert(false);
 
     let err = client
-        .introspect_async("foo".to_owned(), None, None)
+        .introspect_async("foo".to_owned(), &http_client, None, None)
         .await
         .unwrap_err();
 
@@ -184,58 +192,32 @@ async fn requires_mtls_for_introspection_authentication_when_introspection_endpo
 #[tokio::test]
 async fn requires_mtls_for_revocation_authentication_when_revocation_endpoint_auth_method_is_tls_client_auth(
 ) {
-    let mock_http_server = MockServer::start();
+    let mut http_client = TestHttpReqRes::new("https://mtls.op.example.com/token/revoke")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header("content-length", vec!["26".to_string()])
+        .assert_request_mtls(true)
+        .assert_request_body("token=foo&client_id=client")
+        .set_response_body("{}")
+        .set_response_status_code(200)
+        .build();
 
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token/revoke");
-        then.status(200).body("{}");
-    });
+    let (mut client, _) = get_clients();
 
-    let (mut client, _) = get_clients(Some(mock_http_server.port()));
-
-    client.revoke_async("foo", None, None).await.unwrap();
-
-    client.request_interceptor = get_default_test_interceptor(Some(mock_http_server.port()));
-
-    let err = client.revoke_async("foo", None, None).await.unwrap_err();
-
-    assert!(err.is_type_error());
-    assert_eq!(
-        "mutual-TLS certificate and key not set",
-        err.type_error().error.message
-    );
-}
-
-#[tokio::test]
-async fn works_with_a_pkcs_12_file_and_a_passphrase() {
-    let mock_http_server = MockServer::start();
-
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/me");
-        then.status(200).body(r#"{"sub":"foo"}"#);
-    });
-
-    let (mut client, _) = get_clients(Some(mock_http_server.port()));
-
-    client.request_interceptor =
-        get_default_test_interceptor_with_pfx(Some(mock_http_server.port()));
-
-    let token_params = TokenSetParams {
-        access_token: Some("foo".to_string()),
-        ..Default::default()
-    };
-
-    let token = TokenSet::new(token_params);
+    http_client.return_client_cert(true);
 
     client
-        .userinfo_async(&token, UserinfoOptions::default())
+        .revoke_async("foo", None, None, &http_client)
         .await
         .unwrap();
 
-    client.request_interceptor = get_default_test_interceptor(Some(mock_http_server.port()));
+    http_client.return_client_cert(false);
 
     let err = client
-        .userinfo_async(&token, UserinfoOptions::default())
+        .revoke_async("foo", None, None, &http_client)
         .await
         .unwrap_err();
 

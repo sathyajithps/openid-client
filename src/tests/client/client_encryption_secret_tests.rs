@@ -5,7 +5,7 @@ use crate::{
 
 #[test]
 fn client_encryption_secret_test() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -13,9 +13,7 @@ fn client_encryption_secret_test() {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let arr: [u16; 6] = [120, 128, 184, 192, 248, 256];
 
@@ -27,7 +25,7 @@ fn client_encryption_secret_test() {
 
 #[test]
 fn returns_error_on_invalid_lengths() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -35,9 +33,7 @@ fn returns_error_on_invalid_lengths() {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let error = client.encryption_secret(1024).unwrap_err();
 

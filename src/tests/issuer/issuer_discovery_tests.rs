@@ -1,11 +1,10 @@
+use crate::http_client::DefaultHttpClient;
 use crate::issuer::Issuer;
-use crate::tests::test_interceptors::get_default_test_interceptor;
-pub use httpmock::Method::GET;
-pub use httpmock::MockServer;
+use crate::types::HttpMethod;
 
-pub fn get_default_expected_discovery_document() -> String {
-    "{\"authorization_endpoint\":\"https://op.example.com/o/oauth2/v2/auth\",\"issuer\":\"https://op.example.com\",\"jwks_uri\":\"https://op.example.com/oauth2/v3/certs\",\"token_endpoint\":\"https://op.example.com/oauth2/v4/token\",\"userinfo_endpoint\":\"https://op.example.com/oauth2/v3/userinfo\"}".to_string()
-}
+use crate::tests::test_http_client::TestHttpReqRes;
+
+static DEFAULT_DISCOVERY: &str = r#"{"authorization_endpoint":"https://op.example.com/o/oauth2/v2/auth","issuer":"https://op.example.com","jwks_uri":"https://op.example.com/oauth2/v3/certs","token_endpoint":"https://op.example.com/oauth2/v4/token","userinfo_endpoint":"https://op.example.com/oauth2/v3/userinfo"}"#;
 
 #[cfg(test)]
 mod custom_well_known {
@@ -14,23 +13,18 @@ mod custom_well_known {
 
     #[tokio::test]
     async fn accepts_and_assigns_the_discovered_metadata() {
-        let mock_http_server = MockServer::start();
-
-        let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET).path("/.well-known/custom-configuration");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(get_default_expected_discovery_document());
-        });
-
         let issuer_discovery_url = "https://op.example.com/.well-known/custom-configuration";
 
-        let issuer = Issuer::discover_async(
-            &issuer_discovery_url,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        )
-        .await
-        .unwrap();
+        let http_client = TestHttpReqRes::new(issuer_discovery_url)
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_body(DEFAULT_DISCOVERY)
+            .set_response_content_type_header("application/json")
+            .build();
+
+        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+            .await
+            .unwrap();
 
         assert_eq!("https://op.example.com", issuer.issuer);
 
@@ -63,23 +57,18 @@ mod well_known {
 
     #[tokio::test]
     async fn accepts_and_assigns_the_discovered_metadata() {
-        let mock_http_server = MockServer::start();
-
-        let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(get_default_expected_discovery_document());
-        });
-
         let issuer_discovery_url = "https://op.example.com/.well-known/openid-configuration";
 
-        let issuer = Issuer::discover_async(
-            &issuer_discovery_url,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        )
-        .await
-        .unwrap();
+        let http_client = TestHttpReqRes::new(issuer_discovery_url)
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_body(DEFAULT_DISCOVERY)
+            .set_response_content_type_header("application/json")
+            .build();
+
+        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+            .await
+            .unwrap();
 
         assert_eq!("https://op.example.com", issuer.issuer);
 
@@ -106,104 +95,74 @@ mod well_known {
 
     #[tokio::test]
     async fn can_be_discovered_by_omitting_well_known() {
-        let mock_http_server = MockServer::start();
-
-        let expected_discovery_document = "{\"issuer\":\"https://op.example.com\"}";
-
-        let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET).path("/.well-known/openid-configuration");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(expected_discovery_document);
-        });
-
         let issuer_discovery_url = "https://op.example.com";
 
-        let issuer = Issuer::discover_async(
-            &issuer_discovery_url,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        )
-        .await
-        .unwrap();
+        let http_client =
+            TestHttpReqRes::new("https://op.example.com/.well-known/openid-configuration")
+                .assert_request_method(HttpMethod::GET)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .set_response_body(r#"{"issuer":"https://op.example.com"}"#)
+                .set_response_content_type_header("application/json")
+                .build();
+
+        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+            .await
+            .unwrap();
 
         assert_eq!(issuer_discovery_url, issuer.issuer);
     }
 
     #[tokio::test]
     async fn discovers_issuers_with_path_components_with_trailing_slash() {
-        let mock_http_server = MockServer::start();
+        let http_client =
+            TestHttpReqRes::new("https://op.example.com/oidc/.well-known/openid-configuration")
+                .assert_request_method(HttpMethod::GET)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .set_response_body(r#"{"issuer":"https://op.example.com/oidc"}"#)
+                .set_response_content_type_header("application/json")
+                .build();
 
-        let expected_discovery_document = "{\"issuer\":\"https://op.example.com/oidc\"}";
-
-        let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET)
-                .path("/oidc/.well-known/openid-configuration");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(expected_discovery_document);
-        });
-
-        let issuer_discovery_url = "https://op.example.com/oidc/";
-
-        let issuer = Issuer::discover_async(
-            &issuer_discovery_url,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        )
-        .await
-        .unwrap();
+        let issuer = Issuer::discover_async("https://op.example.com/oidc/", &http_client)
+            .await
+            .unwrap();
 
         assert_eq!("https://op.example.com/oidc", issuer.issuer,);
     }
 
     #[tokio::test]
     async fn discovers_issuers_with_path_components_without_trailing_slash() {
-        let mock_http_server = MockServer::start();
-
-        let expected_discovery_document = "{\"issuer\":\"https://op.example.com/oidc\"}";
-
-        let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET)
-                .path("/oidc/.well-known/openid-configuration");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(&expected_discovery_document);
-        });
-
         let issuer_discovery_url = "https://op.example.com/oidc";
 
-        let issuer = Issuer::discover_async(
-            &issuer_discovery_url,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        )
-        .await
-        .unwrap();
+        let http_client =
+            TestHttpReqRes::new("https://op.example.com/oidc/.well-known/openid-configuration")
+                .assert_request_method(HttpMethod::GET)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .set_response_body(r#"{"issuer":"https://op.example.com/oidc"}"#)
+                .set_response_content_type_header("application/json")
+                .build();
 
-        assert_eq!("https://op.example.com/oidc", issuer.issuer,);
+        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+            .await
+            .unwrap();
+
+        assert_eq!(issuer_discovery_url, issuer.issuer,);
     }
 
     #[tokio::test]
     async fn discovering_issuers_with_well_known_uri_including_path_and_query() {
-        let mock_http_server = MockServer::start();
-
-        let expected_discovery_document = "{\"issuer\":\"https://op.example.com/oidc\"}";
-
-        let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET)
-                .path("/oidc/.well-known/openid-configuration");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(&expected_discovery_document);
-        });
-
         let issuer_discovery_url =
             "https://op.example.com/oidc/.well-known/openid-configuration?foo=bar";
 
-        let issuer = Issuer::discover_async(
-            &issuer_discovery_url,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        )
-        .await
-        .unwrap();
+        let http_client = TestHttpReqRes::new(issuer_discovery_url)
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_body(r#"{"issuer":"https://op.example.com/oidc"}"#)
+            .set_response_content_type_header("application/json")
+            .build();
+
+        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+            .await
+            .unwrap();
 
         assert_eq!("https://op.example.com/oidc", issuer.issuer,);
     }
@@ -215,24 +174,18 @@ mod well_known_oauth_authorization_server {
 
     #[tokio::test]
     async fn accepts_and_assigns_the_discovered_metadata() {
-        let mock_http_server = MockServer::start();
-
-        let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET)
-                .path("/.well-known/oauth-authorization-server");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(get_default_expected_discovery_document());
-        });
-
         let issuer_discovery_url = "https://op.example.com/.well-known/oauth-authorization-server";
 
-        let issuer = Issuer::discover_async(
-            &issuer_discovery_url,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        )
-        .await
-        .unwrap();
+        let http_client = TestHttpReqRes::new(issuer_discovery_url)
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_body(DEFAULT_DISCOVERY)
+            .set_response_content_type_header("application/json")
+            .build();
+
+        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+            .await
+            .unwrap();
 
         assert_eq!("https://op.example.com", issuer.issuer);
 
@@ -259,27 +212,19 @@ mod well_known_oauth_authorization_server {
 
     #[tokio::test]
     async fn discovering_issuers_with_well_known_uri_including_path_and_query() {
-        let mock_http_server = MockServer::start();
-
-        let expected_discovery_document = "{\"issuer\":\"https://op.example.com/oauth2\"}";
-
-        let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET)
-                .path("/.well-known/oauth-authorization-server/oauth2");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(&expected_discovery_document);
-        });
-
         let issuer_discovery_url =
             "https://op.example.com/.well-known/oauth-authorization-server/oauth2?foo=bar";
 
-        let issuer = Issuer::discover_async(
-            &issuer_discovery_url,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        )
-        .await
-        .unwrap();
+        let http_client = TestHttpReqRes::new(issuer_discovery_url)
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_body(r#"{"issuer":"https://op.example.com/oauth2"}"#)
+            .set_response_content_type_header("application/json")
+            .build();
+
+        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+            .await
+            .unwrap();
 
         assert_eq!("https://op.example.com/oauth2", issuer.issuer,);
     }
@@ -287,23 +232,18 @@ mod well_known_oauth_authorization_server {
 
 #[tokio::test]
 async fn assigns_discovery_1_0_defaults_1_of_2() {
-    let mock_http_server = MockServer::start();
-
-    let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/.well-known/openid-configuration");
-        then.status(200)
-            .header("content-type", "application/json")
-            .body(get_default_expected_discovery_document());
-    });
-
     let issuer_discovery_url = "https://op.example.com/.well-known/openid-configuration";
 
-    let issuer = Issuer::discover_async(
-        &issuer_discovery_url,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    )
-    .await
-    .unwrap();
+    let http_client = TestHttpReqRes::new(issuer_discovery_url)
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .set_response_body(DEFAULT_DISCOVERY)
+        .set_response_content_type_header("application/json")
+        .build();
+
+    let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+        .await
+        .unwrap();
 
     assert_eq!(false, issuer.claims_parameter_supported.unwrap());
 
@@ -333,23 +273,17 @@ async fn assigns_discovery_1_0_defaults_1_of_2() {
 
 #[tokio::test]
 async fn assigns_discovery_1_0_defaults_2_of_2() {
-    let mock_http_server = MockServer::start();
+    let http_client =
+        TestHttpReqRes::new("https://op.example.com/.well-known/openid-configuration")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_body(DEFAULT_DISCOVERY)
+            .set_response_content_type_header("application/json")
+            .build();
 
-    let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/.well-known/openid-configuration");
-        then.status(200)
-            .header("content-type", "application/json")
-            .body(get_default_expected_discovery_document());
-    });
-
-    let issuer_discovery_url = "https://op.example.com";
-
-    let issuer = Issuer::discover_async(
-        &issuer_discovery_url,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    )
-    .await
-    .unwrap();
+    let issuer = Issuer::discover_async("https://op.example.com", &http_client)
+        .await
+        .unwrap();
 
     assert_eq!(false, issuer.claims_parameter_supported.unwrap());
 
@@ -379,23 +313,19 @@ async fn assigns_discovery_1_0_defaults_2_of_2() {
 
 #[tokio::test]
 async fn is_rejected_with_op_error_upon_oidc_error() {
-    let mock_http_server = MockServer::start();
+    let http_client =
+        TestHttpReqRes::new("https://op.example.com/.well-known/openid-configuration")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_body(
+                r#"{"error":"server_error","error_description":"bad things are happening"}"#,
+            )
+            .set_response_status_code(500)
+            .build();
 
-    let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/.well-known/openid-configuration");
-        then.status(500).body(
-            "{\"error\":\"server_error\",\"error_description\":\"bad things are happening\"}",
-        );
-    });
-
-    let issuer_discovery_url = "https://op.example.com";
-
-    let error = Issuer::discover_async(
-        &issuer_discovery_url,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    )
-    .await
-    .unwrap_err();
+    let error = Issuer::discover_async("https://op.example.com", &http_client)
+        .await
+        .unwrap_err();
 
     assert!(error.is_op_error());
 
@@ -411,7 +341,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
 
 #[tokio::test]
 async fn is_rejected_with_error_when_no_absolute_url_is_provided() {
-    let error = Issuer::discover_async("op.example.com/.well-known/foobar", None)
+    let error = Issuer::discover_async("op.example.com/.well-known/foobar", &mut DefaultHttpClient)
         .await
         .unwrap_err();
 
@@ -424,22 +354,17 @@ async fn is_rejected_with_error_when_no_absolute_url_is_provided() {
 
 #[tokio::test]
 async fn is_rejected_with_rp_error_when_error_is_not_a_string() {
-    let mock_http_server = MockServer::start();
+    let http_client =
+        TestHttpReqRes::new("https://op.example.com/.well-known/openid-configuration")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_body(r#"{"error": {},"error_description":"bad things are happening"}"#)
+            .set_response_status_code(400)
+            .build();
 
-    let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/.well-known/openid-configuration");
-        then.status(400)
-            .body("{\"error\": {},\"error_description\":\"bad things are happening\"}");
-    });
-
-    let issuer_discovery_url = "https://op.example.com";
-
-    let error = Issuer::discover_async(
-        &issuer_discovery_url,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    )
-    .await
-    .unwrap_err();
+    let error = Issuer::discover_async("https://op.example.com", &http_client)
+        .await
+        .unwrap_err();
 
     assert!(error.is_op_error());
 
@@ -455,21 +380,16 @@ async fn is_rejected_with_rp_error_when_error_is_not_a_string() {
 
 #[tokio::test]
 async fn is_rejected_with_when_non_200_is_returned() {
-    let mock_http_server = MockServer::start();
+    let http_client =
+        TestHttpReqRes::new("https://op.example.com/.well-known/openid-configuration")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_status_code(500)
+            .build();
 
-    let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/.well-known/openid-configuration");
-        then.status(500);
-    });
-
-    let issuer_discovery_url = "https://op.example.com";
-
-    let error = Issuer::discover_async(
-        &issuer_discovery_url,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    )
-    .await
-    .unwrap_err();
+    let error = Issuer::discover_async("https://op.example.com", &http_client)
+        .await
+        .unwrap_err();
 
     assert!(error.is_op_error());
 
@@ -487,21 +407,17 @@ async fn is_rejected_with_when_non_200_is_returned() {
 
 #[tokio::test]
 async fn is_rejected_with_json_parse_error_upon_invalid_response() {
-    let mock_http_server = MockServer::start();
+    let http_client =
+        TestHttpReqRes::new("https://op.example.com/.well-known/openid-configuration")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_body(r#"{"notavalid"}"#)
+            .set_response_status_code(200)
+            .build();
 
-    let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/.well-known/openid-configuration");
-        then.status(200).body("{\"notavalid\"}");
-    });
-
-    let issuer_discovery_url = "https://op.example.com";
-
-    let error = Issuer::discover_async(
-        &issuer_discovery_url,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    )
-    .await
-    .unwrap_err();
+    let error = Issuer::discover_async("https://op.example.com", &http_client)
+        .await
+        .unwrap_err();
 
     assert!(error.is_type_error());
 
@@ -514,21 +430,16 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
 
 #[tokio::test]
 async fn is_rejected_when_no_body_is_returned() {
-    let mock_http_server = MockServer::start();
+    let http_client =
+        TestHttpReqRes::new("https://op.example.com/.well-known/openid-configuration")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_status_code(200)
+            .build();
 
-    let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/.well-known/openid-configuration");
-        then.status(200);
-    });
-
-    let issuer_discovery_url = "https://op.example.com";
-
-    let error = Issuer::discover_async(
-        &issuer_discovery_url,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    )
-    .await
-    .unwrap_err();
+    let error = Issuer::discover_async("https://op.example.com", &http_client)
+        .await
+        .unwrap_err();
 
     assert!(error.is_op_error());
 
@@ -544,21 +455,16 @@ async fn is_rejected_when_no_body_is_returned() {
 
 #[tokio::test]
 async fn is_rejected_when_unepexted_status_code_is_returned() {
-    let mock_http_server = MockServer::start();
+    let http_client =
+        TestHttpReqRes::new("https://op.example.com/.well-known/openid-configuration")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .set_response_status_code(301)
+            .build();
 
-    let _issuer_discovery_mock_server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/.well-known/openid-configuration");
-        then.status(301);
-    });
-
-    let issuer_discovery_url = "https://op.example.com";
-
-    let error = Issuer::discover_async(
-        &issuer_discovery_url,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    )
-    .await
-    .unwrap_err();
+    let error = Issuer::discover_async("https://op.example.com", &http_client)
+        .await
+        .unwrap_err();
 
     assert!(error.is_op_error());
 
@@ -570,41 +476,4 @@ async fn is_rejected_when_unepexted_status_code_is_returned() {
         Some("expected 200 OK, got: 301 Moved Permanently".to_string()),
         err.error_description,
     );
-}
-
-#[cfg(test)]
-mod http_options {
-
-    use crate::tests::test_interceptors::TestInterceptor;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn allows_for_http_options_to_be_defined_for_issuer_discover_calls() {
-        let mock_http_server = MockServer::start();
-
-        let auth_mock_server = mock_http_server.mock(|when, then| {
-            when.method(GET)
-                .header("testHeader", "testHeaderValue")
-                .path("/.well-known/custom-configuration");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(get_default_expected_discovery_document());
-        });
-
-        let _ = Issuer::discover_async(
-            "https://op.example.com/.well-known/custom-configuration",
-            Some(Box::new(TestInterceptor {
-                test_header: Some("testHeader".to_string()),
-                test_header_value: Some("testHeaderValue".to_string()),
-                test_server_port: Some(mock_http_server.port()),
-                crt: None,
-                key: None,
-                pfx: None,
-            })),
-        )
-        .await;
-
-        auth_mock_server.assert_hits(1);
-    }
 }
