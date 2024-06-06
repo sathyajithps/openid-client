@@ -29,7 +29,7 @@ async-recursion = "1.0.5"
 
 [features]
 default = ["http_client"]
-http_client = ["request/native-tls"]
+http_client = ["reqwest/native-tls"]
 
 [dev-dependencies]
 tokio = { version = "1.26.0", features = ["full"] }
