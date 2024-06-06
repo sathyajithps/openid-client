@@ -1,15 +1,17 @@
 #[cfg(test)]
 mod no_implicit_key_ids {
+
+    use crate::tests::test_http_client::TestHttpReqRes;
+
     use crate::{
         client::Client,
-        helpers::decode_jwt,
+        helpers::{decode_jwt, form_url_encoded_to_string_map},
+        http_client::DefaultHttpClient,
         issuer::Issuer,
-        tests::test_interceptors::get_default_test_interceptor,
-        types::{ClientMetadata, ClientRegistrationOptions, IssuerMetadata},
+        types::{ClientMetadata, ClientRegistrationOptions, HttpMethod, IssuerMetadata},
     };
-    use httpmock::{Method, MockServer};
     use josekit::jwk::{alg::ec::EcCurve, Jwk};
-    use serde_json::{json, Value};
+    use serde_json::json;
 
     use crate::jwks::{jwks::CustomJwk, Jwks};
 
@@ -27,7 +29,7 @@ mod no_implicit_key_ids {
 
     #[test]
     fn is_not_added_to_client_assertions() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
         let jwks = get_no_kid_jwks();
 
         let client_metadata = ClientMetadata {
@@ -38,12 +40,15 @@ mod no_implicit_key_ids {
         };
 
         let client = issuer
-            .client(client_metadata, None, Some(jwks), None, None)
+            .client(client_metadata, Some(jwks), None, None)
             .unwrap();
 
         let request = client.auth_for("token", None).unwrap();
 
-        let binding = request.form.unwrap();
+        let binding = request
+            .body
+            .map(|b| form_url_encoded_to_string_map(&b))
+            .unwrap();
 
         let jwt = binding.get("client_assertion").unwrap();
 
@@ -55,7 +60,7 @@ mod no_implicit_key_ids {
 
     #[tokio::test]
     async fn is_not_added_to_request_objects() {
-        let issuer = Issuer::new(IssuerMetadata::default(), None);
+        let issuer = Issuer::new(IssuerMetadata::default());
         let jwks = get_no_kid_jwks();
 
         let client_metadata = ClientMetadata {
@@ -65,10 +70,13 @@ mod no_implicit_key_ids {
         };
 
         let mut client = issuer
-            .client(client_metadata, None, Some(jwks), None, None)
+            .client(client_metadata, Some(jwks), None, None)
             .unwrap();
 
-        let jwt = client.request_object_async(json!({})).await.unwrap();
+        let jwt = client
+            .request_object_async(json!({}), &DefaultHttpClient)
+            .await
+            .unwrap();
 
         let decoded_jwt = decode_jwt(&jwt).unwrap();
 
@@ -78,35 +86,33 @@ mod no_implicit_key_ids {
 
     #[tokio::test]
     async fn is_not_added_to_dynamic_registration_requests() {
-        let mock_http_server = MockServer::start();
+        let jwks = get_no_kid_jwks();
 
-        let _server = mock_http_server.mock(|when, then| {
-            when.method(Method::POST)
-                .matches(|req| {
-                    let body = serde_json::from_slice::<Value>(&req.body.clone().unwrap()).unwrap();
+        let jwks_pub = serde_json::to_value(&jwks.get_public_jwks()).unwrap();
 
-                    let jwks = &body["jwks"]["keys"].as_array().unwrap();
-
-                    let first = jwks.first().unwrap();
-
-                    first.is_object() && first.get("kid").is_none()
-                })
-                .path("/client/registration");
-            then.status(201).body(
-                r#"{
-                "client_id":"identifier",
-                "token_endpoint_auth_method":"private_key_jwt"
-              }"#,
-            );
-        });
+        let http_client = TestHttpReqRes::new("https://op.example.com/client/registration")
+            .assert_request_method(HttpMethod::POST)
+            .assert_request_header("accept", vec!["application/json".to_string()])
+            .assert_request_header("content-length", vec!["207".to_string()])
+            .assert_request_header("content-type", vec!["application/json".to_string()])
+            .assert_request_body(
+                serde_json::to_string(
+                    &json!({"token_endpoint_auth_method":"private_key_jwt","jwks": jwks_pub}),
+                )
+                .unwrap(),
+            )
+            .set_response_body(
+                r#"{"client_id":"identifier","token_endpoint_auth_method":"private_key_jwt"}"#,
+            )
+            .set_response_status_code(201)
+            .build();
 
         let issuer_metadata = IssuerMetadata {
             issuer: "https://op.example.com".to_string(),
             registration_endpoint: Some("https://op.example.com/client/registration".to_string()),
             ..Default::default()
         };
-        let issuer = Issuer::new(issuer_metadata, None);
-        let jwks = get_no_kid_jwks();
+        let issuer = Issuer::new(issuer_metadata);
 
         let reg_opt = ClientRegistrationOptions {
             jwks: Some(jwks),
@@ -118,14 +124,8 @@ mod no_implicit_key_ids {
             ..Default::default()
         };
 
-        let _ = Client::register_async(
-            &issuer,
-            client_metadata,
-            Some(reg_opt),
-            get_default_test_interceptor(Some(mock_http_server.port())),
-            None,
-        )
-        .await
-        .unwrap();
+        let _ = Client::register_async(&issuer, client_metadata, Some(reg_opt), None, &http_client)
+            .await
+            .unwrap();
     }
 }

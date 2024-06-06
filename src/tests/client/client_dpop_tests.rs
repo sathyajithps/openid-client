@@ -1,28 +1,26 @@
 use std::collections::HashMap;
 
-use httpmock::{
-    Method::{GET, POST},
-    MockServer,
-};
 use josekit::jwk::{
     alg::{ec::EcCurve, ed::EdCurve},
     Jwk,
 };
-use reqwest::Method;
-use serde_json::{json, Value};
+use serde_json::json;
 
 use crate::{
     client::Client,
-    helpers::decode_jwt,
+    http_client::DefaultHttpClient,
     issuer::Issuer,
-    tests::test_interceptors::get_default_test_interceptor,
     tokenset::{TokenSet, TokenSetParams},
     types::{
-        CallbackExtras, CallbackParams, ClientMetadata, DeviceAuthorizationExtras,
-        DeviceAuthorizationParams, GrantExtras, IssuerMetadata, PushedAuthorizationRequestExtras,
-        RefreshTokenExtras, RequestResourceOptions, UserinfoOptions,
+        grant_params::GrantParams, http_client::HttpMethod, CallbackExtras, CallbackParams,
+        ClientMetadata, DeviceAuthorizationExtras, DeviceAuthorizationParams, GrantExtras,
+        IssuerMetadata, OAuthCallbackParams, OpenIdCallbackParams,
+        PushedAuthorizationRequestExtras, RefreshTokenExtras, RequestResourceOptions,
+        RequestResourceParams, UserinfoOptions,
     },
 };
+
+use crate::tests::test_http_client::{TestHttpClient, TestHttpReqRes};
 
 fn get_ec_private_key() -> Jwk {
     let mut jwk = Jwk::generate_ec_key(EcCurve::P256).unwrap();
@@ -45,7 +43,7 @@ fn get_rsa_private_key() -> Jwk {
     jwk
 }
 
-fn get_client(port: Option<u16>) -> (Issuer, Client) {
+fn get_client() -> (Issuer, Client) {
     let issuer_metadata = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
@@ -64,7 +62,7 @@ fn get_client(port: Option<u16>) -> (Issuer, Client) {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, get_default_test_interceptor(port));
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("client".to_string()),
@@ -73,9 +71,7 @@ fn get_client(port: Option<u16>) -> (Issuer, Client) {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
     (issuer, client)
 }
 
@@ -86,7 +82,7 @@ mod dpop_proof_tests {
 
     #[test]
     fn must_be_passed_a_payload_object() {
-        let (_, client) = get_client(None);
+        let (_, client) = get_client();
         let err = client
             .dpop_proof(json!("foo"), &get_ec_private_key(), None)
             .unwrap_err();
@@ -99,7 +95,7 @@ mod dpop_proof_tests {
 
     #[test]
     fn dpop_proof_without_ath() {
-        let (_, client) = get_client(None);
+        let (_, client) = get_client();
 
         let proof_rsa = client
             .dpop_proof(
@@ -165,7 +161,7 @@ mod dpop_proof_tests {
 
     #[test]
     fn dpop_proof_with_ath() {
-        let (_, client) = get_client(None);
+        let (_, client) = get_client();
         let proof = client
             .dpop_proof(json!({}), &get_ec_private_key(), Some(&"foo".to_string()))
             .unwrap();
@@ -180,7 +176,7 @@ mod dpop_proof_tests {
 
     #[test]
     fn validates_using_dpop_supported_values() {
-        let (_, mut client) = get_client(None);
+        let (_, mut client) = get_client();
 
         if let Some(iss) = &mut client.issuer {
             iss.dpop_signing_alg_values_supported = Some(vec!["EdDSA".to_string()]);
@@ -200,24 +196,16 @@ mod dpop_proof_tests {
 
 #[tokio::test]
 async fn is_enabled_for_userinfo() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["DPoP foo".to_string()])
+        .assert_dpop_ath()
+        .set_response_body(r#"{"sub":"foo"}"#)
+        .set_response_status_code(200)
+        .build();
 
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/me").matches(|req| {
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            decoded.payload.claim("ath").is_some()
-        });
-        then.status(200).body(r#"{"sub":"foo"}"#);
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let token_params = TokenSetParams {
         access_token: Some("foo".to_string()),
@@ -231,99 +219,52 @@ async fn is_enabled_for_userinfo() {
         ..Default::default()
     };
 
-    client.userinfo_async(&token_set, options).await.unwrap();
+    client
+        .userinfo_async(&token_set, options, &http_client)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
 async fn handles_dpop_nonce_in_userinfo() {
-    let mock_http_server = MockServer::start();
-
-    let _1 = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/me").matches(|req| {
-            if let Some(qp) = &req.query_params {
-                if qp
-                    .iter()
-                    .find(|(x, y)| x == "only_for_fail_test" && y == "doesntaffecttest")
-                    .is_some()
-                {
-                    return false;
-                }
-            }
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            decoded.payload.claim("nonce").is_none()
-        });
-        then.status(401)
-            .header("WWW-Authenticate", "DPoP error=\"use_dpop_nonce\"")
-            .header("DPoP-Nonce", "eyJ7S_zG.eyJH0-Z.HX4w-7v");
-    });
-
-    let _2 = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/me").matches(|req| {
-            if let Some(qp) = &req.query_params {
-                if qp
-                    .iter()
-                    .find(|(x, y)| x == "only_for_fail_test" && y == "doesntaffecttest")
-                    .is_some()
-                {
-                    return false;
-                }
-            }
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            if let Some(Value::String(nonce)) = decoded.payload.claim("nonce") {
-                return nonce == "eyJ7S_zG.eyJH0-Z.HX4w-7v";
-            }
-            false
-        });
-        then.status(200).body(
-            r#"{
-            "sub":"foo"
-          }"#,
+    let http_client = TestHttpClient::new()
+        .add(
+            TestHttpReqRes::new("https://op.example.com/me")
+                .assert_request_method(HttpMethod::GET)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_header("authorization", vec!["DPoP foo".to_string()])
+                .assert_dpop_nonce_not_present()
+                .set_response_status_code(401)
+                .set_response_www_authenticate_header(r#"DPoP error="use_dpop_nonce""#)
+                .set_response_dpop_nonce_header("eyJ7S_zG.eyJH0-Z.HX4w-7v"),
+        )
+        .add(
+            TestHttpReqRes::new("https://op.example.com/me")
+                .assert_request_method(HttpMethod::GET)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_header("authorization", vec!["DPoP foo".to_string()])
+                .assert_dpop_nonce_value("eyJ7S_zG.eyJH0-Z.HX4w-7v")
+                .set_response_body(r#"{"sub":"foo"}"#),
+        )
+        .add(
+            TestHttpReqRes::new("https://op.example.com/me")
+                .assert_request_method(HttpMethod::GET)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_header("authorization", vec!["DPoP foo".to_string()])
+                .assert_dpop_nonce_value("eyJ7S_zG.eyJH0-Z.HX4w-7v")
+                .set_response_body(r#"{"sub":"foo"}"#),
+        )
+        .add(
+            TestHttpReqRes::new("https://op.example.com/me")
+                .assert_request_method(HttpMethod::GET)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_header("authorization", vec!["DPoP foo".to_string()])
+                .assert_dpop_nonce_value("eyJ7S_zG.eyJH0-Z.HX4w-7v")
+                .set_response_www_authenticate_header(r#"DPoP error="invalid_dpop_proof""#)
+                .set_response_status_code(400),
         );
-    });
 
-    let _3 = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/me").matches(|req| {
-            if let Some(qp) = &req.query_params {
-                if qp
-                    .iter()
-                    .find(|(x, y)| x == "only_for_fail_test" && y == "doesntaffecttest")
-                    .is_none()
-                {
-                    return false;
-                }
-            }
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            if let Some(Value::String(nonce)) = decoded.payload.claim("nonce") {
-                return nonce == "eyJ7S_zG.eyJH0-Z.HX4w-7v";
-            }
-            false
-        });
-        then.status(400)
-            .header("WWW-Authenticate", "DPoP error=\"invalid_dpop_proof\"");
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let token_params = TokenSetParams {
         access_token: Some("foo".to_string()),
@@ -338,30 +279,35 @@ async fn handles_dpop_nonce_in_userinfo() {
         ..Default::default()
     };
 
-    client.userinfo_async(&token_set, options).await.unwrap();
+    let _ = client
+        .userinfo_async(&token_set, options, &http_client)
+        .await;
 
     let options2 = UserinfoOptions {
         dpop: Some(&key),
         ..Default::default()
     };
 
-    client.userinfo_async(&token_set, options2).await.unwrap();
-
-    let mut other = HashMap::new();
-
-    other.insert(
-        "only_for_fail_test".to_string(),
-        "doesntaffecttest".to_string(),
-    );
+    let _ = client
+        .userinfo_async(&token_set, options2, &http_client)
+        .await;
 
     let options3 = UserinfoOptions {
         dpop: Some(&key),
-        params: Some(other),
+        ..Default::default()
+    };
+
+    let _ = client
+        .userinfo_async(&token_set, options3, &http_client)
+        .await;
+
+    let options4 = UserinfoOptions {
+        dpop: Some(&key),
         ..Default::default()
     };
 
     let err = client
-        .userinfo_async(&token_set, options3)
+        .userinfo_async(&token_set, options4, &http_client)
         .await
         .unwrap_err();
 
@@ -371,79 +317,75 @@ async fn handles_dpop_nonce_in_userinfo() {
 
 #[tokio::test]
 async fn handles_dpop_nonce_in_grant() {
-    let mock_http_server = MockServer::start();
-
-    let _1 = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token").matches(|req| {
-            let body_str = String::from_utf8(req.body.clone().unwrap().to_vec()).unwrap();
-            if body_str.contains("fail_case=shouldnotaffect") {
-                return false;
-            }
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            decoded.payload.claim("nonce").is_none()
-        });
-        then.status(400)
-            .body(r#"{"error":"use_dpop_nonce"}"#)
-            .header("DPoP-Nonce", "eyJ7S_zG.eyJH0-Z.HX4w-7v");
-    });
-
-    let _2 = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token").matches(|req| {
-            let body_str = String::from_utf8(req.body.clone().unwrap().to_vec()).unwrap();
-            if body_str.contains("fail_case=shouldnotaffect") {
-                return false;
-            }
-
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            if let Some(Value::String(nonce)) = decoded.payload.claim("nonce") {
-                return nonce == "eyJ7S_zG.eyJH0-Z.HX4w-7v";
-            }
-            false
-        });
-        then.status(200).body(
-            r#"{
-            "access_token":"foo"
+    let http_client = TestHttpClient::new()
+        .add(
+            TestHttpReqRes::new("https://op.example.com/token")
+                .assert_request_method(HttpMethod::POST)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_header(
+                    "content-type",
+                    vec!["application/x-www-form-urlencoded".to_string()],
+                )
+                .assert_request_header("content-length", vec!["46".to_string()])
+                .assert_request_body("client_id=client&grant_type=client_credentials")
+                .assert_dpop_nonce_not_present()
+                .set_response_status_code(400)
+                .set_response_content_type_header("application/json")
+                .set_response_body(r#"{"error":"use_dpop_nonce"}"#)
+                .set_response_dpop_nonce_header("eyJ7S_zG.eyJH0-Z.HX4w-7v"),
+        )
+        .add(
+            TestHttpReqRes::new("https://op.example.com/token")
+                .assert_request_method(HttpMethod::POST)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_header(
+                    "content-type",
+                    vec!["application/x-www-form-urlencoded".to_string()],
+                )
+                .assert_request_header("content-length", vec!["46".to_string()])
+                .assert_request_body("client_id=client&grant_type=client_credentials")
+                .assert_dpop_nonce_value("eyJ7S_zG.eyJH0-Z.HX4w-7v")
+                .set_response_content_type_header("application/json")
+                .set_response_body(
+                    r#"{
+                    "access_token":"foo"
+                  }"#,
+                ),
+        )
+        .add(
+            TestHttpReqRes::new("https://op.example.com/token")
+                .assert_request_method(HttpMethod::POST)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_header(
+                    "content-type",
+                    vec!["application/x-www-form-urlencoded".to_string()],
+                )
+                .assert_request_header("content-length", vec!["46".to_string()])
+                .assert_request_body("client_id=client&grant_type=client_credentials")
+                .assert_dpop_nonce_value("eyJ7S_zG.eyJH0-Z.HX4w-7v")
+                .set_response_content_type_header("application/json")
+                .set_response_body(
+                    r#"{
+            "sub":"foo"
           }"#,
+                ),
+        )
+        .add(
+            TestHttpReqRes::new("https://op.example.com/token")
+                .assert_request_method(HttpMethod::POST)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_header(
+                    "content-type",
+                    vec!["application/x-www-form-urlencoded".to_string()],
+                )
+                .assert_request_header("content-length", vec!["46".to_string()])
+                .assert_request_body("client_id=client&grant_type=client_credentials")
+                .assert_dpop_nonce_value("eyJ7S_zG.eyJH0-Z.HX4w-7v")
+                .set_response_body(r#"{"error":"invalid_dpop_proof"}"#)
+                .set_response_status_code(400),
         );
-    });
 
-    let _3 = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token").matches(|req| {
-            let body_str = String::from_utf8(req.body.clone().unwrap().to_vec()).unwrap();
-            if !body_str.contains("fail_case=shouldnotaffect") {
-                return false;
-            }
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            if let Some(Value::String(nonce)) = decoded.payload.claim("nonce") {
-                return nonce == "eyJ7S_zG.eyJH0-Z.HX4w-7v";
-            }
-            false
-        });
-        then.status(400).body(r#"{"error":"invalid_dpop_proof"}"#);
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let key = get_rsa_private_key();
 
@@ -455,19 +397,32 @@ async fn handles_dpop_nonce_in_grant() {
     let mut body = HashMap::new();
 
     body.insert("grant_type".to_string(), "client_credentials".to_owned());
-    client
-        .grant_async(body.clone(), extras.clone(), true)
+
+    let _ = client
+        .grant_async(
+            &http_client,
+            GrantParams::default()
+                .body(body.clone())
+                .extras(extras.clone()),
+        )
+        .await;
+
+    let _ = client
+        .grant_async(
+            &http_client,
+            GrantParams::default()
+                .body(body.clone())
+                .extras(extras.clone()),
+        )
+        .await;
+
+    let err = client
+        .grant_async(
+            &http_client,
+            GrantParams::default().body(body).extras(extras),
+        )
         .await
-        .unwrap();
-
-    client
-        .grant_async(body.clone(), extras.clone(), true)
-        .await
-        .unwrap();
-
-    body.insert("fail_case".to_string(), "shouldnotaffect".to_owned());
-
-    let err = client.grant_async(body, extras, true).await.unwrap_err();
+        .unwrap_err();
 
     assert!(err.is_op_error());
     assert_eq!("invalid_dpop_proof", err.op_error().error.error);
@@ -475,79 +430,35 @@ async fn handles_dpop_nonce_in_grant() {
 
 #[tokio::test]
 async fn handles_dpop_nonce_in_request_resource() {
-    let mock_http_server = MockServer::start();
-
-    let _1 = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/resource").matches(|req| {
-            let body_str = String::from_utf8(req.body.clone().unwrap().to_vec()).unwrap();
-            if body_str.contains("fail_case_should_not_affect") {
-                return false;
-            }
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            decoded.payload.claim("nonce").is_none()
-        });
-        then.status(401)
-            .header("WWW-Authenticate", "DPoP error=\"use_dpop_nonce\"")
-            .header("DPoP-Nonce", "eyJ7S_zG.eyJH0-Z.HX4w-7v");
-    });
-
-    let _2 = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/resource").matches(|req| {
-            let body_str = String::from_utf8(req.body.clone().unwrap().to_vec()).unwrap();
-            if body_str.contains("fail_case_should_not_affect") {
-                return false;
-            }
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            if let Some(Value::String(nonce)) = decoded.payload.claim("nonce") {
-                return nonce == "eyJ7S_zG.eyJH0-Z.HX4w-7v";
-            }
-            false
-        });
-        then.status(200).body(
-            r#"{
-            "sub":"foo"
-          }"#,
+    let http_client = TestHttpClient::new()
+        .add(
+            TestHttpReqRes::new("https://rs.example.com/resource")
+                .assert_request_method(HttpMethod::GET)
+                .assert_request_header("authorization", vec!["DPoP foo".to_string()])
+                .assert_dpop_nonce_not_present()
+                .set_response_status_code(401)
+                .set_response_www_authenticate_header(r#"DPoP error="use_dpop_nonce""#)
+                .set_response_dpop_nonce_header("eyJ7S_zG.eyJH0-Z.HX4w-7v"),
+        )
+        .add(
+            TestHttpReqRes::new("https://rs.example.com/resource")
+                .assert_request_method(HttpMethod::GET)
+                .assert_dpop_nonce_value("eyJ7S_zG.eyJH0-Z.HX4w-7v")
+                .assert_request_header("authorization", vec!["DPoP foo".to_string()])
+                .set_response_content_type_header("application/json")
+                .assert_dpop_nonce_value("eyJ7S_zG.eyJH0-Z.HX4w-7v")
+                .set_response_body(r#"{"sub":"foo"}"#),
+        )
+        .add(
+            TestHttpReqRes::new("https://rs.example.com/resource")
+                .assert_request_method(HttpMethod::GET)
+                .assert_request_header("authorization", vec!["DPoP foo".to_string()])
+                .assert_dpop_nonce_value("eyJ7S_zG.eyJH0-Z.HX4w-7v")
+                .set_response_www_authenticate_header(r#"DPoP error="invalid_dpop_proof""#)
+                .set_response_status_code(400),
         );
-    });
 
-    let _3 = mock_http_server.mock(|when, then| {
-        when.method(GET).path("/resource").matches(|req| {
-            let body_str = String::from_utf8(req.body.clone().unwrap().to_vec()).unwrap();
-            if !body_str.contains("fail_case_should_not_affect") {
-                return false;
-            }
-            let binding = req.headers.clone().unwrap();
-            let (_, val) = binding
-                .iter()
-                .find(|(k, _)| k.to_lowercase() == "dpop")
-                .unwrap();
-
-            let decoded = decode_jwt(val).unwrap();
-
-            if let Some(Value::String(nonce)) = decoded.payload.claim("nonce") {
-                return nonce == "eyJ7S_zG.eyJH0-Z.HX4w-7v";
-            }
-            false
-        });
-        then.status(400)
-            .header("WWW-Authenticate", "DPoP error=\"invalid_dpop_proof\"");
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let key = get_rsa_private_key();
 
@@ -556,112 +467,76 @@ async fn handles_dpop_nonce_in_request_resource() {
         ..Default::default()
     };
 
-    client
-        .request_resource_async(
-            "https://rs.example.com/resource",
-            "foo",
-            None,
-            true,
-            options,
-        )
-        .await
-        .unwrap();
+    let params = RequestResourceParams::default()
+        .resource_url("https://rs.example.com/resource")
+        .access_token("foo")
+        .retry(true)
+        .options(options);
+
+    let _ = client.request_resource_async(params, &http_client).await;
 
     let options2 = RequestResourceOptions {
         dpop: Some(&key),
         ..Default::default()
     };
 
-    client
-        .request_resource_async(
-            "https://rs.example.com/resource",
-            "foo",
-            None,
-            true,
-            options2,
-        )
-        .await
-        .unwrap();
+    let params = RequestResourceParams::default()
+        .resource_url("https://rs.example.com/resource")
+        .access_token("foo")
+        .retry(true)
+        .options(options2);
+
+    let _ = client.request_resource_async(params, &http_client).await;
 
     let options3 = RequestResourceOptions {
         dpop: Some(&key),
-        body: Some("fail_case_should_not_affect".to_string()),
         ..Default::default()
     };
 
+    let params = RequestResourceParams::default()
+        .resource_url("https://rs.example.com/resource")
+        .access_token("foo")
+        .retry(true)
+        .options(options3);
+
     let err = client
-        .request_resource_async(
-            "https://rs.example.com/resource",
-            "foo",
-            None,
-            true,
-            options3,
-        )
+        .request_resource_async(params, &http_client)
         .await
         .unwrap_err();
 
     assert!(err.is_op_error());
     let op_error = err.op_error();
     assert_eq!("invalid_dpop_proof", op_error.error.error);
-    assert_eq!("400", op_error.response.unwrap().status.as_str());
+    assert_eq!(400, op_error.response.unwrap().status_code);
 }
 
 #[tokio::test]
 async fn is_enabled_for_request_resource() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://rs.example.com/resource")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("authorization", vec!["DPoP foo".to_string()])
+        .assert_dpop_ath()
+        .set_response_body(r#"{"sub":"foo"}"#)
+        .build();
 
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .path("/resource")
-            .matches(|req| {
-                let mut no_content_length = false;
-                let mut no_transfer_encoding = false;
-
-                if let Some(headers) = &req.headers {
-                    no_content_length = headers
-                        .iter()
-                        .find(|x| x.0 == "content-length" && x.1.parse::<u64>().is_ok())
-                        .is_none();
-
-                    no_transfer_encoding = headers
-                        .iter()
-                        .find(|x| x.0 == "transfer-encoding")
-                        .is_none();
-                }
-
-                no_content_length && no_transfer_encoding
-            })
-            .matches(|req| {
-                let binding = req.headers.clone().unwrap();
-                let (_, val) = binding
-                    .iter()
-                    .find(|(k, _)| k.to_lowercase() == "dpop")
-                    .unwrap();
-
-                let decoded = decode_jwt(val).unwrap();
-
-                decoded.payload.claim("ath").is_some()
-            });
-        then.status(200).body(r#"{"sub":"foo"}"#);
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let key = get_rsa_private_key();
+
     let options = RequestResourceOptions {
         dpop: Some(&key),
-        method: Method::POST,
+        method: HttpMethod::POST,
         ..Default::default()
     };
 
+    let params = RequestResourceParams::default()
+        .resource_url("https://rs.example.com/resource")
+        .access_token("foo")
+        .retry(true)
+        .options(options);
+
     client
-        .request_resource_async(
-            "https://rs.example.com/resource",
-            "foo",
-            None,
-            true,
-            options,
-        )
+        .request_resource_async(params, &http_client)
         .await
         .unwrap();
 }
@@ -681,7 +556,7 @@ async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in(
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("client".to_string()),
@@ -691,23 +566,21 @@ async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in(
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let options = RequestResourceOptions {
         dpop: None,
         ..Default::default()
     };
 
+    let params = RequestResourceParams::default()
+        .resource_url("https://rs.example.com/resource")
+        .access_token("foo")
+        .retry(true)
+        .options(options);
+
     let err = client
-        .request_resource_async(
-            "https://rs.example.com/resource",
-            "foo",
-            None,
-            true,
-            options,
-        )
+        .request_resource_async(params, &DefaultHttpClient)
         .await
         .unwrap_err();
 
@@ -718,22 +591,23 @@ async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in(
 
 #[tokio::test]
 async fn is_enabled_for_grant() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header("content-length", vec!["46".to_string()])
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_body("grant_type=client_credentials&client_id=client")
+        .assert_dpop()
+        .set_response_body(r#"{"access_token":"foo"}"#)
+        .build();
 
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token").matches(|req| {
-            let binding = req.headers.clone().unwrap();
-            let header = binding.iter().find(|(k, _)| k.to_lowercase() == "dpop");
-
-            header.is_some()
-        });
-        then.status(200).body(r#"{"access_token":"foo"}"#);
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let key = get_rsa_private_key();
-    let extra = GrantExtras {
+    let extras = GrantExtras {
         dpop: Some(&key),
         ..Default::default()
     };
@@ -742,24 +616,27 @@ async fn is_enabled_for_grant() {
 
     body.insert("grant_type".to_string(), "client_credentials".to_owned());
 
-    client.grant_async(body, extra, true).await.unwrap();
+    let params = GrantParams::default().body(body).extras(extras);
+
+    client.grant_async(&http_client, params).await.unwrap();
 }
 
 #[tokio::test]
 async fn is_enabled_for_refresh() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header("content-length", vec!["59".to_string()])
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_body("grant_type=refresh_token&client_id=client&refresh_token=foo")
+        .assert_dpop()
+        .set_response_body(r#"{"access_token":"foo"}"#)
+        .build();
 
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token").matches(|req| {
-            let binding = req.headers.clone().unwrap();
-            let header = binding.iter().find(|(k, _)| k.to_lowercase() == "dpop");
-
-            header.is_some()
-        });
-        then.status(200).body(r#"{"access_token":"foo"}"#);
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let token_params = TokenSetParams {
         refresh_token: Some("foo".to_string()),
@@ -774,24 +651,28 @@ async fn is_enabled_for_refresh() {
         exchange_body: None,
     };
 
-    client.refresh_async(token_set, Some(params)).await.unwrap();
+    client
+        .refresh_async(token_set, Some(params), &http_client)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
 async fn is_enabled_for_oauthcallback() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header("content-length", vec!["56".to_string()])
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_body("grant_type=authorization_code&client_id=client&code=code")
+        .assert_dpop()
+        .set_response_body(r#"{"access_token":"foo"}"#)
+        .build();
 
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token").matches(|req| {
-            let binding = req.headers.clone().unwrap();
-            let header = binding.iter().find(|(k, _)| k.to_lowercase() == "dpop");
-
-            header.is_some()
-        });
-        then.status(200).body(r#"{"access_token":"foo"}"#);
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let params = CallbackParams {
         code: Some("code".to_string()),
@@ -804,27 +685,32 @@ async fn is_enabled_for_oauthcallback() {
         exchange_body: None,
     };
 
+    let params = OAuthCallbackParams::default()
+        .parameters(params)
+        .extras(extras);
+
     client
-        .oauth_callback_async(None, params, None, Some(extras))
+        .oauth_callback_async(&http_client, params)
         .await
         .unwrap();
 }
 
 #[tokio::test]
 async fn is_enabled_for_callback() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_header("content-length", vec!["56".to_string()])
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_body("grant_type=authorization_code&client_id=client&code=code")
+        .assert_dpop()
+        .set_response_body(r#"{"access_token":"foo"}"#)
+        .build();
 
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token").matches(|req| {
-            let binding = req.headers.clone().unwrap();
-            let header = binding.iter().find(|(k, _)| k.to_lowercase() == "dpop");
-
-            header.is_some()
-        });
-        then.status(200).body(r#"{"access_token":"foo"}"#);
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let params = CallbackParams {
         code: Some("code".to_string()),
@@ -837,35 +723,47 @@ async fn is_enabled_for_callback() {
         exchange_body: None,
     };
 
+    let params = OpenIdCallbackParams::default()
+        .parameters(params)
+        .extras(extras);
+
     client
-        .callback_async(None, params, None, Some(extras))
+        .callback_async(&http_client, params)
         .await
         .unwrap_err();
 }
 
 #[tokio::test]
 async fn is_enabled_for_deviceauthorization() {
-    let mock_http_server = MockServer::start();
-
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/device").matches(|req| {
-            let binding = req.headers.clone().unwrap();
-            let header = binding.iter().find(|(k, _)| k.to_lowercase() == "dpop");
-
-            header.is_none()
-        });
-        then.status(200).body(
-            r#"{
-            "expires_in": 60,
-            "device_code": "foo",
-            "user_code": "foo",
-            "verification_uri": "foo",
-            "interval": 1
-          }"#,
+    let http_client = TestHttpClient::new()
+        .add(
+            TestHttpReqRes::new("https://op.example.com/device")
+                .assert_request_method(HttpMethod::POST)
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_header(
+                    "content-type",
+                    vec!["application/x-www-form-urlencoded".to_string()],
+                )
+                .assert_request_header("content-length", vec!["95".to_string()])
+                .assert_request_body("client_id=client&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&response_type=code&scope=openid")
+                .set_response_content_type_header("application/json")
+                .set_response_body(r#"{"expires_in": 60,"device_code": "foo","user_code": "foo","verification_uri": "foo","interval": 1}"#),
+        )
+        .add(
+            TestHttpReqRes::new("https://op.example.com/token")
+                .assert_request_method(HttpMethod::POST)
+                .assert_request_header(
+                    "content-type",
+                    vec!["application/x-www-form-urlencoded".to_string()],
+                )
+                .assert_request_header("content-length", vec!["98".to_string()])
+                .assert_request_header("accept", vec!["application/json".to_string()])
+                .assert_request_body("client_id=client&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code&device_code=foo")
+                .assert_dpop()
+                .set_response_body(r#"{"access_token":"foo"}"#),
         );
-    });
 
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let extras = DeviceAuthorizationExtras {
         dpop: Some(get_rsa_private_key()),
@@ -873,63 +771,34 @@ async fn is_enabled_for_deviceauthorization() {
     };
 
     let mut handle = client
-        .device_authorization_async(DeviceAuthorizationParams::default(), Some(extras))
+        .device_authorization_async(
+            DeviceAuthorizationParams::default(),
+            Some(extras),
+            &http_client,
+        )
         .await
         .unwrap();
 
-    let _server2 = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token").matches(|req| {
-            let binding = req.headers.clone().unwrap();
-            let header = binding.iter().find(|(k, _)| k.to_lowercase() == "dpop");
-
-            header.is_some()
-        });
-        then.status(200).body(r#"{"access_token":"foo"}"#);
-    });
-
-    handle.grant_async().await.unwrap();
+    handle.grant_async(&http_client).await.unwrap();
 }
 
 #[tokio::test]
 async fn is_enabled_for_pushed_authorization() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/par")
+    .assert_request_method(HttpMethod::POST)
+    .assert_request_header("accept", vec!["application/json".to_string()])
+    .assert_request_header(
+        "content-type",
+        vec!["application/x-www-form-urlencoded".to_string()],
+    )
+    .assert_dpop()
+    .assert_request_header("content-length", vec!["95".to_string()])
+    .assert_request_body("client_id=client&redirect_uri=https%3A%2F%2Frp.example.com%2Fcb&response_type=code&scope=openid")
+    .set_response_status_code(201)
+    .set_response_body(r#"{"expires_in":60,"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#)
+    .build();
 
-    let _par = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .header("Accept", "application/json")
-            .matches(|req| {
-                let decoded =
-                    urlencoding::decode(std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap())
-                        .unwrap();
-
-                let kvp = querystring::querify(&decoded);
-                let binding = req.headers.clone().unwrap();
-                let header = binding.iter().find(|(k, _)| k.to_lowercase() == "dpop");
-
-                let client_id = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"client_id" && v == &"client");
-                let redirect_uri = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"redirect_uri" && v == &"https://rp.example.com/cb");
-                let response_type = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"response_type" && v == &"code");
-                let scope = kvp.iter().find(|(k, v)| k == &"scope" && v == &"openid");
-
-                client_id.is_some()
-                    && redirect_uri.is_some()
-                    && response_type.is_some()
-                    && scope.is_some()
-                    && header.is_some()
-            })
-            .path("/par");
-
-        then.status(201)
-            .body(r#"{"expires_in":60,"request_uri":"urn:ietf:params:oauth:request_uri:random"}"#);
-    });
-
-    let (_, mut client) = get_client(Some(mock_http_server.port()));
+    let (_, mut client) = get_client();
 
     let key = get_rsa_private_key();
     let extras = PushedAuthorizationRequestExtras {
@@ -937,7 +806,7 @@ async fn is_enabled_for_pushed_authorization() {
         client_assertion_payload: None,
     };
     client
-        .pushed_authorization_request_async(None, Some(extras))
+        .pushed_authorization_request_async(None, Some(extras), &http_client)
         .await
         .unwrap();
 }

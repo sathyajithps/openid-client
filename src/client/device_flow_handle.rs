@@ -1,8 +1,8 @@
 use std::{cmp::max, collections::HashMap, num::Wrapping};
 
 use crate::types::{
-    DeviceAuthorizationExtras, DeviceAuthorizationResponse, DeviceFlowGrantResponse, GrantExtras,
-    OidcClientError,
+    grant_params::GrantParams, DeviceAuthorizationExtras, DeviceAuthorizationResponse,
+    DeviceFlowGrantResponse, GrantExtras, OidcClientError, OidcHttpClient, OidcReturnType,
 };
 
 use super::Client;
@@ -99,13 +99,19 @@ impl DeviceFlowHandle {
 
     /// ## Device Flow Grant
     ///
-    /// Performs grant request at the [`crate::types::IssuerMetadata::token_endpoint`]. This method will
+    /// Performs grant request at the token endpoint. This method will
     /// not poll itself. It is left to the implementor to create that logic.
     ///
     /// See [DeviceFlowGrantResponse] for the possible responses that will be obtained from the grant.
-    pub async fn grant_async(&mut self) -> Result<DeviceFlowGrantResponse, OidcClientError> {
+    pub async fn grant_async<T>(
+        &mut self,
+        http_client: &T,
+    ) -> OidcReturnType<DeviceFlowGrantResponse>
+    where
+        T: OidcHttpClient,
+    {
         if self.expired() {
-            return Err(OidcClientError::new_rp_error(&format!("the device code {} has expired and the device authorization session has concluded", self.device_code()), None, None));
+            return Err(Box::new(OidcClientError::new_rp_error(&format!("the device code {} has expired and the device authorization session has concluded", self.device_code()), None)));
         }
 
         if (((self.now)() - self.last_requested) as f64) < self.interval {
@@ -138,10 +144,21 @@ impl DeviceFlowHandle {
 
         self.last_requested = (self.now)();
 
-        let mut token_set = match self.client.grant_async(body, extras, true).await {
+        let mut token_set = match self
+            .client
+            .grant_async(
+                http_client,
+                GrantParams {
+                    body,
+                    extras,
+                    retry: true,
+                },
+            )
+            .await
+        {
             Ok(t) => t,
             Err(e) => {
-                match &e {
+                match e.as_ref() {
                     OidcClientError::OPError(sbe, _) => {
                         if sbe.error == "slow_down" {
                             self.increase_interval(5.0);
@@ -164,7 +181,7 @@ impl DeviceFlowHandle {
             token_set = self.client.decrypt_id_token(token_set)?;
             token_set = self
                 .client
-                .validate_id_token_async(token_set, None, "token", self.max_age, None)
+                .validate_id_token_async(token_set, None, "token", self.max_age, None, http_client)
                 .await?;
         }
 

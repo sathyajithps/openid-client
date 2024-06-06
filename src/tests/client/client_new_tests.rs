@@ -10,8 +10,8 @@ use crate::types::{ClientMetadata, Fapi, IssuerMetadata};
 #[test]
 fn requires_client_id() {
     let issuer_metadata = IssuerMetadata::default();
-    let issuer = Issuer::new(issuer_metadata, None);
-    let client_result = issuer.client(ClientMetadata::default(), None, None, None, None);
+    let issuer = Issuer::new(issuer_metadata);
+    let client_result = issuer.client(ClientMetadata::default(), None, None, None);
 
     assert!(client_result.is_err());
 
@@ -23,7 +23,7 @@ fn requires_client_id() {
 #[test]
 fn accepts_the_recognized_metadata() {
     let issuer_metadata = IssuerMetadata::default();
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_id = "identifier".to_string();
     let client_secret = Some("secure".to_string());
@@ -33,7 +33,7 @@ fn accepts_the_recognized_metadata() {
         client_secret: client_secret.clone(),
         ..ClientMetadata::default()
     };
-    let client_result = issuer.client(client_metadata, None, None, None, None);
+    let client_result = issuer.client(client_metadata, None, None, None);
 
     assert!(client_result.is_ok());
 
@@ -46,7 +46,7 @@ fn accepts_the_recognized_metadata() {
 #[test]
 fn assigns_defaults_to_some_properties() {
     let issuer_metadata = IssuerMetadata::default();
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_id = "identifier".to_string();
 
@@ -55,7 +55,7 @@ fn assigns_defaults_to_some_properties() {
         ..ClientMetadata::default()
     };
 
-    let client_result = issuer.client(client_metadata, None, None, None, None);
+    let client_result = issuer.client(client_metadata, None, None, None);
 
     assert!(client_result.is_ok());
 
@@ -78,7 +78,7 @@ fn autofills_introspection_endpoint_auth_method() {
         ..IssuerMetadata::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let token_endpoint_auth_method = || "client_secret_jwt".to_string();
     let token_endpoint_auth_signing_alg = || "HS512".to_string();
@@ -90,9 +90,7 @@ fn autofills_introspection_endpoint_auth_method() {
         ..ClientMetadata::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     assert_eq!(
         token_endpoint_auth_method(),
@@ -112,7 +110,7 @@ fn autofills_revocation_endpoint_auth_method() {
         ..IssuerMetadata::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let token_endpoint_auth_method = || "client_secret_jwt".to_string();
     let token_endpoint_auth_signing_alg = || "HS512".to_string();
@@ -124,9 +122,7 @@ fn autofills_revocation_endpoint_auth_method() {
         ..ClientMetadata::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     assert_eq!(
         token_endpoint_auth_method(),
@@ -147,7 +143,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_token_endpoint_signing_a
         ..IssuerMetadata::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -156,7 +152,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_token_endpoint_signing_a
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, None)
+        .client(client_metadata, None, None, None)
         .unwrap_err();
 
     let expected_error = "token_endpoint_auth_signing_alg_values_supported must be configured on the issuer if token_endpoint_auth_signing_alg is not defined on a client";
@@ -172,7 +168,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_introspection_endpoint_s
         ..IssuerMetadata::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -181,7 +177,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_introspection_endpoint_s
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, None)
+        .client(client_metadata, None, None, None)
         .unwrap_err();
 
     let expected_error = "introspection_endpoint_auth_signing_alg_values_supported must be configured on the issuer if introspection_endpoint_auth_signing_alg is not defined on a client";
@@ -197,7 +193,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_revocation_endpoint_sign
         ..IssuerMetadata::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -206,7 +202,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_revocation_endpoint_sign
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, None)
+        .client(client_metadata, None, None, None)
         .unwrap_err();
 
     let expected_error = "revocation_endpoint_auth_signing_alg_values_supported must be configured on the issuer if revocation_endpoint_auth_signing_alg is not defined on a client";
@@ -216,7 +212,7 @@ fn validates_the_issuer_has_supported_algs_announced_if_revocation_endpoint_sign
 
 #[test]
 fn is_able_to_assign_custom_or_non_recognized_properties() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let mut other_fields: HashMap<String, Value> = HashMap::new();
 
@@ -228,16 +224,14 @@ fn is_able_to_assign_custom_or_non_recognized_properties() {
         ..ClientMetadata::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     assert!(client.other_fields.get("foo").is_some());
 }
 
 #[test]
 fn handles_redirect_uri() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let redirect_uri = || "https://rp.example.com/cb".to_string();
 
@@ -247,9 +241,7 @@ fn handles_redirect_uri() {
         ..ClientMetadata::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     assert_eq!(redirect_uri(), client.redirect_uri.unwrap());
     assert_eq!(vec![redirect_uri()], client.redirect_uris.unwrap());
@@ -257,7 +249,7 @@ fn handles_redirect_uri() {
 
 #[test]
 fn returns_error_if_redirect_uri_and_redirect_uris_are_given() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let redirect_uri = || "https://rp.example.com/cb".to_string();
 
@@ -269,7 +261,7 @@ fn returns_error_if_redirect_uri_and_redirect_uris_are_given() {
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, None)
+        .client(client_metadata, None, None, None)
         .unwrap_err();
 
     assert_eq!(
@@ -280,7 +272,7 @@ fn returns_error_if_redirect_uri_and_redirect_uris_are_given() {
 
 #[test]
 fn handles_response_type() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let response_type = || "code id_token".to_string();
 
@@ -290,9 +282,7 @@ fn handles_response_type() {
         ..ClientMetadata::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     assert_eq!(response_type(), client.response_type.unwrap());
     assert_eq!(vec![response_type()], client.response_types);
@@ -300,7 +290,7 @@ fn handles_response_type() {
 
 #[test]
 fn returns_error_if_response_type_and_response_types_are_given() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     let response_type = || "code id_token".to_string();
 
@@ -312,7 +302,7 @@ fn returns_error_if_response_type_and_response_types_are_given() {
     };
 
     let client_error = issuer
-        .client(client_metadata, None, None, None, None)
+        .client(client_metadata, None, None, None)
         .unwrap_err();
 
     assert_eq!(
@@ -328,7 +318,7 @@ mod fapi {
     #[test]
     fn assigns_defaults_to_some_properties_for_fapi_1() {
         let issuer_metadata = IssuerMetadata::default();
-        let issuer = Issuer::new(issuer_metadata, None);
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -341,7 +331,7 @@ mod fapi {
 
         let jwks = Jwks::from(vec![jwk]);
 
-        let client_result = issuer.client(client_metadata, None, Some(jwks), None, Some(Fapi::V1));
+        let client_result = issuer.client(client_metadata, Some(jwks), None, Some(Fapi::V1));
 
         assert!(client_result.is_ok());
 
@@ -363,7 +353,7 @@ mod fapi {
     #[test]
     fn assigns_defaults_to_some_properties_for_fapi_2() {
         let issuer_metadata = IssuerMetadata::default();
-        let issuer = Issuer::new(issuer_metadata, None);
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -371,7 +361,7 @@ mod fapi {
             ..ClientMetadata::default()
         };
 
-        let client_result = issuer.client(client_metadata, None, None, None, Some(Fapi::V2));
+        let client_result = issuer.client(client_metadata, None, None, Some(Fapi::V2));
 
         assert!(client_result.is_ok());
 
@@ -387,7 +377,7 @@ mod fapi {
     #[test]
     fn token_endpoint_auth_method_is_required_for_fapi_1() {
         let issuer_metadata = IssuerMetadata::default();
-        let issuer = Issuer::new(issuer_metadata, None);
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -395,7 +385,7 @@ mod fapi {
         };
 
         let err = issuer
-            .client(client_metadata, None, None, None, Some(Fapi::V1))
+            .client(client_metadata, None, None, Some(Fapi::V1))
             .unwrap_err();
 
         assert!(err.is_type_error());
@@ -409,7 +399,7 @@ mod fapi {
     #[test]
     fn jwks_is_required_for_private_key_jwt() {
         let issuer_metadata = IssuerMetadata::default();
-        let issuer = Issuer::new(issuer_metadata, None);
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -418,7 +408,7 @@ mod fapi {
         };
 
         let err = issuer
-            .client(client_metadata, None, None, None, Some(Fapi::V1))
+            .client(client_metadata, None, None, Some(Fapi::V1))
             .unwrap_err();
 
         assert!(err.is_type_error());
@@ -429,7 +419,7 @@ mod fapi {
     #[test]
     fn fapi_1_clients_rejects_other_token_endpoint_auth_methods() {
         let issuer_metadata = IssuerMetadata::default();
-        let issuer = Issuer::new(issuer_metadata, None);
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -438,7 +428,7 @@ mod fapi {
         };
 
         let err = issuer
-            .client(client_metadata, None, None, None, Some(Fapi::V1))
+            .client(client_metadata, None, None, Some(Fapi::V1))
             .unwrap_err();
 
         assert!(err.is_type_error());
@@ -452,7 +442,7 @@ mod fapi {
     #[test]
     fn either_dpop_or_mtls_bound_at_is_required_for_fapi_2() {
         let issuer_metadata = IssuerMetadata::default();
-        let issuer = Issuer::new(issuer_metadata, None);
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -460,7 +450,7 @@ mod fapi {
         };
 
         let err = issuer
-            .client(client_metadata, None, None, None, Some(Fapi::V2))
+            .client(client_metadata, None, None, Some(Fapi::V2))
             .unwrap_err();
 
         assert!(err.is_type_error());
@@ -470,7 +460,7 @@ mod fapi {
     #[test]
     fn either_dpop_or_mtls_bound_should_be_configured_for_fapi_2() {
         let issuer_metadata = IssuerMetadata::default();
-        let issuer = Issuer::new(issuer_metadata, None);
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -480,7 +470,7 @@ mod fapi {
         };
 
         let err = issuer
-            .client(client_metadata, None, None, None, Some(Fapi::V2))
+            .client(client_metadata, None, None, Some(Fapi::V2))
             .unwrap_err();
 
         assert!(err.is_type_error());

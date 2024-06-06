@@ -1,14 +1,15 @@
 use assert_json_diff::{assert_json_eq, assert_json_include};
-use httpmock::{Method, MockServer};
 use josekit::jwk::{alg::ec::EcCurve, Jwk};
 use serde_json::{json, Value};
 
 use crate::{
+    http_client::DefaultHttpClient,
     issuer::Issuer,
     jwks::Jwks,
-    tests::test_interceptors::get_default_test_interceptor,
-    types::{ClientMetadata, Fapi, IssuerMetadata},
+    types::{ClientMetadata, Fapi, HttpMethod, IssuerMetadata},
 };
+
+use crate::tests::test_http_client::TestHttpReqRes;
 
 fn get_jwks(key_use: &str, set_alg: bool) -> Jwks {
     let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
@@ -24,18 +25,18 @@ fn get_jwks(key_use: &str, set_alg: bool) -> Jwks {
     Jwks::from(vec![jwk.clone()])
 }
 
-fn get_issuer(port: Option<u16>) -> Issuer {
+fn get_issuer() -> Issuer {
     let issuer_metadata = IssuerMetadata {
         issuer: "https://op.example.com".to_string(),
         jwks_uri: Some("https://op.example.com/certs".to_string()),
         ..Default::default()
     };
-    Issuer::new(issuer_metadata, get_default_test_interceptor(port))
+    Issuer::new(issuer_metadata)
 }
 
 #[tokio::test]
 async fn verifies_that_keystore_is_set() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifer".to_string()),
@@ -43,12 +44,10 @@ async fn verifies_that_keystore_is_set() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap_err();
 
@@ -67,7 +66,7 @@ async fn verifies_keystore_has_the_appropriate_key() {
 
     let jwks = Jwks::from(vec![jwk.clone()]);
 
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -76,11 +75,11 @@ async fn verifies_keystore_has_the_appropriate_key() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(jwks), None, None)
+        .client(client_metadata, Some(jwks), None, None)
         .unwrap();
 
     let err = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap_err();
 
@@ -93,7 +92,7 @@ async fn verifies_keystore_has_the_appropriate_key() {
 
 #[tokio::test]
 async fn sign_alg_none() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -101,12 +100,10 @@ async fn sign_alg_none() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -145,7 +142,7 @@ async fn sign_alg_none() {
 
 #[tokio::test]
 async fn sign_alg_hsxxx() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -154,12 +151,10 @@ async fn sign_alg_hsxxx() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -198,7 +193,7 @@ async fn sign_alg_hsxxx() {
 
 #[tokio::test]
 async fn sign_alg_rsxxx() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
     let jwks = get_jwks("sig", true);
 
     let client_metadata = ClientMetadata {
@@ -208,11 +203,11 @@ async fn sign_alg_rsxxx() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(jwks), None, None)
+        .client(client_metadata, Some(jwks), None, None)
         .unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -253,17 +248,21 @@ async fn sign_alg_rsxxx() {
 
 #[tokio::test]
 async fn encrypts_for_issuer_using_issuers_public_key_explicit_enc() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/certs")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header(
+            "accept",
+            vec![
+                "application/json".to_string(),
+                "application/jwk-set+json".to_string(),
+            ],
+        )
+        .set_response_body(
+            serde_json::to_string(&get_jwks("enc", false).get_public_jwks()).unwrap(),
+        )
+        .build();
 
-    mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .path("/certs")
-            .header("Accept", "application/json,application/jwk-set+json");
-        then.status(200)
-            .body(serde_json::to_string(&get_jwks("enc", false).get_public_jwks()).unwrap());
-    });
-
-    let issuer = get_issuer(Some(mock_http_server.port()));
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -272,12 +271,10 @@ async fn encrypts_for_issuer_using_issuers_public_key_explicit_enc() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &http_client)
         .await
         .unwrap();
 
@@ -299,17 +296,21 @@ async fn encrypts_for_issuer_using_issuers_public_key_explicit_enc() {
 
 #[tokio::test]
 async fn encrypts_for_issuer_using_issuers_public_key_default_enc() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/certs")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header(
+            "accept",
+            vec![
+                "application/json".to_string(),
+                "application/jwk-set+json".to_string(),
+            ],
+        )
+        .set_response_body(
+            serde_json::to_string(&get_jwks("enc", false).get_public_jwks()).unwrap(),
+        )
+        .build();
 
-    mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .path("/certs")
-            .header("Accept", "application/json,application/jwk-set+json");
-        then.status(200)
-            .body(serde_json::to_string(&get_jwks("enc", false).get_public_jwks()).unwrap());
-    });
-
-    let issuer = get_issuer(Some(mock_http_server.port()));
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -317,12 +318,10 @@ async fn encrypts_for_issuer_using_issuers_public_key_default_enc() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &http_client)
         .await
         .unwrap();
 
@@ -344,7 +343,7 @@ async fn encrypts_for_issuer_using_issuers_public_key_default_enc() {
 
 #[tokio::test]
 async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_gcmkw() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -355,12 +354,10 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_gcmkw() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -382,7 +379,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_gcmkw() {
 
 #[tokio::test]
 async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a128_cbc_hs256() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -394,12 +391,10 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a128_cbc_hs256()
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -421,7 +416,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a128_cbc_hs256()
 
 #[tokio::test]
 async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a192_cbc_hs384() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -433,12 +428,10 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a192_cbc_hs384()
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -460,7 +453,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a192_cbc_hs384()
 
 #[tokio::test]
 async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a256_cbc_hs512() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -472,12 +465,10 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a256_cbc_hs512()
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -499,7 +490,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a256_cbc_hs512()
 
 #[tokio::test]
 async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_defaulted_to_a128_cbc_hs256() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -510,12 +501,10 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_defaulted_to_a12
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -537,7 +526,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_defaulted_to_a12
 
 #[tokio::test]
 async fn encrypts_for_issuer_using_pre_shared_client_secret_pbes2() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -548,12 +537,10 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_pbes2() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -575,7 +562,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_pbes2() {
 
 #[tokio::test]
 async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_kw() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -586,12 +573,10 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_kw() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}))
+        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
         .await
         .unwrap();
 
@@ -613,7 +598,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_kw() {
 
 #[tokio::test]
 async fn throws_on_non_object_inputs() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -621,11 +606,12 @@ async fn throws_on_non_object_inputs() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
-    let err = client.request_object_async(json!(true)).await.unwrap_err();
+    let err = client
+        .request_object_async(json!(true), &DefaultHttpClient)
+        .await
+        .unwrap_err();
 
     assert!(err.is_type_error());
     assert_eq!(
@@ -636,7 +622,7 @@ async fn throws_on_non_object_inputs() {
 
 #[tokio::test]
 async fn fapi_client_includes_nbf_by_default() {
-    let issuer = get_issuer(None);
+    let issuer = get_issuer();
 
     let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
     jwk.set_algorithm("PS256");
@@ -653,14 +639,16 @@ async fn fapi_client_includes_nbf_by_default() {
     let mut client = issuer
         .client(
             client_metadata,
-            None,
             Some(Jwks::from(vec![jwk])),
             None,
             Some(Fapi::V1),
         )
         .unwrap();
 
-    let signed = client.request_object_async(json!({})).await.unwrap();
+    let signed = client
+        .request_object_async(json!({}), &DefaultHttpClient)
+        .await
+        .unwrap();
 
     let split = signed.split('.').collect::<Vec<&str>>();
 
@@ -700,17 +688,19 @@ mod ecryption_where_multiple_keys_match {
 
     #[tokio::test]
     async fn encrypts_for_issuer_using_issuers_public_key_explicit_enc() {
-        let mock_http_server = MockServer::start();
+        let http_client = TestHttpReqRes::new("https://op.example.com/certs")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header(
+                "accept",
+                vec![
+                    "application/json".to_string(),
+                    "application/jwk-set+json".to_string(),
+                ],
+            )
+            .set_response_body(serde_json::to_string(&get_multi_jwks().get_public_jwks()).unwrap())
+            .build();
 
-        mock_http_server.mock(|when, then| {
-            when.method(Method::GET)
-                .path("/certs")
-                .header("Accept", "application/json,application/jwk-set+json");
-            then.status(200)
-                .body(serde_json::to_string(&get_multi_jwks().get_public_jwks()).unwrap());
-        });
-
-        let issuer = get_issuer(Some(mock_http_server.port()));
+        let issuer = get_issuer();
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -719,12 +709,10 @@ mod ecryption_where_multiple_keys_match {
             ..Default::default()
         };
 
-        let mut client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let signed = client
-            .request_object_async(json!({"state":"foobar"}))
+            .request_object_async(json!({"state":"foobar"}), &http_client)
             .await
             .unwrap();
 
@@ -747,17 +735,19 @@ mod ecryption_where_multiple_keys_match {
 
     #[tokio::test]
     async fn encrypts_for_issuer_using_issuers_public_key_default_enc() {
-        let mock_http_server = MockServer::start();
+        let http_client = TestHttpReqRes::new("https://op.example.com/certs")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header(
+                "accept",
+                vec![
+                    "application/json".to_string(),
+                    "application/jwk-set+json".to_string(),
+                ],
+            )
+            .set_response_body(serde_json::to_string(&get_multi_jwks().get_public_jwks()).unwrap())
+            .build();
 
-        mock_http_server.mock(|when, then| {
-            when.method(Method::GET)
-                .path("/certs")
-                .header("Accept", "application/json,application/jwk-set+json");
-            then.status(200)
-                .body(serde_json::to_string(&get_multi_jwks().get_public_jwks()).unwrap());
-        });
-
-        let issuer = get_issuer(Some(mock_http_server.port()));
+        let issuer = get_issuer();
 
         let client_metadata = ClientMetadata {
             client_id: Some("identifier".to_string()),
@@ -765,12 +755,10 @@ mod ecryption_where_multiple_keys_match {
             ..Default::default()
         };
 
-        let mut client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let signed = client
-            .request_object_async(json!({"state":"foobar"}))
+            .request_object_async(json!({"state":"foobar"}), &http_client)
             .await
             .unwrap();
 

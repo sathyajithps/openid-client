@@ -11,23 +11,23 @@ use josekit::{
 };
 use lazy_static::lazy_static;
 use regex::Regex;
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Method,
-};
 use serde_json::{json, Value};
 use url::Url;
 
 use crate::{
-    helpers::{decode_jwt, generate_random, get_s256_jwk_thumbprint, validate_hash, Names},
+    helpers::{
+        decode_jwt, form_url_encoded_to_string_map, generate_random, get_s256_jwk_thumbprint,
+        validate_hash, Names,
+    },
     http::request_async,
     tokenset::TokenSet,
     types::{
-        authentication_post_param::AuthenticationPostParams, query_keystore::QueryKeyStore,
-        AuthorizationParameters, OidcClientError, Response,
+        authentication_post_param::AuthenticationPostParams, http_client::HttpMethod,
+        query_keystore::QueryKeyStore, AuthorizationParameters, HttpResponse, OidcClientError,
+        OidcHttpClient, OidcReturnType,
     },
 };
-use crate::{jwks::jwks::CustomJwk, types::Request};
+use crate::{jwks::jwks::CustomJwk, types::HttpRequest};
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
 use super::Client;
@@ -41,7 +41,7 @@ lazy_static! {
 }
 
 impl Client {
-    pub(crate) fn secret_for_alg(&self, alg: &str) -> Result<Jwk, OidcClientError> {
+    pub(crate) fn secret_for_alg(&self, alg: &str) -> OidcReturnType<Jwk> {
         let mut jwk = Jwk::new("oct");
         jwk.set_algorithm(alg);
 
@@ -71,13 +71,13 @@ impl Client {
 
             return Ok(jwk);
         }
-        Err(OidcClientError::new_type_error(
+        Err(Box::new(OidcClientError::new_type_error(
             "client_secret is required",
             None,
-        ))
+        )))
     }
 
-    pub(crate) fn encryption_secret(&self, len: u16) -> Result<Vec<u8>, OidcClientError> {
+    pub(crate) fn encryption_secret(&self, len: u16) -> OidcReturnType<Vec<u8>> {
         if let Some(cs) = &self.client_secret {
             return match len {
                 l if l <= 256 => {
@@ -92,17 +92,17 @@ impl Client {
                     let hasher = Sha512::new_with_prefix(cs.as_bytes());
                     Ok((hasher.finalize()[..(len / 8) as usize]).to_vec())
                 }
-                _ => Err(OidcClientError::new_error(
+                _ => Err(Box::new(OidcClientError::new_error(
                     "unsupported symmetric encryption key derivation",
                     None,
-                )),
+                ))),
             };
         }
 
-        Err(OidcClientError::new_type_error(
+        Err(Box::new(OidcClientError::new_type_error(
             "client_secret is required",
             None,
-        ))
+        )))
     }
 
     pub(crate) fn authorization_params(
@@ -207,48 +207,85 @@ impl Client {
         None
     }
 
-    pub(crate) fn get_auth_endpoint(&self) -> Result<Url, OidcClientError> {
+    pub(crate) fn get_auth_endpoint(&self) -> OidcReturnType<Url> {
         let authorization_endpiont = match &self.issuer {
             Some(i) => match &i.authorization_endpoint {
                 Some(ae) => match Url::parse(ae) {
                     Ok(u) => u,
                     Err(_) => {
-                        return Err(OidcClientError::new_type_error(
+                        return Err(Box::new(OidcClientError::new_type_error(
                             "authorization_endpiont is invalid url",
                             None,
-                        ));
+                        )));
                     }
                 },
                 None => {
-                    return Err(OidcClientError::new_type_error(
+                    return Err(Box::new(OidcClientError::new_type_error(
                         "authorization_endpiont must be configured on the issuer",
                         None,
-                    ))
+                    )))
                 }
             },
-            None => return Err(OidcClientError::new_error("issuer is empty", None)),
+            None => {
+                return Err(Box::new(OidcClientError::new_error(
+                    "issuer is empty",
+                    None,
+                )))
+            }
         };
         Ok(authorization_endpiont)
     }
 
-    pub(crate) async fn authenticated_post_async<'a>(
+    pub(crate) async fn authenticated_post_async<'a, T>(
         &mut self,
         endpoint: &str,
-        mut req: Request,
+        mut req: HttpRequest,
         params: AuthenticationPostParams<'a>,
-    ) -> Result<Response, OidcClientError> {
+        http_client: &T,
+    ) -> OidcReturnType<HttpResponse>
+    where
+        T: OidcHttpClient,
+    {
         let endpoint_auth_method = params.endpoint_auth_method.unwrap_or(endpoint);
 
         let auth_request = self.auth_for(endpoint_auth_method, params.client_assertion_payload)?;
 
-        req.merge_form(&auth_request);
-        req.merge_headers(&auth_request);
+        let body = match (
+            auth_request
+                .body
+                .as_ref()
+                .map(|b| form_url_encoded_to_string_map(b)),
+            req.body.as_ref().map(|b| form_url_encoded_to_string_map(b)),
+        ) {
+            (None, Some(f)) => Some(f),
+            (Some(mut own_form), Some(other_form)) => {
+                for (k, v) in other_form {
+                    own_form.insert(k.to_string(), v.to_owned());
+                }
+
+                Some(own_form)
+            }
+            (None, None) | (Some(_), None) => None,
+        };
+
+        for (k, v) in &auth_request.headers {
+            req = req.header_replace(k, v.clone());
+        }
+
+        if let Some(body) = body {
+            req = req.form(body);
+        }
 
         let auth_method = match endpoint_auth_method {
             "token" => self.token_endpoint_auth_method.as_ref(),
             "introspection" => self.introspection_endpoint_auth_method.as_ref(),
             "revocation" => self.revocation_endpoint_auth_method.as_ref(),
-            _ => return Err(OidcClientError::new_error("unknown endpoint", None)),
+            _ => {
+                return Err(Box::new(OidcClientError::new_error(
+                    "unknown endpoint",
+                    None,
+                )))
+            }
         };
 
         let auth_method_has_tls = match auth_method {
@@ -279,7 +316,12 @@ impl Client {
                 "device_authorization" => {
                     aliases.and_then(|a| a.device_authorization_endpoint.as_ref())
                 }
-                _ => return Err(OidcClientError::new_error("unknown endpoint", None)),
+                _ => {
+                    return Err(Box::new(OidcClientError::new_error(
+                        "unknown endpoint",
+                        None,
+                    )))
+                }
             };
         }
 
@@ -292,42 +334,50 @@ impl Client {
                 "pushed_authorization_request" => {
                     issuer.pushed_authorization_request_endpoint.as_ref()
                 }
-                _ => return Err(OidcClientError::new_error("unknown endpoint", None)),
+                _ => {
+                    return Err(Box::new(OidcClientError::new_error(
+                        "unknown endpoint",
+                        None,
+                    )))
+                }
             };
         }
 
-        req.url = target_url
-            .ok_or(OidcClientError::new_error(
-                "endpoint does not exist in Issuer or Client",
-                None,
-            ))?
-            .to_owned();
+        match target_url.map(|tu| Url::parse(tu)) {
+            Some(Ok(tu)) => req = req.url(tu),
+            _ => {
+                return Err(Box::new(OidcClientError::new_error(
+                    "endpoint does not exist in Issuer or Client",
+                    None,
+                )))
+            }
+        };
 
         if endpoint != "revocation" {
-            req.headers
-                .insert("accept", HeaderValue::from_static("application/json"));
+            req = req.header("accept", "application/json");
         }
 
-        req.method = Method::POST;
-        req.mtls = mtls;
+        req = req.method(HttpMethod::POST);
+        req = req.mtls(mtls);
 
-        self.instance_request_async(req, params.dpop, None).await
+        self.instance_request_async(req, params.dpop, None, http_client)
+            .await
     }
 
     pub(crate) fn auth_for(
         &self,
         endpoint: &str,
         client_assertion_payload: Option<&HashMap<String, Value>>,
-    ) -> Result<Request, OidcClientError> {
+    ) -> OidcReturnType<HttpRequest> {
         let endpiont_auth_method = match endpoint {
             "token" => self.token_endpoint_auth_method.as_ref(),
             "revocation" => self.revocation_endpoint_auth_method.as_ref(),
             "introspection" => self.introspection_endpoint_auth_method.as_ref(),
             _ => {
-                return Err(OidcClientError::new_type_error(
+                return Err(Box::new(OidcClientError::new_type_error(
                     &format!("missing, or unsupported, {endpoint}_endpoint_auth_method"),
                     None,
-                ))
+                )))
             }
         };
 
@@ -338,25 +388,25 @@ impl Client {
 
         match auth_method.as_str() {
             "self_signed_tls_client_auth" | "tls_client_auth" | "none" => {
-                let mut request = Request::default();
+                let mut request = HttpRequest::new();
 
                 let mut form: HashMap<String, String> = HashMap::new();
 
                 form.insert("client_id".to_owned(), self.client_id.to_owned());
 
-                request.form = Some(form);
+                request = request.form(form);
 
                 Ok(request)
             }
             "client_secret_post" => {
                 if self.client_secret.is_none() {
-                    return Err(OidcClientError::new_type_error(
+                    return Err(Box::new(OidcClientError::new_type_error(
                         "client_secret_post client authentication method requires a client_secret",
                         None,
-                    ));
+                    )));
                 }
 
-                let mut request = Request::default();
+                let mut request = HttpRequest::new();
 
                 let mut form: HashMap<String, String> = HashMap::new();
 
@@ -366,7 +416,7 @@ impl Client {
                     self.client_secret.clone().unwrap(),
                 );
 
-                request.form = Some(form);
+                request = request.form(form);
 
                 Ok(request)
             }
@@ -412,7 +462,7 @@ impl Client {
 
                 let assertion = self.client_assertion(endpoint, jwt_payload)?;
 
-                let mut request = Request::default();
+                let mut request = HttpRequest::new();
 
                 let mut form: HashMap<String, String> = HashMap::new();
 
@@ -423,21 +473,19 @@ impl Client {
                     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer".to_owned(),
                 );
 
-                request.form = Some(form);
+                request = request.form(form);
 
                 Ok(request)
             }
             "client_secret_basic" => {
                 if self.client_secret.is_none() {
-                    return Err(OidcClientError::new_type_error(
+                    return Err(Box::new(OidcClientError::new_type_error(
                         "client_secret_basic client authentication method requires a client_secret",
                         None,
-                    ));
+                    )));
                 }
 
-                let mut request = Request::default();
-
-                let mut headers = HeaderMap::new();
+                let mut request = HttpRequest::new();
 
                 let encoded = format!(
                     "{}:{}",
@@ -448,32 +496,18 @@ impl Client {
 
                 let b64 = general_purpose::STANDARD.encode(encoded);
 
-                headers.insert(
-                    "Authorization",
-                    HeaderValue::from_bytes(format!("Basic {b64}").as_bytes()).map_err(|_| {
-                        OidcClientError::new_error(
-                            "error converting client_secret_basic value to header value",
-                            None,
-                        )
-                    })?,
-                );
-
-                request.headers = headers;
+                request = request.header("authorization", format!("Basic {b64}"));
 
                 Ok(request)
             }
-            _ => Err(OidcClientError::new_type_error(
+            _ => Err(Box::new(OidcClientError::new_type_error(
                 &format!("missing, or unsupported, {endpoint}_endpoint_auth_method"),
                 None,
-            )),
+            ))),
         }
     }
 
-    fn client_assertion(
-        &self,
-        endpoint: &str,
-        payload: JwtPayload,
-    ) -> Result<String, OidcClientError> {
+    fn client_assertion(&self, endpoint: &str, payload: JwtPayload) -> OidcReturnType<String> {
         let (mut alg, endpiont_auth_method) = match endpoint {
             "token" => (
                 self.token_endpoint_auth_signing_alg.as_ref(),
@@ -488,10 +522,10 @@ impl Client {
                 self.introspection_endpoint_auth_method.as_ref(),
             ),
             _ => {
-                return Err(OidcClientError::new_type_error(
+                return Err(Box::new(OidcClientError::new_type_error(
                     &format!("missing, or unsupported, {endpoint}_endpoint_auth_method"),
                     None,
-                ))
+                )))
             }
         };
 
@@ -510,10 +544,10 @@ impl Client {
                     .introspection_endpoint_auth_signing_alg_values_supported
                     .as_ref(),
                 _ => {
-                    return Err(OidcClientError::new_type_error(
+                    return Err(Box::new(OidcClientError::new_type_error(
                         &format!("missing, or unsupported, {endpoint}_endpoint_auth_method"),
                         None,
-                    ))
+                    )))
                 }
             };
 
@@ -527,7 +561,7 @@ impl Client {
                     .find(|a| HS_REGEX.is_match(a));
             }
 
-            let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {endpoint}_endpoint_auth_method Client Assertion"), None, None))?;
+            let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {endpoint}_endpoint_auth_method Client Assertion"), None))?;
 
             let mut header = JwsHeader::new();
             header.set_algorithm(algorithm);
@@ -538,8 +572,9 @@ impl Client {
                 OidcClientError::new_error("could not convert payload to bytes", None)
             })?;
 
-            return jws::serialize_compact(&payload_bytes, &header, &*signer)
-                .map_err(|_| OidcClientError::new_error("error while creating jwt", None));
+            return jws::serialize_compact(&payload_bytes, &header, &*signer).map_err(|_| {
+                Box::new(OidcClientError::new_error("error while creating jwt", None))
+            });
         }
 
         let jwks = self
@@ -562,14 +597,13 @@ impl Client {
             });
         }
 
-        let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {endpoint}_endpoint_auth_method Client Assertion"), None, None))?;
+        let algorithm = alg.ok_or(OidcClientError::new_rp_error(&format!("failed to determine a JWS Algorithm to use for {endpoint}_endpoint_auth_method Client Assertion"), None))?;
 
         let keys = jwks.get(Some(algorithm.to_string()), Some("sig".to_string()), None)?;
         let key = keys.first().ok_or(OidcClientError::new_rp_error(
             &format!(
                 "no key found in client jwks to sign a client assertion with using alg {algorithm}",
             ),
-            None,
             None,
         ))?;
 
@@ -588,10 +622,10 @@ impl Client {
             &header,
             &*signer,
         )
-        .map_err(|_| OidcClientError::new_error("error while creating jwt", None));
+        .map_err(|_| Box::new(OidcClientError::new_error("error while creating jwt", None)));
     }
 
-    pub(crate) fn decrypt_jarm(&self, response: &str) -> Result<String, OidcClientError> {
+    pub(crate) fn decrypt_jarm(&self, response: &str) -> OidcReturnType<String> {
         if let Some(expected_alg) = &self.authorization_encrypted_response_alg {
             let expected_enc = self.authorization_encrypted_response_enc.as_deref();
             return self.decrypt_jwe(response, expected_alg, expected_enc);
@@ -604,7 +638,7 @@ impl Client {
         jwe: &str,
         expected_alg: &str,
         expected_enc: Option<&str>,
-    ) -> Result<String, OidcClientError> {
+    ) -> OidcReturnType<String> {
         let expected_enc = expected_enc.unwrap_or("A128CBC-HS256");
 
         let split: Vec<String> = jwe.split('.').map(|f| f.to_owned()).collect();
@@ -617,13 +651,18 @@ impl Client {
             Ok(v) => match serde_json::from_slice::<HashMap<String, Value>>(&v) {
                 Ok(decoded) => decoded,
                 Err(_) => {
-                    return Err(OidcClientError::new_error(
+                    return Err(Box::new(OidcClientError::new_error(
                         "jwt header deserialization error",
                         None,
-                    ))
+                    )))
                 }
             },
-            Err(_) => return Err(OidcClientError::new_error("jwt decode error", None)),
+            Err(_) => {
+                return Err(Box::new(OidcClientError::new_error(
+                    "jwt decode error",
+                    None,
+                )))
+            }
         };
 
         let alg = decoded_header.get("alg");
@@ -632,18 +671,13 @@ impl Client {
             || alg.is_some_and(|x| !x.is_string())
             || alg.is_some_and(|x| x.as_str().is_some_and(|y| y != expected_alg))
         {
-            let mut extra_data = HashMap::<String, Value>::new();
-
-            extra_data.insert("jwe".to_string(), json!(jwe));
-
-            return Err(OidcClientError::new_rp_error(
+            return Err(Box::new(OidcClientError::new_rp_error(
                 &format!(
                     "unexpected JWE alg received, expected {expected_alg}, got: {}",
                     alg.unwrap().as_str().unwrap()
                 ),
                 None,
-                Some(extra_data),
-            ));
+            )));
         }
 
         let enc = decoded_header.get("enc");
@@ -652,18 +686,13 @@ impl Client {
             || enc.is_some_and(|x| !x.is_string())
             || enc.is_some_and(|x| x.as_str().is_some_and(|y| y != expected_enc))
         {
-            let mut extra_data = HashMap::<String, Value>::new();
-
-            extra_data.insert("jwe".to_string(), json!(jwe));
-
-            return Err(OidcClientError::new_rp_error(
+            return Err(Box::new(OidcClientError::new_rp_error(
                 &format!(
                     "unexpected JWE enc received, expected {expected_enc}, got: {}",
                     enc.unwrap().as_str().unwrap()
                 ),
                 None,
-                Some(extra_data),
-            ));
+            )));
         }
 
         let mut plain_text: Option<String> = None;
@@ -671,7 +700,12 @@ impl Client {
         if EXPECTED_ALG_REGEX.is_match(expected_alg) {
             let jwks = match &self.private_jwks {
                 Some(jwks) => jwks,
-                None => return Err(OidcClientError::new_error("private_jwks is empty", None)),
+                None => {
+                    return Err(Box::new(OidcClientError::new_error(
+                        "private_jwks is empty",
+                        None,
+                    )))
+                }
             };
 
             let header = josekit::jwt::decode_header(jwe).unwrap();
@@ -716,28 +750,27 @@ impl Client {
             return Ok(pt);
         }
 
-        let mut extra_data = HashMap::<String, Value>::new();
-
-        extra_data.insert("jwt".to_string(), json!(jwe));
-
-        Err(OidcClientError::new_rp_error(
+        Err(Box::new(OidcClientError::new_rp_error(
             "failed to decrypt JWE",
             None,
-            Some(extra_data),
-        ))
+        )))
     }
 
-    pub(crate) async fn validate_jarm_async(
+    pub(crate) async fn validate_jarm_async<T>(
         &mut self,
         response: &str,
-    ) -> Result<JwtPayload, OidcClientError> {
+        http_client: &T,
+    ) -> OidcReturnType<JwtPayload>
+    where
+        T: OidcHttpClient,
+    {
         let expected_alg = match &self.authorization_signed_response_alg {
             Some(alg) => alg.to_string(),
             None => {
-                return Err(OidcClientError::new_error(
+                return Err(Box::new(OidcClientError::new_error(
                     "authorization_signed_response_alg not found on the client",
                     None,
-                ))
+                )))
             }
         };
 
@@ -746,18 +779,23 @@ impl Client {
                 response,
                 &expected_alg,
                 Some(&["iss".to_string(), "exp".to_string(), "aud".to_string()]),
+                http_client,
             )
             .await?;
 
         Ok(payload)
     }
 
-    async fn validate_jwt_async(
+    async fn validate_jwt_async<T>(
         &mut self,
         jwt: &str,
         expected_alg: &str,
         required: Option<&[String]>,
-    ) -> Result<(JwtPayload, JwsHeader, Option<Jwk>), OidcClientError> {
+        http_client: &T,
+    ) -> OidcReturnType<(JwtPayload, JwsHeader, Option<Jwk>)>
+    where
+        T: OidcHttpClient,
+    {
         let mut required_claims = required
             .unwrap_or(&[
                 "iss".to_string(),
@@ -781,41 +819,35 @@ impl Client {
 
                 extra_data.insert("jwt".to_string(), json!(jwt));
 
-                let (name, message) = match err {
+                let (name, message) = match *err {
                     OidcClientError::Error(e, _) => ("Error", e.message),
                     OidcClientError::TypeError(e, _) => ("TypeError", e.message),
                     OidcClientError::RPError(e, _) => ("RPError", e.message),
                     OidcClientError::OPError(e, _) => ("OPError", e.error),
                 };
 
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     &format!("failed to decode JWT ({name}: {message})"),
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
         };
 
         let header_alg = match decoded_jwt.header.algorithm() {
             Some(alg) => alg,
             None => {
-                return Err(OidcClientError::new_error(
+                return Err(Box::new(OidcClientError::new_error(
                     "Algorithm not found in jwt",
                     None,
-                ))
+                )))
             }
         };
 
         if header_alg != expected_alg {
-            let mut extra_data = HashMap::<String, Value>::new();
-
-            extra_data.insert("jwt".to_string(), json!(jwt));
-
-            return Err(OidcClientError::new_rp_error(
+            return Err(Box::new(OidcClientError::new_rp_error(
                 &format!("unexpected JWT alg received, expected {expected_alg}, got: {header_alg}"),
                 None,
-                Some(extra_data),
-            ));
+            )));
         }
 
         if is_self_issued {
@@ -823,7 +855,7 @@ impl Client {
         }
 
         for claim in required_claims {
-            verify_presence(&decoded_jwt.payload, jwt, &claim)?;
+            verify_presence(&decoded_jwt.payload, &claim)?;
         }
 
         let payload_iss = decoded_jwt.payload.issuer();
@@ -833,65 +865,42 @@ impl Client {
             let expected_iss = self.issuer.as_ref().map_or("", |x| x.issuer.as_str());
 
             if iss != expected_iss {
-                let mut extra_data = HashMap::<String, Value>::new();
-
-                extra_data.insert("jwt".to_string(), json!(jwt));
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     &format!("unexpected iss value, expected {expected_iss}, got: {iss}",),
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
         }
 
         let payload_iat = decoded_jwt.payload.issued_at();
 
         if payload_iat.is_none() {
-            let mut extra_data = HashMap::<String, Value>::new();
-            extra_data.insert("jwt".to_string(), json!(jwt));
-
-            return Err(OidcClientError::new_rp_error(
+            return Err(Box::new(OidcClientError::new_rp_error(
                 "JWT iat claim must be a JSON numeric value",
                 None,
-                Some(extra_data),
-            ));
+            )));
         }
 
         let payload_nbf = decoded_jwt.payload.claim("nbf");
 
         if let Some(nbf) = payload_nbf {
             if !nbf.is_number() {
-                let mut extra_data = HashMap::<String, Value>::new();
-                extra_data.insert("jwt".to_string(), json!(jwt));
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     "JWT nbf claim must be a JSON numeric value",
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
 
             let nbf_value = nbf.as_i64().unwrap();
 
             if nbf_value > (timestamp.wrapping_add(self.clock_tolerance.as_secs() as i64)) {
-                let mut extra_data = HashMap::<String, Value>::new();
-                extra_data.insert("jwt".to_string(), json!(jwt));
-                extra_data.insert("nbf".to_string(), json!(nbf_value));
-                extra_data.insert("now".to_string(), json!(timestamp));
-                extra_data.insert(
-                    "tolerance".to_string(),
-                    json!(self.clock_tolerance.as_secs()),
-                );
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     &format!(
                         "JWT not active yet, now {}, nbf {nbf_value}",
                         timestamp.wrapping_add(self.clock_tolerance.as_secs() as i64)
                     ),
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
         }
 
@@ -899,36 +908,22 @@ impl Client {
 
         if let Some(exp) = payload_exp {
             if !exp.is_number() {
-                let mut extra_data = HashMap::<String, Value>::new();
-                extra_data.insert("jwt".to_string(), json!(jwt));
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     "JWT exp claim must be a JSON numeric value",
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
 
             let exp_value = exp.as_i64().unwrap();
 
             if (timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64)) >= exp_value {
-                let mut extra_data = HashMap::<String, Value>::new();
-                extra_data.insert("jwt".to_string(), json!(jwt));
-                extra_data.insert("exp".to_string(), json!(exp));
-                extra_data.insert("now".to_string(), json!(timestamp));
-                extra_data.insert(
-                    "tolerance".to_string(),
-                    json!(self.clock_tolerance.as_secs()),
-                );
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     &format!(
                         "JWT expired, now {}, exp {exp_value}",
                         timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64)
                     ),
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
         }
 
@@ -937,37 +932,25 @@ impl Client {
 
         if let Some(aud) = payload_aud {
             if aud.len() > 1 && payload_azp.is_none() {
-                let mut extra_data = HashMap::<String, Value>::new();
-                extra_data.insert("jwt".to_string(), json!(jwt));
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     "missing required JWT property azp",
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
 
             if aud.len() > 1 && !aud.contains(&self.client_id.as_str()) {
-                let mut extra_data = HashMap::<String, Value>::new();
-                extra_data.insert("jwt".to_string(), json!(jwt));
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     &format!(
                         "aud is missing the client_id, expected {} to be included in {:?}",
                         self.client_id, aud
                     ),
                     None,
-                    Some(extra_data),
-                ));
+                )));
             } else if aud.len() == 1 && !aud.contains(&self.client_id.as_str()) {
-                let mut extra_data = HashMap::<String, Value>::new();
-                extra_data.insert("jwt".to_string(), json!(jwt));
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     &format!("aud mismatch, expected {}, got: {}", self.client_id, aud[0]),
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
         }
 
@@ -985,14 +968,10 @@ impl Client {
             additional_autorized_parties.push(self.client_id.clone());
 
             if !additional_autorized_parties.contains(azp) {
-                let mut extra_data = HashMap::<String, Value>::new();
-                extra_data.insert("jwt".to_string(), json!(jwt));
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     &format!("azp mismatch, got: {azp}"),
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
         }
 
@@ -1004,14 +983,10 @@ impl Client {
             let jwk_str = match payload_sub_jwk {
                 Some(sub_jwk) => {
                     if !sub_jwk.is_object() {
-                        let mut extra_data = HashMap::<String, Value>::new();
-                        extra_data.insert("jwt".to_string(), json!(jwt));
-
-                        return Err(OidcClientError::new_rp_error(
+                        return Err(Box::new(OidcClientError::new_rp_error(
                             "failed to use sub_jwk claim as an asymmetric JSON Web Key",
                             None,
-                            Some(extra_data),
-                        ));
+                        )));
                     }
 
                     // Shoud not throw an error?
@@ -1020,13 +995,9 @@ impl Client {
                     ))?;
 
                     let mut jwk = Jwk::from_bytes(jwk_json.as_bytes()).map_err(|_| {
-                        let mut extra_data = HashMap::<String, Value>::new();
-                        extra_data.insert("jwt".to_string(), json!(jwt));
-
                         OidcClientError::new_rp_error(
                             "failed to use sub_jwk claim as an asymmetric JSON Web Key",
                             None,
-                            Some(extra_data),
                         )
                     })?;
 
@@ -1035,14 +1006,10 @@ impl Client {
                     }
 
                     if jwk.is_private_key() {
-                        let mut extra_data = HashMap::<String, Value>::new();
-                        extra_data.insert("jwt".to_string(), json!(jwt));
-
-                        return Err(OidcClientError::new_rp_error(
+                        return Err(Box::new(OidcClientError::new_rp_error(
                             "failed to use sub_jwk claim as an asymmetric JSON Web Key",
                             None,
-                            Some(extra_data),
-                        ));
+                        )));
                     }
 
                     keys.push(jwk);
@@ -1050,14 +1017,10 @@ impl Client {
                     jwk_json
                 }
                 _ => {
-                    let mut extra_data = HashMap::<String, Value>::new();
-                    extra_data.insert("jwt".to_string(), json!(jwt));
-
-                    return Err(OidcClientError::new_rp_error(
+                    return Err(Box::new(OidcClientError::new_rp_error(
                         "failed to use sub_jwk claim as an asymmetric JSON Web Key",
                         None,
-                        Some(extra_data),
-                    ));
+                    )));
                 }
             };
 
@@ -1068,18 +1031,13 @@ impl Client {
                     .ok_or(OidcClientError::new_rp_error(
                         "sub not found in payload",
                         None,
-                        None,
                     ))?;
 
             if get_s256_jwk_thumbprint(&jwk_str)? != payload_sub {
-                let mut extra_data = HashMap::<String, Value>::new();
-                extra_data.insert("jwt".to_string(), json!(jwt));
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     "failed to match the subject with sub_jwk",
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
         } else if header_alg.starts_with("HS") {
             keys.push(self.secret_for_alg(header_alg)?);
@@ -1107,15 +1065,15 @@ impl Client {
                         key_id: header_kid,
                         key_type: header_kty,
                     };
-                    let jwks = i.query_keystore_async(query, false).await?;
+                    let jwks = i.query_keystore_async(query, false, http_client).await?;
 
                     keys.append(&mut jwks.get_keys());
                 }
                 None => {
-                    return Err(OidcClientError::new_error(
+                    return Err(Box::new(OidcClientError::new_error(
                         "Issuer is not configured for this client",
                         None,
-                    ))
+                    )))
                 }
             };
         }
@@ -1135,17 +1093,13 @@ impl Client {
         let mut extra_data = HashMap::<String, Value>::new();
 
         extra_data.insert("jwt".to_string(), json!(jwt));
-        Err(OidcClientError::new_rp_error(
+        Err(Box::new(OidcClientError::new_rp_error(
             "failed to validate JWT signature",
             None,
-            Some(extra_data),
-        ))
+        )))
     }
 
-    pub(crate) fn decrypt_id_token(
-        &self,
-        token_set: TokenSet,
-    ) -> Result<TokenSet, OidcClientError> {
+    pub(crate) fn decrypt_id_token(&self, token_set: TokenSet) -> OidcReturnType<TokenSet> {
         if self.id_token_encrypted_response_alg.is_none() {
             return Ok(token_set);
         }
@@ -1156,7 +1110,7 @@ impl Client {
                 &self.id_token_encrypted_response_enc,
             ) {
                 (Some(alg), Some(enc)) => (alg, enc),
-                _ => return Err(OidcClientError::new_error("both id_token_encrypted_response_alg and id_token_encrypted_response_enc is required on the client to decrypt id_token", None))
+                _ => return Err(Box::new(OidcClientError::new_error("both id_token_encrypted_response_alg and id_token_encrypted_response_enc is required on the client to decrypt id_token", None)))
             };
 
             let decrypted_id_token =
@@ -1168,27 +1122,31 @@ impl Client {
             return Ok(new_token_set);
         }
 
-        Err(OidcClientError::new_type_error(
+        Err(Box::new(OidcClientError::new_type_error(
             "id_token not present in TokenSet",
             None,
-        ))
+        )))
     }
 
-    pub(crate) async fn validate_id_token_async(
+    pub(crate) async fn validate_id_token_async<T>(
         &mut self,
         token_set: TokenSet,
         nonce: Option<String>,
         returned_by: &str,
         max_age: Option<u64>,
         state: Option<String>,
-    ) -> Result<TokenSet, OidcClientError> {
+        http_client: &T,
+    ) -> OidcReturnType<TokenSet>
+    where
+        T: OidcHttpClient,
+    {
         if let Some(id_token) = token_set.get_id_token() {
             let expected_alg = self.id_token_signed_response_alg.clone();
 
             let timestamp = (self.now)();
 
             let (payload, header, key) = self
-                .validate_jwt_async(&id_token, &expected_alg, None)
+                .validate_jwt_async(&id_token, &expected_alg, None, http_client)
                 .await?;
 
             if max_age.is_some()
@@ -1197,24 +1155,16 @@ impl Client {
                 match payload.claim("auth_time") {
                     Some(Value::Number(_)) => {}
                     Some(_) => {
-                        let mut extra_data = HashMap::<String, Value>::new();
-
-                        extra_data.insert("jwt".to_string(), json!(id_token));
-                        return Err(OidcClientError::new_rp_error(
+                        return Err(Box::new(OidcClientError::new_rp_error(
                             "JWT auth_time claim must be a JSON numeric value",
                             None,
-                            Some(extra_data),
-                        ));
+                        )));
                     }
                     None => {
-                        let mut extra_data = HashMap::<String, Value>::new();
-
-                        extra_data.insert("jwt".to_string(), json!(id_token));
-                        return Err(OidcClientError::new_rp_error(
+                        return Err(Box::new(OidcClientError::new_rp_error(
                             "missing required JWT property auth_time",
                             None,
-                            Some(extra_data),
-                        ));
+                        )));
                     }
                 };
             }
@@ -1224,21 +1174,10 @@ impl Client {
                     if ma.wrapping_add(auth_time)
                         < timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64) as u64
                     {
-                        let mut extra_data = HashMap::<String, Value>::new();
-
-                        extra_data.insert("jwt".to_string(), json!(id_token));
-                        extra_data.insert("now".to_string(), json!(timestamp));
-                        extra_data.insert("auth_time".to_string(), json!(auth_time));
-                        extra_data.insert(
-                            "tolerance".to_string(),
-                            json!(self.clock_tolerance.as_secs()),
-                        );
-
-                        return Err(OidcClientError::new_rp_error(
+                        return Err(Box::new(OidcClientError::new_rp_error(
                                              &format!("too much time has elapsed since the last End-User authentication, max_age {ma}, auth_time: {auth_time}, now {timestamp}"),
                                              None,
-                                             Some(extra_data),
-                                         ));
+                                         )));
                     }
                 }
             };
@@ -1250,32 +1189,23 @@ impl Client {
                 };
 
                 if (payload_nonce.is_some() || nonce.is_some()) && payload_nonce != nonce.as_ref() {
-                    let mut extra_data = HashMap::<String, Value>::new();
-
-                    extra_data.insert("jwt".to_string(), json!(id_token));
-                    return Err(OidcClientError::new_rp_error(
+                    return Err(Box::new(OidcClientError::new_rp_error(
                         &format!(
                             "nonce mismatch, expected {}, got: {}",
                             nonce.unwrap_or_default(),
                             payload_nonce.unwrap_or(&String::new())
                         ),
                         None,
-                        Some(extra_data),
-                    ));
+                    )));
                 }
             }
 
             if returned_by == "authorization" {
                 if payload.claim("at_hash").is_none() && token_set.get_access_token().is_some() {
-                    let mut extra_data = HashMap::<String, Value>::new();
-
-                    extra_data.insert("jwt".to_string(), json!(id_token));
-
-                    return Err(OidcClientError::new_rp_error(
+                    return Err(Box::new(OidcClientError::new_rp_error(
                         "missing required property at_hash",
                         None,
-                        Some(extra_data),
-                    ));
+                    )));
                 }
 
                 let other_fields = token_set.get_other().unwrap_or_default();
@@ -1283,15 +1213,10 @@ impl Client {
                 let code = other_fields.get("code");
 
                 if payload.claim("c_hash").is_none() && code.is_some() {
-                    let mut extra_data = HashMap::<String, Value>::new();
-
-                    extra_data.insert("jwt".to_string(), json!(id_token));
-
-                    return Err(OidcClientError::new_rp_error(
+                    return Err(Box::new(OidcClientError::new_rp_error(
                         "missing required property c_hash",
                         None,
-                        Some(extra_data),
-                    ));
+                    )));
                 }
 
                 let s_hash = payload.claim("s_hash");
@@ -1300,24 +1225,19 @@ impl Client {
                     let token_set_state = other_fields.get("state");
 
                     if s_hash.is_none() && (token_set_state.is_some() || state.is_some()) {
-                        let mut extra_data = HashMap::<String, Value>::new();
-
-                        extra_data.insert("jwt".to_string(), json!(id_token));
-
-                        return Err(OidcClientError::new_rp_error(
+                        return Err(Box::new(OidcClientError::new_rp_error(
                             "missing required property s_hash",
                             None,
-                            Some(extra_data),
-                        ));
+                        )));
                     }
                 }
 
                 if let Some(Value::String(state_hash)) = s_hash {
                     if state.is_none() {
-                        return Err(OidcClientError::new_type_error(
+                        return Err(Box::new(OidcClientError::new_type_error(
                             "cannot verify s_hash, \"checks.state\" property not provided",
                             None,
-                        ));
+                        )));
                     }
 
                     let alg = header
@@ -1334,31 +1254,19 @@ impl Client {
 
                     let state_source = state.unwrap_or_default();
 
-                    match validate_hash(name, state_hash, alg, &state_source, crv) {
+                    match validate_hash(name, state_hash, alg, &state_source, crv).map_err(|e| *e) {
                         Ok(_) => {}
                         Err(OidcClientError::Error(e, _)) => {
-                            let mut extra_data = HashMap::<String, Value>::new();
-
-                            extra_data.insert("jwt".to_string(), json!(id_token));
-
-                            return Err(OidcClientError::new_rp_error(
-                                &e.message,
-                                None,
-                                Some(extra_data),
-                            ));
+                            return Err(Box::new(OidcClientError::new_rp_error(&e.message, None)));
                         }
                         Err(OidcClientError::TypeError(e, _)) => {
                             let mut extra_data = HashMap::<String, Value>::new();
 
                             extra_data.insert("jwt".to_string(), json!(id_token));
 
-                            return Err(OidcClientError::new_rp_error(
-                                &e.message,
-                                None,
-                                Some(extra_data),
-                            ));
+                            return Err(Box::new(OidcClientError::new_rp_error(&e.message, None)));
                         }
-                        Err(err) => return Err(err),
+                        Err(err) => return Err(Box::new(err)),
                     };
                 }
             }
@@ -1369,15 +1277,10 @@ impl Client {
                 .unwrap_or_default();
 
             if self.is_fapi1() && payload_iat < timestamp - 3600 {
-                let mut extra_data = HashMap::<String, Value>::new();
-
-                extra_data.insert("jwt".to_string(), json!(id_token));
-
-                return Err(OidcClientError::new_rp_error(
+                return Err(Box::new(OidcClientError::new_rp_error(
                     &format!("JWT issued too far in the past, now {timestamp}, iat {payload_iat}"),
                     None,
-                    Some(extra_data),
-                ));
+                )));
             }
 
             if let Some(access_token) = token_set.get_access_token() {
@@ -1394,31 +1297,15 @@ impl Client {
 
                     let crv = key.as_ref().map(|x| x.curve().unwrap_or_default());
 
-                    match validate_hash(name, at_hash, alg, &access_token, crv) {
+                    match validate_hash(name, at_hash, alg, &access_token, crv).map_err(|e| *e) {
                         Ok(_) => {}
                         Err(OidcClientError::Error(e, _)) => {
-                            let mut extra_data = HashMap::<String, Value>::new();
-
-                            extra_data.insert("jwt".to_string(), json!(id_token));
-
-                            return Err(OidcClientError::new_rp_error(
-                                &e.message,
-                                None,
-                                Some(extra_data),
-                            ));
+                            return Err(Box::new(OidcClientError::new_rp_error(&e.message, None)));
                         }
                         Err(OidcClientError::TypeError(e, _)) => {
-                            let mut extra_data = HashMap::<String, Value>::new();
-
-                            extra_data.insert("jwt".to_string(), json!(id_token));
-
-                            return Err(OidcClientError::new_rp_error(
-                                &e.message,
-                                None,
-                                Some(extra_data),
-                            ));
+                            return Err(Box::new(OidcClientError::new_rp_error(&e.message, None)));
                         }
-                        Err(err) => return Err(err),
+                        Err(err) => return Err(Box::new(err)),
                     };
                 }
             }
@@ -1439,31 +1326,15 @@ impl Client {
 
                     let crv = key.as_ref().map(|x| x.curve().unwrap_or_default());
 
-                    match validate_hash(name, c_hash, alg, code, crv) {
+                    match validate_hash(name, c_hash, alg, code, crv).map_err(|e| *e) {
                         Ok(_) => {}
                         Err(OidcClientError::Error(e, _)) => {
-                            let mut extra_data = HashMap::<String, Value>::new();
-
-                            extra_data.insert("jwt".to_string(), json!(id_token));
-
-                            return Err(OidcClientError::new_rp_error(
-                                &e.message,
-                                None,
-                                Some(extra_data),
-                            ));
+                            return Err(Box::new(OidcClientError::new_rp_error(&e.message, None)));
                         }
                         Err(OidcClientError::TypeError(e, _)) => {
-                            let mut extra_data = HashMap::<String, Value>::new();
-
-                            extra_data.insert("jwt".to_string(), json!(id_token));
-
-                            return Err(OidcClientError::new_rp_error(
-                                &e.message,
-                                None,
-                                Some(extra_data),
-                            ));
+                            return Err(Box::new(OidcClientError::new_rp_error(&e.message, None)));
                         }
-                        Err(err) => return Err(err),
+                        Err(err) => return Err(Box::new(err)),
                     }
                 }
             }
@@ -1471,13 +1342,13 @@ impl Client {
             return Ok(token_set);
         }
 
-        Err(OidcClientError::new_type_error(
+        Err(Box::new(OidcClientError::new_type_error(
             "id_token not present in TokenSet",
             None,
-        ))
+        )))
     }
 
-    pub(crate) fn decrypt_jwt_userinfo(&self, body: String) -> Result<String, OidcClientError> {
+    pub(crate) fn decrypt_jwt_userinfo(&self, body: String) -> OidcReturnType<String> {
         if let Some(expected_alg) = &self.userinfo_encrypted_response_alg {
             let expected_enc = self.userinfo_encrypted_response_enc.as_deref();
             return self.decrypt_jwe(&body, expected_alg, expected_enc);
@@ -1486,10 +1357,14 @@ impl Client {
         Ok(body)
     }
 
-    pub(crate) async fn validate_jwt_userinfo_async(
+    pub(crate) async fn validate_jwt_userinfo_async<T>(
         &mut self,
         body: &str,
-    ) -> Result<(JwtPayload, JwsHeader, Option<Jwk>), OidcClientError> {
+        http_client: &T,
+    ) -> OidcReturnType<(JwtPayload, JwsHeader, Option<Jwk>)>
+    where
+        T: OidcHttpClient,
+    {
         let userinfo_signed_response_alg = self
             .userinfo_signed_response_alg
             .as_ref()
@@ -1498,26 +1373,32 @@ impl Client {
                 None,
             ))?
             .to_owned();
-        self.validate_jwt_async(body, &userinfo_signed_response_alg, Some(&[]))
+        self.validate_jwt_async(body, &userinfo_signed_response_alg, Some(&[]), http_client)
             .await
     }
 
-    pub(crate) async fn instance_request_async(
+    pub(crate) async fn instance_request_async<T>(
         &mut self,
-        mut req: Request,
+        mut req: HttpRequest,
         dpop: Option<&Jwk>,
         access_token: Option<&str>,
-    ) -> Result<Response, OidcClientError> {
+        http_client: &T,
+    ) -> OidcReturnType<HttpResponse>
+    where
+        T: OidcHttpClient,
+    {
         self.generate_dpop_header(&mut req, dpop, access_token)?;
 
-        let res = match request_async(&req, self.request_interceptor.as_mut()).await {
+        let url = req.url.clone();
+
+        let res = match request_async(req, http_client).await {
             Ok(r) => r,
-            Err(e) => match &e {
+            Err(e) => match e.as_ref() {
                 OidcClientError::RPError(_, Some(r))
                 | OidcClientError::TypeError(_, Some(r))
                 | OidcClientError::OPError(_, Some(r))
                 | OidcClientError::Error(_, Some(r)) => {
-                    self.extract_server_dpop_nonce(&req.url, r);
+                    self.extract_server_dpop_nonce(&url, r);
                     return Err(e);
                 }
 
@@ -1525,7 +1406,7 @@ impl Client {
             },
         };
 
-        self.extract_server_dpop_nonce(&req.url, &res);
+        self.extract_server_dpop_nonce(&url, &res);
 
         Ok(res)
     }
@@ -1535,22 +1416,22 @@ impl Client {
         payload: Value,
         private_key_input: &Jwk,
         access_token: Option<&str>,
-    ) -> Result<String, OidcClientError> {
+    ) -> OidcReturnType<String> {
         let mut payload_obj = match payload {
             Value::Object(obj) => obj,
             _ => {
-                return Err(OidcClientError::new_type_error(
+                return Err(Box::new(OidcClientError::new_type_error(
                     "payload must be a plain object",
                     None,
-                ))
+                )))
             }
         };
 
         if !private_key_input.is_private_key() || private_key_input.key_type() == "oct" {
-            return Err(OidcClientError::new_type_error(
+            return Err(Box::new(OidcClientError::new_type_error(
                 "dpop option must be a private key",
                 None,
-            ));
+            )));
         }
 
         let alg = match private_key_input.key_type().to_lowercase().as_str() {
@@ -1563,10 +1444,10 @@ impl Client {
                     None,
                 ))?,
             _ => {
-                return Err(OidcClientError::new_type_error(
+                return Err(Box::new(OidcClientError::new_type_error(
                     "unsupported DPoP private key asymmetric key type",
                     None,
-                ))
+                )))
             }
         };
 
@@ -1576,10 +1457,10 @@ impl Client {
             .and_then(|x| x.dpop_signing_alg_values_supported.as_ref())
         {
             if !dsavs.contains(&alg.to_string()) {
-                return Err(OidcClientError::new_type_error(
+                return Err(Box::new(OidcClientError::new_type_error(
                     "unsupported DPoP signing algorithm",
                     None,
-                ));
+                )));
             }
         }
 
@@ -1593,10 +1474,10 @@ impl Client {
         let mut jwt_payload = match JwtPayload::from_map(payload_obj) {
             Ok(p) => p,
             Err(_) => {
-                return Err(OidcClientError::new_error(
+                return Err(Box::new(OidcClientError::new_error(
                     "Error while converting serde_json::Value to JwtPayload",
                     None,
-                ))
+                )))
             }
         };
 
@@ -1618,18 +1499,28 @@ impl Client {
         let signer = private_key_input.to_signer()?;
 
         josekit::jwt::encode_with_signer(&jwt_payload, &jwt_header, &*signer)
-            .map_err(|_| OidcClientError::new_error("error while signing jwt", None))
+            .map_err(|_| Box::new(OidcClientError::new_error("error while signing jwt", None)))
     }
 
     pub(crate) fn generate_dpop_header(
         &mut self,
-        request: &mut Request,
+        request: &mut HttpRequest,
         dpop: Option<&Jwk>,
         access_token: Option<&str>,
-    ) -> Result<(), OidcClientError> {
+    ) -> OidcReturnType<()> {
         if let Some(dpop) = dpop.as_ref() {
             if let Some(htu) = get_dpop_htu(&request.url) {
-                let htm = request.method.as_str().to_string();
+                let htm = match request.method {
+                    HttpMethod::GET => "GET",
+                    HttpMethod::POST => "POST",
+                    HttpMethod::PUT => "PUT",
+                    HttpMethod::PATCH => "PATCH",
+                    HttpMethod::DELETE => "DELETE",
+                    HttpMethod::HEAD => "HEAD",
+                    HttpMethod::OPTIONS => "OPTIONS",
+                    HttpMethod::TRACE => "TRACE",
+                    HttpMethod::CONNECT => "CONNECT",
+                };
 
                 let mut payload = json!({"htu": htu, "htm": htm});
                 if let Some(nonce) = self.dpop_nonce_cache.cache.get(&htu) {
@@ -1638,17 +1529,17 @@ impl Client {
 
                 let dpop_header = self.dpop_proof(payload, dpop, access_token)?;
 
-                if let Ok(dpop_header_val) = HeaderValue::from_str(&dpop_header) {
-                    request.headers.insert("DPoP", dpop_header_val);
-                }
+                request
+                    .headers
+                    .insert("DPoP".to_string(), vec![dpop_header]);
             }
         }
         Ok(())
     }
 
-    pub(crate) fn extract_server_dpop_nonce(&mut self, url: &str, res: &Response) {
+    pub(crate) fn extract_server_dpop_nonce(&mut self, url: &Url, res: &HttpResponse) {
         if let Some(cache_key) = get_dpop_htu(url) {
-            if let Some(dpop_nonce) = res.headers.get("dpop-nonce").and_then(|x| x.to_str().ok()) {
+            if let Some(dpop_nonce) = &res.dpop_nonce {
                 if NQCHAR_REGEX.is_match(dpop_nonce) {
                     self.dpop_nonce_cache
                         .cache
@@ -1659,22 +1550,20 @@ impl Client {
     }
 }
 
-pub(crate) fn get_dpop_htu(url_str: &str) -> Option<String> {
-    Url::parse(url_str)
-        .ok()
-        .map(|x| x.origin().ascii_serialization() + x.path())
+pub(crate) fn get_dpop_htu(url: &Url) -> Option<String> {
+    Some(url.origin().ascii_serialization() + url.path())
 }
 
-fn determine_ec_algorithm(private_key_input: &Jwk) -> Result<&'static str, OidcClientError> {
+fn determine_ec_algorithm(private_key_input: &Jwk) -> OidcReturnType<&'static str> {
     match private_key_input.curve() {
         Some("P-256") => Ok("ES256"),
         Some("secp256k1") => Ok("ES256K"),
         Some("P-384") => Ok("ES384"),
         Some("P-512") => Ok("ES512"),
-        _ => Err(OidcClientError::new_type_error(
+        _ => Err(Box::new(OidcClientError::new_type_error(
             "unsupported DPoP private key curve",
             None,
-        )),
+        ))),
     }
 }
 
@@ -1683,41 +1572,33 @@ fn get_jwk(jwk: &Jwk) -> Value {
     let mut pub_jwk = json!({});
 
     if let Some(kty) = jwk.parameter("kty") {
-        pub_jwk["kty"] = kty.to_owned();
+        kty.clone_into(&mut pub_jwk["kty"]);
     }
     if let Some(crv) = jwk.parameter("crv") {
-        pub_jwk["crv"] = crv.to_owned();
+        crv.clone_into(&mut pub_jwk["crv"]);
     }
     if let Some(x) = jwk.parameter("x") {
-        pub_jwk["x"] = x.to_owned();
+        x.clone_into(&mut pub_jwk["x"]);
     }
     if let Some(y) = jwk.parameter("y") {
-        pub_jwk["y"] = y.to_owned();
+        y.clone_into(&mut pub_jwk["y"]);
     }
     if let Some(e) = jwk.parameter("e") {
-        pub_jwk["e"] = e.to_owned();
-    }
-    if let Some(e) = jwk.parameter("e") {
-        pub_jwk["e"] = e.to_owned();
+        e.clone_into(&mut pub_jwk["e"]);
     }
     if let Some(n) = jwk.parameter("n") {
-        pub_jwk["n"] = n.to_owned();
+        n.clone_into(&mut pub_jwk["n"]);
     }
 
     pub_jwk
 }
 
-fn verify_presence(payload: &JwtPayload, jwt: &str, prop: &str) -> Result<(), OidcClientError> {
+fn verify_presence(payload: &JwtPayload, prop: &str) -> OidcReturnType<()> {
     if payload.claim(prop).is_none() {
-        let mut extra_data = HashMap::<String, Value>::new();
-
-        extra_data.insert("jwt".to_string(), json!(jwt));
-
-        return Err(OidcClientError::new_rp_error(
+        return Err(Box::new(OidcClientError::new_rp_error(
             &format!("missing required JWT property {prop}"),
             None,
-            Some(extra_data),
-        ));
+        )));
     }
     Ok(())
 }

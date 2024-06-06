@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
-use crate::types::{DecodedToken, OidcClientError};
+use crate::types::{DecodedToken, OidcClientError, OidcReturnType};
 
 /// Gets a Unix Timestamp in seconds. Uses [`SystemTime::now`]
 pub fn now() -> i64 {
@@ -64,7 +64,7 @@ pub fn convert_json_to<T: for<'a> Deserialize<'a>>(plain: &str) -> Result<T, Str
 }
 
 /// Gets S256 thumbprint of a JWK JSON.
-pub fn get_s256_jwk_thumbprint(jwk_str: &str) -> Result<String, OidcClientError> {
+pub fn get_s256_jwk_thumbprint(jwk_str: &str) -> OidcReturnType<String> {
     let jwk: JsonWebKey<'_> = serde_json::from_str(jwk_str)
         .map_err(|_| OidcClientError::new_error("Invalid JWK", None))?;
 
@@ -72,21 +72,21 @@ pub fn get_s256_jwk_thumbprint(jwk_str: &str) -> Result<String, OidcClientError>
 }
 
 /// Decodes a JWT without verification
-pub fn decode_jwt(token: &str) -> Result<DecodedToken, OidcClientError> {
+pub fn decode_jwt(token: &str) -> OidcReturnType<DecodedToken> {
     let split_token: Vec<&str> = token.split('.').collect();
 
     if split_token.len() == 5 {
-        return Err(OidcClientError::new_type_error(
+        return Err(Box::new(OidcClientError::new_type_error(
             "encrypted JWTs cannot be decoded",
             None,
-        ));
+        )));
     }
 
     if split_token.len() != 3 {
-        return Err(OidcClientError::new_error(
+        return Err(Box::new(OidcClientError::new_error(
             "JWTs must have three components",
             None,
-        ));
+        )));
     }
 
     let map_err_decode = |_| OidcClientError::new_error("JWT is malformed", None);

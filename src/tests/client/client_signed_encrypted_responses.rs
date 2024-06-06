@@ -1,17 +1,17 @@
-use httpmock::{Method, MockServer};
 use josekit::jwk::Jwk;
 use serde_json::json;
 
 use crate::{
     issuer::Issuer,
     jwks::Jwks,
-    tests::test_interceptors::get_default_test_interceptor,
     tokenset::{TokenSet, TokenSetParams},
     types::{
-        CallbackParams, ClientMetadata, IssuerMetadata, OAuthCallbackChecks, OpenIDCallbackChecks,
-        UserinfoOptions,
+        CallbackParams, ClientMetadata, HttpMethod, IssuerMetadata, OAuthCallbackChecks,
+        OpenIDCallbackChecks, OpenIdCallbackParams, UserinfoOptions,
     },
 };
+
+use crate::tests::test_http_client::TestHttpReqRes;
 
 fn get_jwks() -> Jwks {
     let mut jwk = Jwk::new("EC");
@@ -40,11 +40,17 @@ fn get_jwks() -> Jwks {
 
 #[tokio::test]
 async fn handles_signed_and_encrypted_id_tokens_from_implicit_and_code_responses_test_by_hybrid() {
-    let mock_http_server = MockServer::start();
-
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(Method::POST).path("/token");
-        then.status(200).body(r#"{
+    let http_client = TestHttpReqRes::new("https://op.example.com/token")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("content-length", vec!["697".to_string()])
+        .assert_request_header("authorization", vec!["Basic NGU4N2RkZTQtZGRkMy00YzIxLWFlZjktMmYyZjZiYWI0M2NhOkdmc1Q0NzlWTXk1WlpaUHF1YWRQYk4zd0t6YUZHWW8xQ1RrYjBJRkZ6RE5PRExFQXVDMkdVVjNRc1R5ZTN4TlE=".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("grant_type=authorization_code&redirect_uri=https%3A%2F%2Foidc-client.dev%2Fcb&code=eyJraW5kIjoiQXV0aG9yaXphdGlvbkNvZGUiLCJqdGkiOiI3YzM5NzQyZC0yMGUyLTQ3YjEtYmM1MC1lN2VlYzhmN2IzNmYiLCJub25jZSI6ImM2NDVmZmZhNDAwNzU1MzJlZjI5YTJlYTYyN2NmYTM3IiwiaWF0IjoxNDczMDc2NDEyLCJleHAiOjE0NzMwNzcwMTIsImlzcyI6Imh0dHBzOi8vZ3VhcmRlZC1jbGlmZnMtODYzNS5oZXJva3VhcHAuY29tL29wIn0.jgUnZUBmsceb1cpqlsmiCOQ40Zx4JTRffGN_bAgYT4rLcEv3wOlzMSoVmU1cYkDbi-jjNAqkBjqxDWHcRJnQR4BAYOdyDVcGWD_aLkqGhUOCJHn_lwWqEKtSTgh-zXiqVIVC5NTA2BdhEfHhb-jnMQNrKkL2QNXOFvT9s6khZozOMXy-mUdfNfdSFHrcpFkFyGAUpezI9QmwToMB6KwoRHDYb2jcLBXdA5JLAnHw8lpz9yUaVQv7s97wY7Xgtt2zNFwQxiJWytYNHaJxQnOZje0_TvDjrZSA9IYKuKU1Q7f7-EBfQfFSGcsFK2NtGho3mNBEUDD2B8Qv1ipv50oU6Q")
+        .set_response_body(r#"{
             "access_token":
             "eyJraW5kIjoiQWNjZXNzVG9rZW4iLCJqdGkiOiJlMDk5YTI1ZC02MzA0LTQwMGItOTdhYi1hOTJhMzMzOTBlODgiLCJpYXQiOjE0NzMwNzY0MTMsImV4cCI6MTQ3MzA4MzYxMywiaXNzIjoiaHR0cHM6Ly9ndWFyZGVkLWNsaWZmcy04NjM1Lmhlcm9rdWFwcC5jb20vb3AifQ.p_r4KvAu6lEY6JpGmRIGCkRRrovGeJcDfOw3O_gFkPRaY7bcJjNDUPlfY7_nyp3bWyqtveq55ozTZuddUL01KET7bKgxMq-dQ2SxGBvgN3KtHIRBud7Bw8Ax98YkiBKJJXC8xF00VZkkX-ZcUyXptPkUpBm0zeN6jmWmyFX-2QrbclLS8ZEK2Poc_y5PdNAtCCOTBfnq6roxzVQ5lM_aMQaSuPVd-Og6E_jBE6OE9oB4ikFa4S7EvZvFVDpGMLtUjxOazTURbqWY6OnuhuAiP6WZc1FxfQod462IqPERzl2qVJH9qQNr-iLuVLt_bzauHg33v1koTrdfETyoRAZH5w",
             "expires_at": 1473083613,
@@ -53,8 +59,9 @@ async fn handles_signed_and_encrypted_id_tokens_from_implicit_and_code_responses
             "refresh_token":
               "eyJraW5kIjoiUmVmcmVzaFRva2VuIiwianRpIjoiMzhmZTY1NmItNjYyMC00MzdiLWJmY2YtZTRjNzRhZTRiNjMzIiwibm9uY2UiOiJjNjQ1ZmZmYTQwMDc1NTMyZWYyOWEyZWE2MjdjZmEzNyIsImlhdCI6MTQ3MzA3NjQxMywiZXhwIjoxNDc1NjY4NDEzLCJpc3MiOiJodHRwczovL2d1YXJkZWQtY2xpZmZzLTg2MzUuaGVyb2t1YXBwLmNvbS9vcCJ9.hySAknc2L2ngSoTiRxUTJLOUxKmyRTUzLsRlGKip4OXNYXre9QEDH8z9c8NKBHdnRbBxg8Jo45cZbDb-5bZ6mt5noDmT42xtsCOiN25Is9SsRSzVarIDiwyqXVlTojh5XuKPulK4Ji6vp2jYUZNoVnlsA7G96cuHWVAqZd5e8GBb9YlUNZ5zSX6aggFgTGDJs46O42_g4JULB8cAb9MZAzcZOORGpmRIPpSKAZFgT2_5yW-yqh0f66JaAQUtW9TKoAsdttV4NnivzJYeyR0hlgEeKzo9zNuTkJedXbjRAIP6ybk9ITcZveuJ11CFsyHZcNd_0tZuiAlvUpJIeHK0aA",
             "token_type": "Bearer"
-          }"#);
-    });
+          }"#)
+        .set_response_content_type_header("application/json")
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         issuer: "https://guarded-cliffs-8635.herokuapp.com/op".to_string(),
@@ -63,10 +70,7 @@ async fn handles_signed_and_encrypted_id_tokens_from_implicit_and_code_responses
         ..Default::default()
     };
 
-    let mut issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let mut issuer = Issuer::new(issuer_metadata);
 
     issuer.now = || 1473076413;
 
@@ -81,7 +85,7 @@ async fn handles_signed_and_encrypted_id_tokens_from_implicit_and_code_responses
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, None)
+        .client(client_metadata, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -104,34 +108,38 @@ async fn handles_signed_and_encrypted_id_tokens_from_implicit_and_code_responses
         ..Default::default()
     };
 
-    let _ = client
-        .callback_async(
-            Some("https://oidc-client.dev/cb"),
-            params,
-            Some(checks),
-            None,
-        )
-        .await
-        .unwrap();
+    let params = OpenIdCallbackParams::default()
+        .redirect_uri("https://oidc-client.dev/cb")
+        .checks(checks)
+        .parameters(params);
+
+    let _ = client.callback_async(&http_client, params).await.unwrap();
 }
 
 #[tokio::test]
 async fn handles_signed_and_encrypted_id_tokens_from_refresh_grant() {
-    let mock_http_server = MockServer::start();
-
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(Method::POST).path("/token");
-        then.status(200).body(r#"{
-            "access_token":
-              "eyJraW5kIjoiQWNjZXNzVG9rZW4iLCJqdGkiOiJlMDk5YTI1ZC02MzA0LTQwMGItOTdhYi1hOTJhMzMzOTBlODgiLCJpYXQiOjE0NzMwNzY0MTMsImV4cCI6MTQ3MzA4MzYxMywiaXNzIjoiaHR0cHM6Ly9ndWFyZGVkLWNsaWZmcy04NjM1Lmhlcm9rdWFwcC5jb20vb3AifQ.p_r4KvAu6lEY6JpGmRIGCkRRrovGeJcDfOw3O_gFkPRaY7bcJjNDUPlfY7_nyp3bWyqtveq55ozTZuddUL01KET7bKgxMq-dQ2SxGBvgN3KtHIRBud7Bw8Ax98YkiBKJJXC8xF00VZkkX-ZcUyXptPkUpBm0zeN6jmWmyFX-2QrbclLS8ZEK2Poc_y5PdNAtCCOTBfnq6roxzVQ5lM_aMQaSuPVd-Og6E_jBE6OE9oB4ikFa4S7EvZvFVDpGMLtUjxOazTURbqWY6OnuhuAiP6WZc1FxfQod462IqPERzl2qVJH9qQNr-iLuVLt_bzauHg33v1koTrdfETyoRAZH5w",
-            "expires_at": 1473083613,
-            "id_token":
-              "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6Ik8yQzZHZnBFVGgyUDBCWVNSN1dtWDZXVTBiV1FXcVZud1lwRGVwbVI1NVkiLCJ5IjoiVG5pc0dTSWZMQUxNYzZHVUlydVBmeWFzMm9mQ3JPV3llZ2EyMW5pZG1KTSJ9fQ..RiTOrMAlM4pq6RfwnitLKA.oSERr76vgdbiYm1yQZfkwPonBzdrheypkueK9S5dRVodZDf1BKTr5-eM2VBgjYJ2R8KS5EAAJeJBxnlno3AnfO242ZQbqJP144S8sCj0lZmQoZJ6VzJavADXAf4LiprDblzV8J64pBnmvwjQN9Mk_KKNA34QoAebJZEP9A7RCLUck_oqb7vsLTM_LUyXyXxm7QiWUPdnUCzCCqcJW3SysFeJo1VZTZCwFxK0zrcja-vv9SUSoS7yvQuGRVXS3L08BglTN7SLWVujsPMJWbxmj_zYhoy14DQIckoBU7ver-2PoJOukl6m4yaY9n9LWZ5mUGDb3PbnwuFYxb1rDm2EmvlkhbXFdIuRciIOQTqgeei0TU61Ff_Vt0tinZNThYMQgX4DFc7HILBU7lMwwVUMdYqamE3suRr3qUIlD2RdSNiO87jxaiDFrosGU1fVVulcGmkFN4DX5kyd8lxMs33yPS1uO0G_NViFe-fwxd95JAYXOEiofnHFIYuHgrxfioBMoojYQl8PgLZFj8yxzGVflOyzJQgiYQA-BSAPI1bL2P_J2Jlnhdtv3cJ-bdG1pcwAa6zyzwSEXU5i6p9_TGs4nM15p-QlC3mgtjKkLtC64OL0ucc2Frb6dzKyZTOePu6PcecafNucSaMq1ERhRmQOdigDj1nwHUYs3akx31CHp-eXa9jctuy_C5l_YbBJOiUViZK2dJFNuMJQnMhPcSf6wQdVTQmXCxsSnRN158XYDhgVqqe4U6CROsKiCRQSKqpZ.Yo7zj4wMR89oWSH5Twfzzg",
-            "refresh_token":
-              "eyJraW5kIjoiUmVmcmVzaFRva2VuIiwianRpIjoiMzhmZTY1NmItNjYyMC00MzdiLWJmY2YtZTRjNzRhZTRiNjMzIiwibm9uY2UiOiJjNjQ1ZmZmYTQwMDc1NTMyZWYyOWEyZWE2MjdjZmEzNyIsImlhdCI6MTQ3MzA3NjQxMywiZXhwIjoxNDc1NjY4NDEzLCJpc3MiOiJodHRwczovL2d1YXJkZWQtY2xpZmZzLTg2MzUuaGVyb2t1YXBwLmNvbS9vcCJ9.hySAknc2L2ngSoTiRxUTJLOUxKmyRTUzLsRlGKip4OXNYXre9QEDH8z9c8NKBHdnRbBxg8Jo45cZbDb-5bZ6mt5noDmT42xtsCOiN25Is9SsRSzVarIDiwyqXVlTojh5XuKPulK4Ji6vp2jYUZNoVnlsA7G96cuHWVAqZd5e8GBb9YlUNZ5zSX6aggFgTGDJs46O42_g4JULB8cAb9MZAzcZOORGpmRIPpSKAZFgT2_5yW-yqh0f66JaAQUtW9TKoAsdttV4NnivzJYeyR0hlgEeKzo9zNuTkJedXbjRAIP6ybk9ITcZveuJ11CFsyHZcNd_0tZuiAlvUpJIeHK0aA",
-            "token_type": "Bearer"
-          }"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token")
+    .assert_request_method(HttpMethod::POST)
+    .assert_request_header("accept", vec!["application/json".to_string()])
+    .assert_request_header("content-length", vec!["646".to_string()])
+    .assert_request_header("authorization", vec!["Basic NGU4N2RkZTQtZGRkMy00YzIxLWFlZjktMmYyZjZiYWI0M2NhOkdmc1Q0NzlWTXk1WlpaUHF1YWRQYk4zd0t6YUZHWW8xQ1RrYjBJRkZ6RE5PRExFQXVDMkdVVjNRc1R5ZTN4TlE=".to_string()])
+    .assert_request_header(
+        "content-type",
+        vec!["application/x-www-form-urlencoded".to_string()],
+    )
+    .assert_request_body("grant_type=refresh_token&refresh_token=eyJraW5kIjoiUmVmcmVzaFRva2VuIiwianRpIjoiMzhmZTY1NmItNjYyMC00MzdiLWJmY2YtZTRjNzRhZTRiNjMzIiwibm9uY2UiOiJjNjQ1ZmZmYTQwMDc1NTMyZWYyOWEyZWE2MjdjZmEzNyIsImlhdCI6MTQ3MzA3NjQxMywiZXhwIjoxNDc1NjY4NDEzLCJpc3MiOiJodHRwczovL2d1YXJkZWQtY2xpZmZzLTg2MzUuaGVyb2t1YXBwLmNvbS9vcCJ9.hySAknc2L2ngSoTiRxUTJLOUxKmyRTUzLsRlGKip4OXNYXre9QEDH8z9c8NKBHdnRbBxg8Jo45cZbDb-5bZ6mt5noDmT42xtsCOiN25Is9SsRSzVarIDiwyqXVlTojh5XuKPulK4Ji6vp2jYUZNoVnlsA7G96cuHWVAqZd5e8GBb9YlUNZ5zSX6aggFgTGDJs46O42_g4JULB8cAb9MZAzcZOORGpmRIPpSKAZFgT2_5yW-yqh0f66JaAQUtW9TKoAsdttV4NnivzJYeyR0hlgEeKzo9zNuTkJedXbjRAIP6ybk9ITcZveuJ11CFsyHZcNd_0tZuiAlvUpJIeHK0aA")
+    .set_response_body(r#"{
+        "access_token":
+          "eyJraW5kIjoiQWNjZXNzVG9rZW4iLCJqdGkiOiJlMDk5YTI1ZC02MzA0LTQwMGItOTdhYi1hOTJhMzMzOTBlODgiLCJpYXQiOjE0NzMwNzY0MTMsImV4cCI6MTQ3MzA4MzYxMywiaXNzIjoiaHR0cHM6Ly9ndWFyZGVkLWNsaWZmcy04NjM1Lmhlcm9rdWFwcC5jb20vb3AifQ.p_r4KvAu6lEY6JpGmRIGCkRRrovGeJcDfOw3O_gFkPRaY7bcJjNDUPlfY7_nyp3bWyqtveq55ozTZuddUL01KET7bKgxMq-dQ2SxGBvgN3KtHIRBud7Bw8Ax98YkiBKJJXC8xF00VZkkX-ZcUyXptPkUpBm0zeN6jmWmyFX-2QrbclLS8ZEK2Poc_y5PdNAtCCOTBfnq6roxzVQ5lM_aMQaSuPVd-Og6E_jBE6OE9oB4ikFa4S7EvZvFVDpGMLtUjxOazTURbqWY6OnuhuAiP6WZc1FxfQod462IqPERzl2qVJH9qQNr-iLuVLt_bzauHg33v1koTrdfETyoRAZH5w",
+        "expires_at": 1473083613,
+        "id_token":
+          "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6Ik8yQzZHZnBFVGgyUDBCWVNSN1dtWDZXVTBiV1FXcVZud1lwRGVwbVI1NVkiLCJ5IjoiVG5pc0dTSWZMQUxNYzZHVUlydVBmeWFzMm9mQ3JPV3llZ2EyMW5pZG1KTSJ9fQ..RiTOrMAlM4pq6RfwnitLKA.oSERr76vgdbiYm1yQZfkwPonBzdrheypkueK9S5dRVodZDf1BKTr5-eM2VBgjYJ2R8KS5EAAJeJBxnlno3AnfO242ZQbqJP144S8sCj0lZmQoZJ6VzJavADXAf4LiprDblzV8J64pBnmvwjQN9Mk_KKNA34QoAebJZEP9A7RCLUck_oqb7vsLTM_LUyXyXxm7QiWUPdnUCzCCqcJW3SysFeJo1VZTZCwFxK0zrcja-vv9SUSoS7yvQuGRVXS3L08BglTN7SLWVujsPMJWbxmj_zYhoy14DQIckoBU7ver-2PoJOukl6m4yaY9n9LWZ5mUGDb3PbnwuFYxb1rDm2EmvlkhbXFdIuRciIOQTqgeei0TU61Ff_Vt0tinZNThYMQgX4DFc7HILBU7lMwwVUMdYqamE3suRr3qUIlD2RdSNiO87jxaiDFrosGU1fVVulcGmkFN4DX5kyd8lxMs33yPS1uO0G_NViFe-fwxd95JAYXOEiofnHFIYuHgrxfioBMoojYQl8PgLZFj8yxzGVflOyzJQgiYQA-BSAPI1bL2P_J2Jlnhdtv3cJ-bdG1pcwAa6zyzwSEXU5i6p9_TGs4nM15p-QlC3mgtjKkLtC64OL0ucc2Frb6dzKyZTOePu6PcecafNucSaMq1ERhRmQOdigDj1nwHUYs3akx31CHp-eXa9jctuy_C5l_YbBJOiUViZK2dJFNuMJQnMhPcSf6wQdVTQmXCxsSnRN158XYDhgVqqe4U6CROsKiCRQSKqpZ.Yo7zj4wMR89oWSH5Twfzzg",
+        "refresh_token":
+          "eyJraW5kIjoiUmVmcmVzaFRva2VuIiwianRpIjoiMzhmZTY1NmItNjYyMC00MzdiLWJmY2YtZTRjNzRhZTRiNjMzIiwibm9uY2UiOiJjNjQ1ZmZmYTQwMDc1NTMyZWYyOWEyZWE2MjdjZmEzNyIsImlhdCI6MTQ3MzA3NjQxMywiZXhwIjoxNDc1NjY4NDEzLCJpc3MiOiJodHRwczovL2d1YXJkZWQtY2xpZmZzLTg2MzUuaGVyb2t1YXBwLmNvbS9vcCJ9.hySAknc2L2ngSoTiRxUTJLOUxKmyRTUzLsRlGKip4OXNYXre9QEDH8z9c8NKBHdnRbBxg8Jo45cZbDb-5bZ6mt5noDmT42xtsCOiN25Is9SsRSzVarIDiwyqXVlTojh5XuKPulK4Ji6vp2jYUZNoVnlsA7G96cuHWVAqZd5e8GBb9YlUNZ5zSX6aggFgTGDJs46O42_g4JULB8cAb9MZAzcZOORGpmRIPpSKAZFgT2_5yW-yqh0f66JaAQUtW9TKoAsdttV4NnivzJYeyR0hlgEeKzo9zNuTkJedXbjRAIP6ybk9ITcZveuJ11CFsyHZcNd_0tZuiAlvUpJIeHK0aA",
+        "token_type": "Bearer"
+      }"#)
+    .set_response_content_type_header("application/json")
+    .build();
 
     let issuer_metadata = IssuerMetadata {
         issuer: "https://guarded-cliffs-8635.herokuapp.com/op".to_string(),
@@ -139,10 +147,7 @@ async fn handles_signed_and_encrypted_id_tokens_from_refresh_grant() {
         ..Default::default()
     };
 
-    let mut issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let mut issuer = Issuer::new(issuer_metadata);
 
     issuer.now = || 1473076413;
 
@@ -157,7 +162,7 @@ async fn handles_signed_and_encrypted_id_tokens_from_refresh_grant() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, None)
+        .client(client_metadata, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -173,18 +178,21 @@ async fn handles_signed_and_encrypted_id_tokens_from_refresh_grant() {
 
     client.set_skip_nonce_check(true);
 
-    let _ = client.refresh_async(token_set, None).await.unwrap();
+    let _ = client
+        .refresh_async(token_set, None, &http_client)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
 async fn handles_encrypted_but_not_signed_responses_too() {
-    let mock_http_server = MockServer::start();
-
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET).path("/me");
-        then.status(200).body("eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlNPZDJZYUZ0cE0xS3lPNkt4a2tCeGxEVEVXcGVvanlqandqald5c1BOVEUiLCJ5IjoiTEVKZGlqazRXc01XZU9JOHdBN1JLSEQ3Q2NxUXN3V25kVnVoeXl2aFl4byJ9fQ..Az5OORCn8IJCYCKg2AGs2A.ACZMiNTTclMiHui8cAgje6xmU4MWwUfU5aPduSxwmSZKMCEiQST3ZpRknWgitklLhd1B7w7zz9wcu7A-yt51ZTaVfO7B9ZrismOrQRX6pTc.xAu2T_3edWUipVASAaMBmw")
-        .header("content-type","application/jwt;charset=utf-8");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+    .assert_request_method(HttpMethod::GET)
+    .assert_request_header("accept", vec!["application/jwt".to_string()])
+    .assert_request_header("authorization", vec!["Bearer accesstoken".to_string()])
+    .set_response_body("eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlNPZDJZYUZ0cE0xS3lPNkt4a2tCeGxEVEVXcGVvanlqandqald5c1BOVEUiLCJ5IjoiTEVKZGlqazRXc01XZU9JOHdBN1JLSEQ3Q2NxUXN3V25kVnVoeXl2aFl4byJ9fQ..Az5OORCn8IJCYCKg2AGs2A.ACZMiNTTclMiHui8cAgje6xmU4MWwUfU5aPduSxwmSZKMCEiQST3ZpRknWgitklLhd1B7w7zz9wcu7A-yt51ZTaVfO7B9ZrismOrQRX6pTc.xAu2T_3edWUipVASAaMBmw")
+    .set_response_content_type_header("application/jwt;charset=utf-8")
+    .build();
 
     let issuer_metadata = IssuerMetadata {
         issuer: "https://guarded-cliffs-8635.herokuapp.com/op".to_string(),
@@ -192,10 +200,7 @@ async fn handles_encrypted_but_not_signed_responses_too() {
         ..Default::default()
     };
 
-    let mut issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let mut issuer = Issuer::new(issuer_metadata);
 
     issuer.now = || 1473076413;
 
@@ -206,7 +211,7 @@ async fn handles_encrypted_but_not_signed_responses_too() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, None)
+        .client(client_metadata, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -221,7 +226,7 @@ async fn handles_encrypted_but_not_signed_responses_too() {
     token_set.now = || 1473076413;
 
     let payload = client
-        .userinfo_async(&token_set, UserinfoOptions::default())
+        .userinfo_async(&token_set, UserinfoOptions::default(), &http_client)
         .await
         .unwrap();
 
@@ -238,13 +243,13 @@ async fn handles_encrypted_but_not_signed_responses_too() {
 
 #[tokio::test]
 async fn verifies_no_invalid_unsigned_plain_json_jwe_payloads_get_through() {
-    let mock_http_server = MockServer::start();
-
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET).path("/me");
-        then.status(200).body("eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IkhqMWZtUGxHTEJ2VE5SbnE0SlpWcTNjd3FUTXUxYXYzYjBicEJUWlR0bWciLCJ5IjoieWs5Tkl1WkJiRl9UTjQwRHlCcERjMGNGek5EUUVzRVQ5ZTlJNk1NY2dTayJ9fQ..VonL8dThfAnH4qmUjGv5tA.7CZxo9EWjucIklvP8D7RWg.QpvgGnrKL4xLIKI86qkwRg")
-        .header("content-type","application/jwt;charset=utf-8");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+    .assert_request_method(HttpMethod::GET)
+    .assert_request_header("accept", vec!["application/jwt".to_string()])
+    .assert_request_header("authorization", vec!["Bearer accesstoken".to_string()])
+    .set_response_body("eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IkhqMWZtUGxHTEJ2VE5SbnE0SlpWcTNjd3FUTXUxYXYzYjBicEJUWlR0bWciLCJ5IjoieWs5Tkl1WkJiRl9UTjQwRHlCcERjMGNGek5EUUVzRVQ5ZTlJNk1NY2dTayJ9fQ..VonL8dThfAnH4qmUjGv5tA.7CZxo9EWjucIklvP8D7RWg.QpvgGnrKL4xLIKI86qkwRg")
+    .set_response_content_type_header("application/jwt;charset=utf-8")
+    .build();
 
     let issuer_metadata = IssuerMetadata {
         issuer: "https://guarded-cliffs-8635.herokuapp.com/op".to_string(),
@@ -252,10 +257,7 @@ async fn verifies_no_invalid_unsigned_plain_json_jwe_payloads_get_through() {
         ..Default::default()
     };
 
-    let mut issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let mut issuer = Issuer::new(issuer_metadata);
 
     issuer.now = || 1473076413;
 
@@ -266,7 +268,7 @@ async fn verifies_no_invalid_unsigned_plain_json_jwe_payloads_get_through() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, None)
+        .client(client_metadata, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -281,7 +283,7 @@ async fn verifies_no_invalid_unsigned_plain_json_jwe_payloads_get_through() {
     token_set.now = || 1473076413;
 
     let err = client
-        .userinfo_async(&token_set, UserinfoOptions::default())
+        .userinfo_async(&token_set, UserinfoOptions::default(), &http_client)
         .await
         .unwrap_err();
 
@@ -294,13 +296,13 @@ async fn verifies_no_invalid_unsigned_plain_json_jwe_payloads_get_through() {
 
 #[tokio::test]
 async fn handles_valid_but_no_object_top_level_unsigned_plain_json_jwe_payloads() {
-    let mock_http_server = MockServer::start();
-
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET).path("/me");
-        then.status(200).body("eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlJDLUs1Q0oxaHM1OUVab3FRbDdIckZfYkRTNGtmbVRkV2NDUktiVUdNSlEiLCJ5IjoicDRLdGhQNlBZbE04LU5XQVBLSThjTThnOHRXUjU3RGp2V2s5QUVMTF9jdyJ9fQ..0UsI_8FRDyu9Ww3UsgPutg.RlHWtr8ezCPO4BahKEm2FA.6irHMjkZtOFnUVwrZkuxtw")
-        .header("content-type","application/jwt;charset=utf-8");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+    .assert_request_method(HttpMethod::GET)
+    .assert_request_header("accept", vec!["application/jwt".to_string()])
+    .assert_request_header("authorization", vec!["Bearer accesstoken".to_string()])
+    .set_response_body("eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlJDLUs1Q0oxaHM1OUVab3FRbDdIckZfYkRTNGtmbVRkV2NDUktiVUdNSlEiLCJ5IjoicDRLdGhQNlBZbE04LU5XQVBLSThjTThnOHRXUjU3RGp2V2s5QUVMTF9jdyJ9fQ..0UsI_8FRDyu9Ww3UsgPutg.RlHWtr8ezCPO4BahKEm2FA.6irHMjkZtOFnUVwrZkuxtw")
+    .set_response_content_type_header("application/jwt;charset=utf-8")
+    .build();
 
     let issuer_metadata = IssuerMetadata {
         issuer: "https://guarded-cliffs-8635.herokuapp.com/op".to_string(),
@@ -308,10 +310,7 @@ async fn handles_valid_but_no_object_top_level_unsigned_plain_json_jwe_payloads(
         ..Default::default()
     };
 
-    let mut issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let mut issuer = Issuer::new(issuer_metadata);
 
     issuer.now = || 1473076413;
 
@@ -322,7 +321,7 @@ async fn handles_valid_but_no_object_top_level_unsigned_plain_json_jwe_payloads(
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, None)
+        .client(client_metadata, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -337,7 +336,7 @@ async fn handles_valid_but_no_object_top_level_unsigned_plain_json_jwe_payloads(
     token_set.now = || 1473076413;
 
     let err = client
-        .userinfo_async(&token_set, UserinfoOptions::default())
+        .userinfo_async(&token_set, UserinfoOptions::default(), &http_client)
         .await
         .unwrap_err();
 
@@ -350,23 +349,20 @@ async fn handles_valid_but_no_object_top_level_unsigned_plain_json_jwe_payloads(
 
 #[tokio::test]
 async fn handles_symmetric_encryption() {
-    let mock_http_server = MockServer::start();
-
-    let _server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET).path("/me");
-        then.status(200).body("eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlJDLUs1Q0oxaHM1OUVab3FRbDdIckZfYkRTNGtmbVRkV2NDUktiVUdNSlEiLCJ5IjoicDRLdGhQNlBZbE04LU5XQVBLSThjTThnOHRXUjU3RGp2V2s5QUVMTF9jdyJ9fQ..0UsI_8FRDyu9Ww3UsgPutg.RlHWtr8ezCPO4BahKEm2FA.6irHMjkZtOFnUVwrZkuxtw")
-        .header("content-type","application/jwt;charset=utf-8");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+    .assert_request_method(HttpMethod::GET)
+    .assert_request_header("accept", vec!["application/jwt".to_string()])
+    .assert_request_header("authorization", vec!["Bearer accesstoken".to_string()])
+    .set_response_body("eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlJDLUs1Q0oxaHM1OUVab3FRbDdIckZfYkRTNGtmbVRkV2NDUktiVUdNSlEiLCJ5IjoicDRLdGhQNlBZbE04LU5XQVBLSThjTThnOHRXUjU3RGp2V2s5QUVMTF9jdyJ9fQ..0UsI_8FRDyu9Ww3UsgPutg.RlHWtr8ezCPO4BahKEm2FA.6irHMjkZtOFnUVwrZkuxtw")
+    .set_response_content_type_header("application/jwt;charset=utf-8")
+    .build();
 
     let issuer_metadata = IssuerMetadata {
         issuer: "http://localhost:3000/op".to_string(),
         ..Default::default()
     };
 
-    let mut issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let mut issuer = Issuer::new(issuer_metadata);
 
     issuer.now = || 1473076413;
 
@@ -381,7 +377,7 @@ async fn handles_symmetric_encryption() {
     };
 
     let mut client = issuer
-        .client(client_metadata, None, Some(get_jwks()), None, None)
+        .client(client_metadata, Some(get_jwks()), None, None)
         .unwrap();
 
     client.now = || 1473076413;
@@ -397,13 +393,10 @@ async fn handles_symmetric_encryption() {
         ..Default::default()
     };
 
-    let _ = client
-        .callback_async(
-            Some("https://oidc-client.dev/cb"),
-            params,
-            Some(checks),
-            None,
-        )
-        .await
-        .unwrap();
+    let params = OpenIdCallbackParams::default()
+        .redirect_uri("https://oidc-client.dev/cb")
+        .checks(checks)
+        .parameters(params);
+
+    let _ = client.callback_async(&http_client, params).await.unwrap();
 }

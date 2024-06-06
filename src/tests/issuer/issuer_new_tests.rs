@@ -20,7 +20,7 @@ fn accepts_the_recognized_metadata() {
         ..IssuerMetadata::default()
     };
 
-    let issuer = Issuer::new(metadata, None);
+    let issuer = Issuer::new(metadata);
 
     assert_eq!(
         authorization_endpoint(),
@@ -33,7 +33,7 @@ fn accepts_the_recognized_metadata() {
 
 #[test]
 fn does_not_assign_discovery_1_0_defaults_when_instantiating_manually() {
-    let issuer = Issuer::new(IssuerMetadata::default(), None);
+    let issuer = Issuer::new(IssuerMetadata::default());
 
     assert!(issuer.claims_parameter_supported.is_none());
     assert!(issuer.grant_types_supported.is_none());
@@ -67,7 +67,7 @@ fn assigns_introspection_and_revocation_auth_method_meta_from_token_if_both_are_
         ..IssuerMetadata::default()
     };
 
-    let issuer = Issuer::new(metadata, None);
+    let issuer = Issuer::new(metadata);
 
     assert_eq!(
         token_endpoint_auth_methods_supported(),
@@ -105,7 +105,7 @@ fn is_able_to_discover_custom_or_non_recognized_properties() {
         ..IssuerMetadata::default()
     };
 
-    let issuer = Issuer::new(metadata, None);
+    let issuer = Issuer::new(metadata);
 
     assert_eq!("https://op.example.com".to_string(), issuer.issuer);
     assert!(issuer.other_fields.contains_key("foo"));

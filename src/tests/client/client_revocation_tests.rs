@@ -1,45 +1,29 @@
-use httpmock::{Method::POST, MockServer};
-
 use crate::{
     issuer::Issuer,
-    tests::test_interceptors::get_default_test_interceptor,
-    types::{ClientMetadata, IssuerMetadata},
+    types::{ClientMetadata, HttpMethod, IssuerMetadata},
 };
+
+use crate::tests::test_http_client::TestHttpReqRes;
 
 #[tokio::test]
 async fn posts_the_token_in_a_body_and_returns_none() {
-    let mock_http_server = MockServer::start();
-
-    let _revocation_server = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .matches(|req| {
-                let decoded =
-                    urlencoding::decode(std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap())
-                        .unwrap();
-
-                let kvp = querystring::querify(&decoded);
-
-                let client_id = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"client_id" && v == &"identifier");
-                let token = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"token" && v == &"tokenValue");
-
-                client_id.is_some() && token.is_some()
-            })
-            .path("/token/revoke");
-        then.status(200).body(r#"{"endpoint":"response"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/revoke")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("content-length", vec!["37".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("client_id=identifier&token=tokenValue")
+        .set_response_content_type_header("application/json")
+        .set_response_body(r#"{"endpoint":"response"}"#)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         revocation_endpoint: Some("https://op.example.com/token/revoke".to_string()),
         ..Default::default()
     };
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -47,52 +31,35 @@ async fn posts_the_token_in_a_body_and_returns_none() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
-    let res = client.revoke_async("tokenValue", None, None).await.unwrap();
+    let res = client
+        .revoke_async("tokenValue", None, None, &http_client)
+        .await
+        .unwrap();
 
     assert!(res.body.is_none());
 }
 
 #[tokio::test]
 async fn posts_the_token_and_a_hint_in_a_body() {
-    let mock_http_server = MockServer::start();
-
-    let _revocation_server = mock_http_server.mock(|when, then| {
-        when.method(POST)
-            .matches(|req| {
-                let decoded =
-                    urlencoding::decode(std::str::from_utf8(&req.body.as_ref().unwrap()).unwrap())
-                        .unwrap();
-
-                let kvp = querystring::querify(&decoded);
-
-                let client_id = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"client_id" && v == &"identifier");
-                let token = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"token" && v == &"tokenValue");
-                let token_type_hint = kvp
-                    .iter()
-                    .find(|(k, v)| k == &"token_type_hint" && v == &"access_token");
-
-                client_id.is_some() && token.is_some() && token_type_hint.is_some()
-            })
-            .path("/token/revoke");
-        then.status(200).body(r#"{"endpoint":"response"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/revoke")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("content-length", vec!["66".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("client_id=identifier&token=tokenValue&token_type_hint=access_token")
+        .set_response_content_type_header("application/json")
+        .set_response_body(r#"{"endpoint":"response"}"#)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         revocation_endpoint: Some("https://op.example.com/token/revoke".to_string()),
         ..Default::default()
     };
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -100,12 +67,10 @@ async fn posts_the_token_and_a_hint_in_a_body() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let result = client
-        .revoke_async("tokenValue", Some("access_token"), None)
+        .revoke_async("tokenValue", Some("access_token"), None, &http_client)
         .await;
 
     assert!(result.is_ok());
@@ -113,22 +78,26 @@ async fn posts_the_token_and_a_hint_in_a_body() {
 
 #[tokio::test]
 async fn is_rejected_with_op_error_upon_oidc_error() {
-    let mock_http_server = MockServer::start();
-
-    let _revocation_server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token/revoke");
-        then.status(500)
-            .body(r#"{"error":"server_error","error_description":"bad things are happening"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/revoke")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("content-length", vec!["37".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("client_id=identifier&token=tokenValue")
+        .set_response_content_type_header("application/json")
+        .set_response_body(
+            r#"{"error":"server_error","error_description":"bad things are happening"}"#,
+        )
+        .set_response_status_code(500)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         revocation_endpoint: Some("https://op.example.com/token/revoke".to_string()),
         ..Default::default()
     };
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -136,12 +105,10 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .revoke_async("tokenValue", None, None)
+        .revoke_async("tokenValue", None, None, &http_client)
         .await
         .unwrap_err();
 
@@ -158,21 +125,24 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
 
 #[tokio::test]
 async fn is_rejected_with_when_non_200_is_returned() {
-    let mock_http_server = MockServer::start();
-
-    let _revocation_server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token/revoke");
-        then.status(500).body("Internal Server Error");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/revoke")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("content-length", vec!["37".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("client_id=identifier&token=tokenValue")
+        .set_response_content_type_header("application/json")
+        .set_response_body("Internal Server Error")
+        .set_response_status_code(500)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         revocation_endpoint: Some("https://op.example.com/token/revoke".to_string()),
         ..Default::default()
     };
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -180,12 +150,10 @@ async fn is_rejected_with_when_non_200_is_returned() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .revoke_async("tokenValue", None, None)
+        .revoke_async("tokenValue", None, None, &http_client)
         .await
         .unwrap_err();
 
@@ -203,21 +171,23 @@ async fn is_rejected_with_when_non_200_is_returned() {
 
 #[tokio::test]
 async fn completely_ignores_the_response_even_invalid_or_html_one() {
-    let mock_http_server = MockServer::start();
-
-    let _revocation_server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token/revoke");
-        then.status(200).body("{\"notvalid\"}");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/revoke")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("content-length", vec!["37".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("client_id=identifier&token=tokenValue")
+        .set_response_content_type_header("application/json")
+        .set_response_body(r#"{"notvalid"}"#)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         revocation_endpoint: Some("https://op.example.com/token/revoke".to_string()),
         ..Default::default()
     };
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -225,32 +195,33 @@ async fn completely_ignores_the_response_even_invalid_or_html_one() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
-    let result = client.revoke_async("tokenValue", None, None).await;
+    let result = client
+        .revoke_async("tokenValue", None, None, &http_client)
+        .await;
 
     assert!(result.is_ok());
 }
 
 #[tokio::test]
 async fn handles_empty_bodies() {
-    let mock_http_server = MockServer::start();
-
-    let _revocation_server = mock_http_server.mock(|when, then| {
-        when.method(POST).path("/token/revoke");
-        then.status(200);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/token/revoke")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("content-length", vec!["37".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("client_id=identifier&token=tokenValue")
+        .set_response_content_type_header("application/json")
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         revocation_endpoint: Some("https://op.example.com/token/revoke".to_string()),
         ..Default::default()
     };
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -258,11 +229,11 @@ async fn handles_empty_bodies() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
-    let result = client.revoke_async("tokenValue", None, None).await;
+    let result = client
+        .revoke_async("tokenValue", None, None, &http_client)
+        .await;
 
     assert!(result.is_ok());
 }

@@ -1,31 +1,26 @@
+use crate::http_client::DefaultHttpClient;
 use crate::issuer::Issuer;
-use crate::tests::test_interceptors::get_default_test_interceptor;
 use crate::tokenset::{TokenSet, TokenSetParams};
-use crate::types::{ClientMetadata, IssuerMetadata, UserinfoOptions};
-use httpmock::{Method, MockServer};
+use crate::types::{ClientMetadata, HttpMethod, IssuerMetadata, UserinfoOptions};
 use std::collections::HashMap;
+
+use crate::tests::test_http_client::TestHttpReqRes;
 
 #[tokio::test]
 async fn takes_a_token_set() {
-    let mock_http_server = MockServer::start();
-
-    let userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .header("Accept", "application/json")
-            .header("Authorization", "Bearer tokenValue")
-            .path("/me");
-        then.status(200).body(r#"{"sub":"subject"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["Bearer tokenValue".to_string()])
+        .set_response_body(r#"{"sub":"subject"}"#)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -33,9 +28,7 @@ async fn takes_a_token_set() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         id_token: Some("eyJhbGciOiJub25lIn0.eyJzdWIiOiJzdWJqZWN0In0.".to_string()),
@@ -47,11 +40,11 @@ async fn takes_a_token_set() {
     let token_set = TokenSet::new(token_set_params);
 
     let _ = client
-        .userinfo_async(&token_set, UserinfoOptions::default())
+        .userinfo_async(&token_set, UserinfoOptions::default(), &http_client)
         .await
         .unwrap();
 
-    userinfo_server.assert();
+    http_client.assert();
 }
 
 #[tokio::test]
@@ -61,7 +54,7 @@ async fn only_get_and_post_is_supported() {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, get_default_test_interceptor(None));
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -69,9 +62,7 @@ async fn only_get_and_post_is_supported() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         id_token: Some("eyJhbGciOiJub25lIn0.eyJzdWIiOiJzdWJqZWN0In0.".to_string()),
@@ -87,7 +78,7 @@ async fn only_get_and_post_is_supported() {
     options.method = "PUT";
 
     let err = client
-        .userinfo_async(&token_set, options)
+        .userinfo_async(&token_set, options, &DefaultHttpClient)
         .await
         .unwrap_err();
 
@@ -100,25 +91,19 @@ async fn only_get_and_post_is_supported() {
 
 #[tokio::test]
 async fn takes_a_token_set_with_token() {
-    let mock_http_server = MockServer::start();
-
-    let userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .header("Accept", "application/json")
-            .header("Authorization", "DPoP tokenValue")
-            .path("/me");
-        then.status(200).body(r#"{"sub":"subject"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["DPoP tokenValue".to_string()])
+        .set_response_body(r#"{"sub":"subject"}"#)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -126,9 +111,7 @@ async fn takes_a_token_set_with_token() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         id_token: Some("eyJhbGciOiJub25lIn0.eyJzdWIiOiJzdWJqZWN0In0.".to_string()),
@@ -142,31 +125,29 @@ async fn takes_a_token_set_with_token() {
 
     let options = UserinfoOptions::default();
 
-    let _ = client.userinfo_async(&token_set, options).await.unwrap();
+    let _ = client
+        .userinfo_async(&token_set, options, &http_client)
+        .await
+        .unwrap();
 
-    userinfo_server.assert();
+    http_client.assert();
 }
 
 #[tokio::test]
 async fn takes_a_token_set_and_validates_the_subject_in_id_token_is_the_same_in_userinfo() {
-    let mock_http_server = MockServer::start();
-
-    let userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .header("Accept", "application/json")
-            .path("/me");
-        then.status(200).body(r#"{"sub":"different-subject"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["Bearer tokenValue".to_string()])
+        .set_response_body(r#"{"sub":"different-subject"}"#)
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -174,9 +155,7 @@ async fn takes_a_token_set_and_validates_the_subject_in_id_token_is_the_same_in_
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         id_token: Some("eyJhbGciOiJub25lIn0.eyJzdWIiOiJzdWJqZWN0In0.".to_string()),
@@ -190,11 +169,12 @@ async fn takes_a_token_set_and_validates_the_subject_in_id_token_is_the_same_in_
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options)
+        .userinfo_async(&token_set, options, &http_client)
         .await
         .unwrap_err();
 
-    userinfo_server.assert();
+    http_client.assert();
+
     assert!(err.is_rp_error());
     assert_eq!(
         "userinfo sub mismatch, expected subject, got: different-subject",
@@ -209,7 +189,7 @@ async fn validates_an_access_token_is_present_in_the_tokenset() {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, get_default_test_interceptor(None));
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -217,9 +197,7 @@ async fn validates_an_access_token_is_present_in_the_tokenset() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         id_token: Some("eyJhbGciOiJub25lIn0.eyJzdWIiOiJzdWJqZWN0In0.".to_string()),
@@ -232,7 +210,7 @@ async fn validates_an_access_token_is_present_in_the_tokenset() {
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options)
+        .userinfo_async(&token_set, options, &DefaultHttpClient)
         .await
         .unwrap_err();
 
@@ -245,30 +223,19 @@ async fn validates_an_access_token_is_present_in_the_tokenset() {
 
 #[tokio::test]
 async fn can_do_a_post_call() {
-    let mock_http_server = MockServer::start();
-
-    let userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .matches(|req| {
-                if let Some(h) = &req.headers {
-                    return h.iter().all(|(k, _)| k.to_lowercase() != "content-type");
-                }
-                false
-            })
-            .path("/me");
-        then.status(200).body(r#"{}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["Bearer tokenValue".to_string()])
+        .set_response_body("{}")
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -276,9 +243,7 @@ async fn can_do_a_post_call() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("tokenValue".to_string()),
@@ -290,46 +255,41 @@ async fn can_do_a_post_call() {
     let mut options = UserinfoOptions::default();
     options.method = "POST";
 
-    let _ = client.userinfo_async(&token_set, options).await;
+    let _ = client
+        .userinfo_async(&token_set, options, &http_client)
+        .await;
 
-    userinfo_server.assert();
+    http_client.assert();
 }
 
 #[tokio::test]
 async fn can_submit_access_token_in_a_body_when_post() {
-    let mock_http_server = MockServer::start();
-
-    let userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .matches(|req| {
-                String::from_utf8(req.body.as_ref().unwrap().to_owned()).unwrap()
-                    == "access_token=tokenValue"
-            })
-            .path("/me");
-        then.status(200).body("{}");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("content-length", vec!["23".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("access_token=tokenValue")
+        .set_response_body("{}")
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
-        id_token_signed_response_alg: Some("none".to_string()),
+        token_endpoint_auth_method: Some("none".to_string()),
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("tokenValue".to_string()),
@@ -342,36 +302,34 @@ async fn can_submit_access_token_in_a_body_when_post() {
     options.method = "POST";
     options.via = "body";
 
-    let _ = client.userinfo_async(&token_set, options).await.unwrap();
-    userinfo_server.assert();
+    let _ = client
+        .userinfo_async(&token_set, options, &http_client)
+        .await
+        .unwrap();
+
+    http_client.assert();
 }
 
 #[tokio::test]
 async fn can_add_extra_params_in_a_body_when_post() {
-    let mock_http_server = MockServer::start();
-
-    let userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .matches(|req| {
-                let body = String::from_utf8(req.body.as_ref().unwrap().to_owned()).unwrap();
-                body == "access_token=tokenValue&foo=bar"
-                    || body == "foo=bar&access_token=tokenValue"
-            })
-            .path("/me");
-        then.status(200).body("{}");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("content-length", vec!["31".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("access_token=tokenValue&foo=bar")
+        .set_response_body("{}")
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -379,9 +337,7 @@ async fn can_add_extra_params_in_a_body_when_post() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("tokenValue".to_string()),
@@ -397,35 +353,35 @@ async fn can_add_extra_params_in_a_body_when_post() {
     params.insert("foo".to_string(), "bar".to_string());
     options.params = Some(params);
 
-    let _ = client.userinfo_async(&token_set, options).await.unwrap();
-    userinfo_server.assert();
+    let _ = client
+        .userinfo_async(&token_set, options, &http_client)
+        .await
+        .unwrap();
+
+    http_client.assert();
 }
 
 #[tokio::test]
 async fn can_add_extra_params_in_a_body_when_post_but_via_header() {
-    let mock_http_server = MockServer::start();
-
-    let userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::POST)
-            .header("Accept", "application/json")
-            .header("Authorization", "Bearer tokenValue")
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .matches(|req| {
-                String::from_utf8(req.body.as_ref().unwrap().to_owned()).unwrap() == "foo=bar"
-            })
-            .path("/me");
-        then.status(200).body("{}");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::POST)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("content-length", vec!["7".to_string()])
+        .assert_request_header("authorization", vec!["Bearer tokenValue".to_string()])
+        .assert_request_header(
+            "content-type",
+            vec!["application/x-www-form-urlencoded".to_string()],
+        )
+        .assert_request_body("foo=bar")
+        .set_response_body("{}")
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -433,9 +389,7 @@ async fn can_add_extra_params_in_a_body_when_post_but_via_header() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("tokenValue".to_string()),
@@ -451,32 +405,29 @@ async fn can_add_extra_params_in_a_body_when_post_but_via_header() {
     params.insert("foo".to_string(), "bar".to_string());
     options.params = Some(params);
 
-    let _ = client.userinfo_async(&token_set, options).await.unwrap();
-    userinfo_server.assert();
+    let _ = client
+        .userinfo_async(&token_set, options, &http_client)
+        .await
+        .unwrap();
+
+    http_client.assert();
 }
 
 #[tokio::test]
 async fn can_add_extra_params_in_a_query_when_non_post() {
-    let mock_http_server = MockServer::start();
-
-    let userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .header("Accept", "application/json")
-            .header("Authorization", "Bearer tokenValue")
-            .query_param("foo", "bar")
-            .path("/me");
-        then.status(200).body("{}");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me?foo=bar")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["Bearer tokenValue".to_string()])
+        .set_response_body("{}")
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -484,9 +435,7 @@ async fn can_add_extra_params_in_a_query_when_non_post() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("tokenValue".to_string()),
@@ -501,8 +450,12 @@ async fn can_add_extra_params_in_a_query_when_non_post() {
     params.insert("foo".to_string(), "bar".to_string());
     options.params = Some(params);
 
-    let _ = client.userinfo_async(&token_set, options).await.unwrap();
-    userinfo_server.assert();
+    let _ = client
+        .userinfo_async(&token_set, options, &http_client)
+        .await
+        .unwrap();
+
+    http_client.assert();
 }
 
 #[tokio::test]
@@ -512,7 +465,7 @@ async fn can_only_submit_access_token_in_a_body_when_post() {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, get_default_test_interceptor(None));
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -520,9 +473,7 @@ async fn can_only_submit_access_token_in_a_body_when_post() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("tokenValue".to_string()),
@@ -537,7 +488,7 @@ async fn can_only_submit_access_token_in_a_body_when_post() {
     options.via = "body";
 
     let err = client
-        .userinfo_async(&token_set, options)
+        .userinfo_async(&token_set, options, &DefaultHttpClient)
         .await
         .unwrap_err();
 
@@ -547,25 +498,22 @@ async fn can_only_submit_access_token_in_a_body_when_post() {
 
 #[tokio::test]
 async fn is_rejected_with_op_error_upon_oidc_error() {
-    let mock_http_server = MockServer::start();
-
-    let _userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .header("Accept", "application/json")
-            .path("/me");
-        then.status(401)
-            .body(r#"{"error":"invalid_token","error_description":"bad things are happening"}"#);
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["Bearer foo".to_string()])
+        .set_response_status_code(401)
+        .set_response_body(
+            r#"{"error":"invalid_token","error_description":"bad things are happening"}"#,
+        )
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -573,9 +521,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("foo".to_string()),
@@ -587,7 +533,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options)
+        .userinfo_async(&token_set, options, &http_client)
         .await
         .unwrap_err();
 
@@ -603,27 +549,23 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
 
 #[tokio::test]
 async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() {
-    let mock_http_server = MockServer::start();
-
-    let _userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .header("Accept", "application/json")
-            .path("/me");
-        then.status(401).body("Unauthorized").header(
-            "WWW-Authenticate",
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["Bearer foo".to_string()])
+        .set_response_status_code(401)
+        .set_response_body("Unauthorized")
+        .set_response_www_authenticate_header(
             r#"Bearer error="invalid_token", error_description="bad things are happening""#,
-        );
-    });
+        )
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -631,9 +573,7 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("foo".to_string()),
@@ -645,7 +585,7 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options)
+        .userinfo_async(&token_set, options, &http_client)
         .await
         .unwrap_err();
 
@@ -661,24 +601,20 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
 
 #[tokio::test]
 async fn is_rejected_with_when_non_200_is_returned() {
-    let mock_http_server = MockServer::start();
-
-    let _userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .header("Accept", "application/json")
-            .path("/me");
-        then.status(500).body("Internal Server Error");
-    });
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["Bearer foo".to_string()])
+        .set_response_status_code(500)
+        .set_response_body("Internal Server Error")
+        .build();
 
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -686,9 +622,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("foo".to_string()),
@@ -700,7 +634,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options)
+        .userinfo_async(&token_set, options, &http_client)
         .await
         .unwrap_err();
 
@@ -716,23 +650,20 @@ async fn is_rejected_with_when_non_200_is_returned() {
 
 #[tokio::test]
 async fn is_rejected_with_json_parse_error_upon_invalid_response() {
-    let mock_http_server = MockServer::start();
+    let http_client = TestHttpReqRes::new("https://op.example.com/me")
+        .assert_request_method(HttpMethod::GET)
+        .assert_request_header("accept", vec!["application/json".to_string()])
+        .assert_request_header("authorization", vec!["Bearer foo".to_string()])
+        .set_response_status_code(200)
+        .set_response_body(r#"{"notavalid"}"#)
+        .build();
 
-    let _userinfo_server = mock_http_server.mock(|when, then| {
-        when.method(Method::GET)
-            .header("Accept", "application/json")
-            .path("/me");
-        then.status(200).body(r#"{"notavalid"}"#);
-    });
     let issuer_metadata = IssuerMetadata {
         userinfo_endpoint: Some("https://op.example.com/me".to_string()),
         ..Default::default()
     };
 
-    let issuer = Issuer::new(
-        issuer_metadata,
-        get_default_test_interceptor(Some(mock_http_server.port())),
-    );
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -740,9 +671,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         access_token: Some("foo".to_string()),
@@ -754,7 +683,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options)
+        .userinfo_async(&token_set, options, &http_client)
         .await
         .unwrap_err();
 
@@ -772,22 +701,20 @@ mod signed_response_content_type_application_jwt {
 
     #[tokio::test]
     async fn decodes_and_validates_the_jwt_userinfo() {
-        let mock_http_server = MockServer::start();
-
         let iat = now();
         let exp = iat + 100;
 
         let payload = base64_url::encode(&format!("{{\"iss\":\"https://op.example.com\",\"sub\":\"foobar\",\"aud\":\"foobar\",\"exp\":{},\"iat\":{}}}",exp, iat));
         let header = base64_url::encode(r#"{"alg":"none"}"#);
 
-        let _userinfo_server = mock_http_server.mock(|when, then| {
-            when.method(Method::GET)
-                .header("Accept", "application/jwt")
-                .path("/me");
-            then.status(200)
-                .body(format!("{}.{}.", header, payload))
-                .header("content-type", "application/jwt; charset=utf-8");
-        });
+        let http_client = TestHttpReqRes::new("https://op.example.com/me")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/jwt".to_string()])
+            .assert_request_header("authorization", vec!["Bearer accessToken".to_string()])
+            .set_response_status_code(200)
+            .set_response_body(format!("{}.{}.", header, payload))
+            .set_response_content_type_header("application/jwt; charset=utf-8")
+            .build();
 
         let issuer_metadata = IssuerMetadata {
             issuer: "https://op.example.com".to_string(),
@@ -795,10 +722,7 @@ mod signed_response_content_type_application_jwt {
             ..Default::default()
         };
 
-        let issuer = Issuer::new(
-            issuer_metadata,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        );
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("foobar".to_string()),
@@ -806,9 +730,7 @@ mod signed_response_content_type_application_jwt {
             ..Default::default()
         };
 
-        let mut client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let token_set_params = TokenSetParams {
             access_token: Some("accessToken".to_string()),
@@ -819,7 +741,10 @@ mod signed_response_content_type_application_jwt {
 
         let options = UserinfoOptions::default();
 
-        let payload = client.userinfo_async(&token_set, options).await.unwrap();
+        let payload = client
+            .userinfo_async(&token_set, options, &http_client)
+            .await
+            .unwrap();
 
         assert_eq!(
             "https://op.example.com",
@@ -833,19 +758,17 @@ mod signed_response_content_type_application_jwt {
 
     #[tokio::test]
     async fn validates_the_used_alg_of_signed_userinfo() {
-        let mock_http_server = MockServer::start();
-
         let payload = base64_url::encode("{}");
         let header = base64_url::encode(r#"{"alg":"none"}"#);
 
-        let _userinfo_server = mock_http_server.mock(|when, then| {
-            when.method(Method::GET)
-                .header("Accept", "application/jwt")
-                .path("/me");
-            then.status(200)
-                .body(format!("{}.{}.", header, payload))
-                .header("content-type", "application/jwt; charset=utf-8");
-        });
+        let http_client = TestHttpReqRes::new("https://op.example.com/me")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/jwt".to_string()])
+            .assert_request_header("authorization", vec!["Bearer foo".to_string()])
+            .set_response_status_code(200)
+            .set_response_body(format!("{}.{}.", header, payload))
+            .set_response_content_type_header("application/jwt; charset=utf-8")
+            .build();
 
         let issuer_metadata = IssuerMetadata {
             issuer: "https://op.example.com".to_string(),
@@ -853,10 +776,7 @@ mod signed_response_content_type_application_jwt {
             ..Default::default()
         };
 
-        let issuer = Issuer::new(
-            issuer_metadata,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        );
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("foobar".to_string()),
@@ -864,9 +784,7 @@ mod signed_response_content_type_application_jwt {
             ..Default::default()
         };
 
-        let mut client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let token_set_params = TokenSetParams {
             access_token: Some("foo".to_string()),
@@ -878,7 +796,7 @@ mod signed_response_content_type_application_jwt {
         let options = UserinfoOptions::default();
 
         let err = client
-            .userinfo_async(&token_set, options)
+            .userinfo_async(&token_set, options, &http_client)
             .await
             .unwrap_err();
 
@@ -891,14 +809,13 @@ mod signed_response_content_type_application_jwt {
 
     #[tokio::test]
     async fn validates_the_response_is_a_application_jwt() {
-        let mock_http_server = MockServer::start();
-
-        let _userinfo_server = mock_http_server.mock(|when, then| {
-            when.method(Method::GET)
-                .header("Accept", "application/jwt")
-                .path("/me");
-            then.status(200).body("{}");
-        });
+        let http_client = TestHttpReqRes::new("https://op.example.com/me")
+            .assert_request_method(HttpMethod::GET)
+            .assert_request_header("accept", vec!["application/jwt".to_string()])
+            .assert_request_header("authorization", vec!["Bearer foo".to_string()])
+            .set_response_status_code(200)
+            .set_response_body("{}")
+            .build();
 
         let issuer_metadata = IssuerMetadata {
             issuer: "https://op.example.com".to_string(),
@@ -906,10 +823,7 @@ mod signed_response_content_type_application_jwt {
             ..Default::default()
         };
 
-        let issuer = Issuer::new(
-            issuer_metadata,
-            get_default_test_interceptor(Some(mock_http_server.port())),
-        );
+        let issuer = Issuer::new(issuer_metadata);
 
         let client_metadata = ClientMetadata {
             client_id: Some("foobar".to_string()),
@@ -917,9 +831,7 @@ mod signed_response_content_type_application_jwt {
             ..Default::default()
         };
 
-        let mut client = issuer
-            .client(client_metadata, None, None, None, None)
-            .unwrap();
+        let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let token_set_params = TokenSetParams {
             access_token: Some("foo".to_string()),
@@ -931,7 +843,7 @@ mod signed_response_content_type_application_jwt {
         let options = UserinfoOptions::default();
 
         let err = client
-            .userinfo_async(&token_set, options)
+            .userinfo_async(&token_set, options, &http_client)
             .await
             .unwrap_err();
 
@@ -950,7 +862,7 @@ async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in(
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -959,9 +871,7 @@ async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in(
         ..Default::default()
     };
 
-    let mut client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let token_set_params = TokenSetParams {
         id_token: Some("eyJhbGciOiJub25lIn0.eyJzdWIiOiJzdWJqZWN0In0.".to_string()),
@@ -973,7 +883,7 @@ async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in(
     let token_set = TokenSet::new(token_set_params);
 
     let err = client
-        .userinfo_async(&token_set, UserinfoOptions::default())
+        .userinfo_async(&token_set, UserinfoOptions::default(), &DefaultHttpClient)
         .await
         .unwrap_err();
 

@@ -41,6 +41,105 @@ pub struct CallbackParams {
 }
 
 impl CallbackParams {
+    /// Creates new instance of CallbackParams
+    pub fn new() -> Self {
+        Self {
+            access_token: None,
+            code: None,
+            error: None,
+            error_description: None,
+            error_uri: None,
+            expires_in: None,
+            id_token: None,
+            state: None,
+            token_type: None,
+            session_state: None,
+            response: None,
+            iss: None,
+            other: None,
+        }
+    }
+
+    /// Sets the access_token field.
+    pub fn access_token(mut self, access_token: Option<String>) -> Self {
+        self.access_token = access_token;
+        self
+    }
+
+    /// Sets the code field.
+    pub fn code(mut self, code: Option<String>) -> Self {
+        self.code = code;
+        self
+    }
+
+    /// Sets the error field.
+    pub fn error(mut self, error: Option<String>) -> Self {
+        self.error = error;
+        self
+    }
+
+    /// Sets the error_description field.
+    pub fn error_description(mut self, error_description: Option<String>) -> Self {
+        self.error_description = error_description;
+        self
+    }
+
+    /// Sets the error_uri field.
+    pub fn error_uri(mut self, error_uri: Option<String>) -> Self {
+        self.error_uri = error_uri;
+        self
+    }
+
+    /// Sets the expires_in field.
+    pub fn expires_in(mut self, expires_in: Option<String>) -> Self {
+        self.expires_in = expires_in;
+        self
+    }
+
+    /// Sets the id_token field.
+    pub fn id_token(mut self, id_token: Option<String>) -> Self {
+        self.id_token = id_token;
+        self
+    }
+
+    /// Sets the state field.
+    pub fn state(mut self, state: Option<String>) -> Self {
+        self.state = state;
+        self
+    }
+
+    /// Sets the token_type field.
+    pub fn token_type(mut self, token_type: Option<String>) -> Self {
+        self.token_type = token_type;
+        self
+    }
+
+    /// Sets the session_state field.
+    pub fn session_state(mut self, session_state: Option<String>) -> Self {
+        self.session_state = session_state;
+        self
+    }
+
+    /// Sets the response field.
+    pub fn response(mut self, response: Option<String>) -> Self {
+        self.response = response;
+        self
+    }
+
+    /// Sets the iss field.
+    pub fn iss(mut self, iss: Option<String>) -> Self {
+        self.iss = iss;
+        self
+    }
+
+    /// Sets the other field.
+    pub fn other(mut self, other: Option<HashMap<String, String>>) -> Self {
+        self.other = other;
+        self
+    }
+}
+
+impl CallbackParams {
     pub(crate) fn from_jwt_payload(payload: &JwtPayload) -> Self {
         let mut params = Self {
             access_token: Self::json_value_to_string_option(payload.claim("access_token")),

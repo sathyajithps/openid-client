@@ -8,9 +8,10 @@ use serde_json::{json, Value};
 use crate::{
     client::Client,
     helpers::{get_s256_jwk_thumbprint, now},
+    http_client::DefaultHttpClient,
     issuer::Issuer,
     jwks::jwks::CustomJwk,
-    types::{CallbackParams, ClientMetadata, IssuerMetadata},
+    types::{CallbackParams, ClientMetadata, IssuerMetadata, OpenIdCallbackParams},
 };
 
 fn id_token(claims: Option<Vec<(String, Value)>>, exclude: bool) -> String {
@@ -74,7 +75,7 @@ fn get_test_data() -> (Issuer, Client) {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metdata, None);
+    let issuer = Issuer::new(issuer_metdata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("https://rp.example.com/cb".to_string()),
@@ -84,9 +85,7 @@ fn get_test_data() -> (Issuer, Client) {
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     (issuer, client)
 }
@@ -100,8 +99,10 @@ async fn consumes_a_self_issued_response() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default().parameters(params);
+
     client
-        .callback_async(None, params, None, None)
+        .callback_async(&DefaultHttpClient, params)
         .await
         .unwrap();
 }
@@ -115,8 +116,10 @@ async fn expects_sub_jwk_to_be_in_the_id_token_claims() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default().parameters(params);
+
     let err = client
-        .callback_async(None, params, None, None)
+        .callback_async(&DefaultHttpClient, params)
         .await
         .unwrap_err();
 
@@ -127,7 +130,6 @@ async fn expects_sub_jwk_to_be_in_the_id_token_claims() {
         "missing required JWT property sub_jwk",
         rp_error.error.message
     );
-    assert!(rp_error.error.extra_data.unwrap().contains_key("jwt"));
 }
 
 #[tokio::test]
@@ -141,8 +143,10 @@ async fn expects_sub_jwk_to_be_a_public_jwk() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default().parameters(params);
+
     let err = client
-        .callback_async(None, params, None, None)
+        .callback_async(&DefaultHttpClient, params)
         .await
         .unwrap_err();
 
@@ -153,7 +157,6 @@ async fn expects_sub_jwk_to_be_a_public_jwk() {
         "failed to use sub_jwk claim as an asymmetric JSON Web Key",
         rp_error.error.message
     );
-    assert!(rp_error.error.extra_data.unwrap().contains_key("jwt"));
 }
 
 #[tokio::test]
@@ -167,8 +170,10 @@ async fn expects_sub_to_be_the_thumbprint_of_the_sub_jwk() {
         ..Default::default()
     };
 
+    let params = OpenIdCallbackParams::default().parameters(params);
+
     let err = client
-        .callback_async(None, params, None, None)
+        .callback_async(&DefaultHttpClient, params)
         .await
         .unwrap_err();
 
@@ -179,5 +184,4 @@ async fn expects_sub_to_be_the_thumbprint_of_the_sub_jwk() {
         "failed to match the subject with sub_jwk",
         rp_error.error.message
     );
-    assert!(rp_error.error.extra_data.unwrap().contains_key("jwt"));
 }

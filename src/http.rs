@@ -1,183 +1,49 @@
-use std::time::Duration;
-
 use crate::{
-    helpers::{convert_json_to, parse_www_authenticate_error, string_map_to_form_url_encoded},
+    helpers::{convert_json_to, parse_www_authenticate_error},
     types::{
-        Lookup, OidcClientError, Request, RequestInterceptor, RequestOptions, Response,
-        StandardBodyError,
+        HttpRequest, HttpResponse, HttpResponseExpectations, OidcClientError, OidcHttpClient,
+        OidcReturnType, StandardBodyError,
     },
 };
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Identity,
-};
 use serde_json::Value;
-use url::Url;
 
-pub async fn request_async(
-    request: &Request,
-    interceptor: Option<&mut RequestInterceptor>,
-) -> Result<Response, OidcClientError> {
-    let mut url = Url::parse(&request.url).unwrap();
-
-    let options = match interceptor {
-        Some(i) => i.intercept(request),
-        None => {
-            let mut headers = HeaderMap::new();
-            headers.append(
-                "User-Agent",
-                HeaderValue::from_static(
-                    "openid-client/0.1.1 (https://github.com/sathyajithps/openid-client)",
-                ),
-            );
-            RequestOptions {
-                headers,
-                timeout: Duration::from_secs(5),
-                ..Default::default()
-            }
-        }
-    };
-
-    let mut client_builder = reqwest::ClientBuilder::new();
-
-    if let Some(l) = options.lookup {
-        lookup_resolve(l, &mut url)?;
-    }
-
-    if options.danger_accept_invalid_certs {
-        client_builder = client_builder.danger_accept_invalid_certs(true);
-    }
-
-    if request.mtls
-        && (options.client_crt.is_none() || options.client_key.is_none())
-        && options.client_pkcs_12.is_none()
-    {
-        return Err(OidcClientError::new_type_error(
-            "mutual-TLS certificate and key not set",
-            None,
-        ));
-    }
-
-    if let (Some(crt), Some(key)) = (options.client_crt, options.client_key) {
-        if let Ok(identity) = Identity::from_pkcs8_pem(crt.as_bytes(), key.as_bytes()) {
-            client_builder = client_builder.identity(identity);
-        }
-    };
-
-    if let Some(pfx) = options.client_pkcs_12 {
-        let pass = options.client_pkcs_12_passphrase.unwrap_or_default();
-        if let Ok(identity) = Identity::from_pkcs12_der(&pfx, &pass) {
-            client_builder = client_builder.identity(identity);
-        }
-    };
-
-    let client = client_builder
-        .build()
-        .map_err(|_| OidcClientError::new_error("error when building reqwest client", None))?;
-
-    let mut headers = combine_and_create_new_header_map(&request.headers, &options.headers);
-
-    let mut req = client
-        .request(request.method.clone(), url)
-        .query(&request.get_reqwest_query())
-        .timeout(options.timeout);
-
-    if let Some(json_body) = &request.json {
-        headers.remove("content-type");
-        headers.insert("content-type", HeaderValue::from_static("application/json"));
-        headers.remove("content-length");
-        // remove unwrap ?
-        headers.insert(
-            "content-length",
-            HeaderValue::from_str(&json_body.as_bytes().len().to_string()).unwrap(),
-        );
-
-        req = req.body(json_body.to_owned());
-    } else if let Some(form_body) = &request.form {
-        if !form_body.is_empty() {
-            let body = string_map_to_form_url_encoded(form_body)?;
-
-            headers.remove("content-type");
-            headers.insert(
-                "content-type",
-                HeaderValue::from_static("application/x-www-form-urlencoded"),
-            );
-
-            if let Ok(content_len_value) = HeaderValue::from_str(&body.as_bytes().len().to_string())
-            {
-                headers.remove("content-length");
-                headers.insert("content-length", content_len_value);
-            }
-
-            req = req.body(body);
-        }
-    } else if let Some(body) = &request.body {
-        req = req.body(body.to_owned());
-
-        if let Ok(content_len_value) = HeaderValue::from_str(&body.as_bytes().len().to_string()) {
-            headers.remove("content-length");
-            headers.insert("content-length", content_len_value);
-        }
-    }
-
-    req = req.headers(headers);
-
-    let response = match req.send().await {
-        Ok(res) => Response::from_async(res).await,
-        _ => {
-            return Err(OidcClientError::new_error(
-                "error while sending the request",
+pub async fn request_async<T>(
+    mut request: HttpRequest,
+    http_client: &T,
+) -> OidcReturnType<HttpResponse>
+where
+    T: OidcHttpClient,
+{
+    if request.mtls {
+        let cert = http_client.get_client_certificate(&request).await;
+        if cert.is_none() {
+            return Err(Box::new(OidcClientError::new_type_error(
+                "mutual-TLS certificate and key not set",
                 None,
-            ))
+            )));
         }
-    };
+        request.client_certificate = cert;
+    }
 
-    process_response(response, request)
+    let expectations = request.expectations;
+
+    let res = http_client
+        .request(request)
+        .await
+        .map_err(|e| OidcClientError::new_error(&e, None))?;
+
+    process_response(res, expectations)
 }
 
-fn lookup_resolve(mut l: Box<dyn Lookup>, url: &mut Url) -> Result<(), OidcClientError> {
-    let lookedup_url = l.lookup(url);
+fn process_response(
+    response: HttpResponse,
+    expectations: HttpResponseExpectations,
+) -> OidcReturnType<HttpResponse> {
+    let mut res = return_error_if_not_expected_status(response, &expectations)?;
 
-    if let Some(host) = lookedup_url.host_str() {
-        if lookedup_url.scheme() != "https" && lookedup_url.scheme() != "http" {
-            return Err(OidcClientError::new_type_error(
-                "Interceptor Lookup Error: only http or https is supported as a scheme.",
-                None,
-            ));
-        }
+    res = return_error_if_expected_body_is_absent(res, &expectations)?;
 
-        url.set_scheme(lookedup_url.scheme()).map_err(|_| {
-            OidcClientError::new_error("Interceptor Lookup Error: error when changing scheme", None)
-        })?;
-
-        url.set_host(Some(host)).map_err(|_| {
-            OidcClientError::new_error("Interceptor Lookup Error: error when setting host", None)
-        })?;
-
-        if let Some(port) = lookedup_url.port() {
-            url.set_port(Some(port)).map_err(|_| {
-                OidcClientError::new_error(
-                    "Interceptor Lookup Error: error when setting port",
-                    None,
-                )
-            })?;
-        }
-    } else {
-        return Err(OidcClientError::new_type_error(
-            "Interceptor Lookup Error: no host found.",
-            None,
-        ));
-    }
-
-    Ok(())
-}
-
-fn process_response(response: Response, request: &Request) -> Result<Response, OidcClientError> {
-    let mut res = return_error_if_not_expected_status(response, request)?;
-
-    res = return_error_if_expected_body_is_absent(res, request)?;
-
-    if !request.expect_body_to_be_json {
+    if !expectations.json_body {
         return Ok(res);
     }
 
@@ -188,83 +54,63 @@ fn process_response(response: Response, request: &Request) -> Result<Response, O
         invalid_json = val.is_err();
     }
 
-    res = return_error_if_json_is_invalid(invalid_json, res, request)?;
+    res = return_error_if_json_is_invalid(invalid_json, res, &expectations)?;
     Ok(res)
 }
 
-fn combine_and_create_new_header_map(one: &HeaderMap, two: &HeaderMap) -> HeaderMap {
-    let mut new_headers = HeaderMap::new();
-    one.iter()
-        .chain(two.iter())
-        .for_each(|(header_name, header_values)| {
-            new_headers.append(header_name, header_values.into());
-        });
-
-    new_headers
-}
-
 fn return_error_if_not_expected_status(
-    response: Response,
-    request: &Request,
-) -> Result<Response, OidcClientError> {
-    if response.status != request.expected {
+    response: HttpResponse,
+    expectations: &HttpResponseExpectations,
+) -> OidcReturnType<HttpResponse> {
+    if response.status_code != expectations.status_code {
         if let Some(body) = &response.body {
             let standard_body_error_result: Result<StandardBodyError, _> = convert_json_to(body);
             if let Ok(sbe) = standard_body_error_result {
-                return Err(OidcClientError::new_op_error(
+                return Err(Box::new(OidcClientError::new_op_error(
                     sbe.error,
                     sbe.error_description,
                     sbe.error_uri,
-                    sbe.scope,
-                    sbe.state,
                     Some(response),
-                ));
+                )));
             }
         }
 
-        if let Some((_, header_value)) = response
-            .headers
-            .iter()
-            .find(|(x, _)| x.as_str().to_lowercase() == "www-authenticate")
-        {
+        if let Some(value) = response.www_authenticate.as_ref() {
             // check if bearer or dpop auth?
-            parse_www_authenticate_error(header_value, &response)?;
+            parse_www_authenticate_error(value, &response)?;
         }
 
-        return Err(OidcClientError::new_op_error(
+        return Err(Box::new(OidcClientError::new_op_error(
             "server_error".to_string(),
             Some(format!(
                 "expected {}, got: {}",
-                request.expected, response.status
+                status_to_text(expectations.status_code),
+                status_to_text(response.status_code)
             )),
             None,
-            None,
-            None,
             Some(response),
-        ));
+        )));
     }
     Ok(response)
 }
 
 fn return_error_if_expected_body_is_absent(
-    mut response: Response,
-    request: &Request,
-) -> Result<Response, OidcClientError> {
-    if request.expect_body && response.body.is_none() {
-        return Err(OidcClientError::new_op_error(
+    mut response: HttpResponse,
+    expectations: &HttpResponseExpectations,
+) -> OidcReturnType<HttpResponse> {
+    if expectations.body && response.body.is_none() {
+        return Err(Box::new(OidcClientError::new_op_error(
             "server_error".to_string(),
             Some(format!(
                 "expected {} with body but no body was returned",
-                request.expected
+                status_to_text(expectations.status_code)
             )),
             None,
-            None,
-            None,
             Some(response),
-        ));
+        )));
     }
 
-    if !request.expect_body {
+    if !expectations.body {
         response.body = None;
     }
 
@@ -273,14 +119,48 @@ fn return_error_if_expected_body_is_absent(
 
 fn return_error_if_json_is_invalid(
     invalid_json: bool,
-    response: Response,
-    request: &Request,
-) -> Result<Response, OidcClientError> {
-    if request.expect_body && invalid_json {
-        return Err(OidcClientError::new_type_error(
+    response: HttpResponse,
+    expectations: &HttpResponseExpectations,
+) -> OidcReturnType<HttpResponse> {
+    if expectations.body && invalid_json {
+        return Err(Box::new(OidcClientError::new_type_error(
             "unexpected body type",
             Some(response),
-        ));
+        )));
     }
     Ok(response)
+}
+
+fn status_to_text(status: u16) -> &'static str {
+    match status {
+        100 => "100 Continue",
+        101 => "101 Switching Protocols",
+        200 => "200 OK",
+        201 => "201 Created",
+        202 => "202 Accepted",
+        204 => "204 No Content",
+        301 => "301 Moved Permanently",
+        302 => "302 Found",
+        307 => "307 Temporary Redirect",
+        308 => "308 Permanent Redirect",
+        400 => "400 Bad Request",
+        401 => "401 Unauthorized",
+        402 => "402 Payment Required",
+        403 => "403 Forbidden",
+        404 => "404 Not Found",
+        405 => "405 Method Not Allowed",
+        406 => "406 Not Acceptable",
+        408 => "408 Request Timeout",
+        409 => "409 Conflict",
+        418 => "418 I'm a teapot",
+        422 => "422 Unprocessable Entity",
+        429 => "429 Too Many Requests",
+        500 => "500 Internal Server Error",
+        501 => "501 Not Implemented",
+        502 => "502 Bad Gateway",
+        503 => "503 Service Unavailable",
+        504 => "504 Gateway Timeout",
+        505 => "505 HTTP Version Not Supported",
+        _ => "Unknown",
+    }
 }

@@ -1,20 +1,17 @@
 use std::{collections::HashMap, time::Duration};
 
+use serde_json::Value;
+
 use crate::{
     helpers::{convert_json_to, now, validate_url},
     http::request_async,
     issuer::Issuer,
     jwks::Jwks,
     types::{
-        ClientMetadata, ClientOptions, ClientRegistrationOptions, Fapi, OidcClientError, Request,
-        RequestInterceptor,
+        http_client::HttpMethod, ClientMetadata, ClientOptions, ClientRegistrationOptions, Fapi,
+        HttpRequest, OidcClientError, OidcHttpClient, OidcReturnType,
     },
 };
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    StatusCode,
-};
-use serde_json::Value;
 
 use super::dpop_nonce_cache::DPoPNonceCache;
 
@@ -62,7 +59,6 @@ pub struct Client {
     pub(crate) authorization_encrypted_response_enc: Option<String>,
     pub(crate) authorization_signed_response_alg: Option<String>,
     pub(crate) private_jwks: Option<Jwks>,
-    pub(crate) request_interceptor: Option<RequestInterceptor>,
     pub(crate) issuer: Option<Issuer>,
     pub(crate) client_options: Option<ClientOptions>,
     pub(crate) skip_max_age_check: bool,
@@ -114,7 +110,6 @@ impl Client {
             initiate_login_uri: None,
             request_uris: None,
             private_jwks: None,
-            request_interceptor: None,
             issuer: None,
             tls_client_certificate_bound_access_tokens: None,
             post_logout_redirect_uris: None,
@@ -157,11 +152,10 @@ impl Client {
     pub(crate) fn from_internal(
         metadata: ClientMetadata,
         issuer: Option<&Issuer>,
-        interceptor: Option<RequestInterceptor>,
         jwks: Option<Jwks>,
         options: Option<ClientOptions>,
         fapi: Option<Fapi>,
-    ) -> Result<Self, OidcClientError> {
+    ) -> OidcReturnType<Self> {
         let mut valid_client_id = true;
 
         if let Some(client_id) = &metadata.client_id {
@@ -173,10 +167,10 @@ impl Client {
         }
 
         if !valid_client_id {
-            return Err(OidcClientError::new_type_error(
+            return Err(Box::new(OidcClientError::new_type_error(
                 "client_id is required",
                 None,
-            ));
+            )));
         }
 
         let mut client = Self {
@@ -229,10 +223,10 @@ impl Client {
         }
 
         if metadata.response_type.is_some() && metadata.response_types.is_some() {
-            return Err(OidcClientError::new_type_error(
+            return Err(Box::new(OidcClientError::new_type_error(
                 "provide a response_type or response_types, not both",
                 None,
-            ));
+            )));
         }
 
         if let Some(response_type) = &metadata.response_type {
@@ -245,10 +239,10 @@ impl Client {
         }
 
         if metadata.redirect_uri.is_some() && metadata.redirect_uris.is_some() {
-            return Err(OidcClientError::new_type_error(
+            return Err(Box::new(OidcClientError::new_type_error(
                 "provide a redirect_uri or redirect_uris, not both",
                 None,
-            ));
+            )));
         }
 
         if let Some(redirect_uri) = &metadata.redirect_uri {
@@ -327,10 +321,6 @@ impl Client {
             client.id_token_encrypted_response_enc = metadata.id_token_encrypted_response_enc;
         }
 
-        if let Some(i) = interceptor {
-            client.set_request_interceptor(i);
-        }
-
         if jwks.is_some() {
             client.private_jwks = jwks;
         }
@@ -343,21 +333,24 @@ impl Client {
             match client.token_endpoint_auth_method.as_deref() {
                 Some("private_key_jwt") => {
                     if client.private_jwks.is_none() {
-                        return Err(OidcClientError::new_type_error("jwks is required", None));
+                        return Err(Box::new(OidcClientError::new_type_error(
+                            "jwks is required",
+                            None,
+                        )));
                     }
                 }
                 Some("self_signed_tls_client_auth") | Some("tls_client_auth") => {}
                 Some(_) => {
-                    return Err(OidcClientError::new_type_error(
+                    return Err(Box::new(OidcClientError::new_type_error(
                         "invalid or unsupported token_endpoint_auth_method",
                         None,
-                    ));
+                    )));
                 }
                 None => {
-                    return Err(OidcClientError::new_type_error(
+                    return Err(Box::new(OidcClientError::new_type_error(
                         "token_endpoint_auth_method is required",
                         None,
-                    ));
+                    )));
                 }
             };
         }
@@ -370,17 +363,17 @@ impl Client {
                 (Some(&false), Some(&false))
                 | (Some(&false), None)
                 | (None, Some(&false))
-                | (None, None) => return Err(OidcClientError::new_type_error(
+                | (None, None) => return Err(Box::new(OidcClientError::new_type_error(
                     "one of tls_client_certificate_bound_access_tokens or dpop_bound_access_tokens must be true",
                     None,
-                )),
+                ))),
 
-                (Some(&true), Some(&true)) => return Err(OidcClientError::new_type_error(
+                (Some(&true), Some(&true)) => return Err(Box::new(OidcClientError::new_type_error(
                     "only one of tls_client_certificate_bound_access_tokens or dpop_bound_access_tokens must be true",
                     None,
-                )),
+                ))),
 
-                (_, _) => {},
+                (_, _) => {}
             };
         }
 
@@ -392,16 +385,16 @@ impl Client {
         supported_alg: &Option<String>,
         issuer_supported_alg_values: &Option<Vec<String>>,
         endpoint: &str,
-    ) -> Result<(), OidcClientError> {
+    ) -> OidcReturnType<()> {
         if let Some(am) = auth_method {
             if am.ends_with("_jwt")
                 && supported_alg.is_none()
                 && issuer_supported_alg_values.is_none()
             {
-                return Err(OidcClientError::new_type_error(
-                &format!("{endpoint}_endpoint_auth_signing_alg_values_supported must be configured on the issuer if {endpoint}_endpoint_auth_signing_alg is not defined on a client"),
-                None
-            ));
+                return Err(Box::new(OidcClientError::new_type_error(
+                    &format!("{endpoint}_endpoint_auth_signing_alg_values_supported must be configured on the issuer if {endpoint}_endpoint_auth_signing_alg is not defined on a client"),
+                    None,
+                )));
             }
         }
         Ok(())
@@ -410,10 +403,6 @@ impl Client {
     /// Gets the extra fields in client
     pub fn get_other_fields(&self) -> &HashMap<String, Value> {
         &self.other_fields
-    }
-
-    fn set_request_interceptor(&mut self, i: RequestInterceptor) {
-        self.request_interceptor = Some(i);
     }
 }
 
@@ -424,101 +413,44 @@ impl Client {
     /// Creates a [Client] from the Client read endpoint.
     ///
     /// - `registration_client_uri` - The client read endpoint
+    /// - `issuer` - [Issuer]
     /// - `registration_access_token` - The access token to be sent with the request
     /// - `jwks` - Private [Jwks] of the client
     /// - `client_options` - The [ClientOptions]
-    /// - `issuer` - [Issuer]
-    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
     /// - `fapi` - [Fapi] version.
-    ///
-    /// ### *Example:*
-    ///
-    /// ```rust
-    ///    let issuer = Issuer::discover_async("https://auth.example.com", None)
-    ///        .await
-    ///        .unwrap();
-    ///
-    ///    let _client = Client::from_uri_async(
-    ///        "https://auth.example.com/client/id",
-    ///        &issuer,
-    ///        None,
-    ///        None,
-    ///        None,
-    ///        None,
-    ///        None,
-    ///    )
-    ///    .await
-    ///    .unwrap();
-    /// ```
-    ///
-    /// ### *Example: with other params*
-    ///
-    /// ```rust
-    ///    let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
-    ///    jwk.set_algorithm("PS256");
-    ///
-    ///    let jwks = Jwks::from(vec![jwk]);
-    ///
-    ///    let client_options = ClientOptions {
-    ///        additional_authorized_parties: Some(vec!["authParty".to_string()]),
-    ///    };
-    ///
-    ///    let issuer = Issuer::discover_async("https://auth.example.com", None)
-    ///        .await
-    ///        .unwrap();
-    ///
-    ///    let _client = Client::from_uri_async(
-    ///        "https://auth.example.com/client/id",
-    ///        &issuer,
-    ///        Some("token".to_string()),
-    ///        Some(jwks),
-    ///        Some(client_options),
-    ///        None,
-    ///        None,
-    ///    )
-    ///    .await
-    ///    .unwrap();
-    ///```
-    pub async fn from_uri_async(
+    /// - `http_client` - The http client to make the request
+    pub async fn from_uri_async<T>(
         registration_client_uri: &str,
         issuer: &Issuer,
         registration_access_token: Option<String>,
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
-        mut interceptor: Option<RequestInterceptor>,
         fapi: Option<Fapi>,
-    ) -> Result<Self, OidcClientError> {
+        http_client: &T,
+    ) -> OidcReturnType<Self>
+    where
+        T: OidcHttpClient,
+    {
         Self::jwks_only_private_keys_validation(jwks.as_ref())?;
 
         let url = validate_url(registration_client_uri)?;
 
-        let mut headers = HeaderMap::new();
-        headers.insert("Accept", HeaderValue::from_static("application/json"));
+        let mut headers = HashMap::new();
+        headers.insert("accept".to_string(), vec!["application/json".to_string()]);
 
         if let Some(rat) = registration_access_token {
-            let header_value = match HeaderValue::from_str(&format!("Bearer {rat}")) {
-                Ok(v) => v,
-                Err(_) => {
-                    return Err(OidcClientError::new_type_error(
-                        &format!("registration_access_token {rat} is invalid"),
-                        None,
-                    ))
-                }
-            };
-            headers.insert("Authorization", header_value);
+            headers.insert("authorization".to_string(), vec![format!("Bearer {rat}")]);
         }
 
-        let req = Request {
-            url: url.to_string(),
-            method: reqwest::Method::GET,
-            expect_body: true,
-            expected: StatusCode::OK,
-            bearer: true,
-            headers,
-            ..Request::default()
-        };
+        let req = HttpRequest::new()
+            .url(url)
+            .method(HttpMethod::GET)
+            .expect_body(true)
+            .expect_status_code(200)
+            .expect_bearer(true)
+            .headers(headers);
 
-        let res = request_async(&req, interceptor.as_mut()).await?;
+        let res = request_async(req, http_client).await?;
 
         let client_metadata = convert_json_to::<ClientMetadata>(res.body.as_ref().unwrap())
             .map_err(|_| {
@@ -526,20 +458,11 @@ impl Client {
                     "invalid client metadata".to_string(),
                     Some("error while deserializing".to_string()),
                     None,
-                    None,
-                    None,
                     Some(res),
                 )
             })?;
 
-        Self::from_internal(
-            client_metadata,
-            Some(issuer),
-            interceptor,
-            jwks,
-            client_options,
-            fapi,
-        )
+        Self::from_internal(client_metadata, Some(issuer), jwks, client_options, fapi)
     }
 }
 
@@ -552,64 +475,23 @@ impl Client {
     /// - `issuer` - The [Issuer] client should be registered to.
     /// - `client_metadata` - The [ClientMetadata] to be sent using the registration request.
     /// - `register_options` - [ClientRegistrationOptions]
-    /// - `interceptor` - See [RequestInterceptor] docs for setting up an interceptor.
     /// - `fapi` - [Fapi] version.
-    ///
-    /// ### *Example:*
-    ///
-    /// ```rust
-    ///    let issuer = Issuer::discover_async("https://auth.example.com", None)
-    ///        .await
-    ///        .unwrap();
-    ///
-    ///    let metadata = ClientMetadata {
-    ///        client_id: Some("identifier".to_string()),
-    ///        ..ClientMetadata::default()
-    ///    };
-    ///   
-    ///    let _client = Client::register_async(&issuer, metadata, None, None, None)
-    ///        .await
-    ///        .unwrap();
-    /// ```
-    ///
-    /// ### *Example: with other params*
-    ///
-    /// ```rust
-    ///      let issuer = Issuer::discover_async("https://auth.example.com", None)
-    ///        .await
-    ///        .unwrap();
-    ///
-    ///    let metadata = ClientMetadata {
-    ///        client_id: Some("identifier".to_string()),
-    ///        ..ClientMetadata::default()
-    ///    };
-    ///
-    ///    let mut jwk = Jwk::generate_rsa_key(2048).unwrap();
-    ///    jwk.set_algorithm("PS256");
-    ///
-    ///    let registration_options = ClientRegistrationOptions {
-    ///        initial_access_token: Some("initial_access_token".to_string()),
-    ///        jwks: Some(Jwks::from(vec![jwk])),
-    ///        client_options: Default::default(),
-    ///    };
-    ///
-    ///    let _client = Client::register_async(&issuer, metadata, Some(registration_options), None, None)
-    ///        .await
-    ///        .unwrap();
-    /// ```
-    ///
-    pub async fn register_async(
+    /// - `http_client` - The http client to make the request
+    pub async fn register_async<T>(
         issuer: &Issuer,
         mut client_metadata: ClientMetadata,
         register_options: Option<ClientRegistrationOptions>,
-        mut interceptor: Option<RequestInterceptor>,
         fapi: Option<Fapi>,
-    ) -> Result<Self, OidcClientError> {
+        http_client: &T,
+    ) -> OidcReturnType<Self>
+    where
+        T: OidcHttpClient,
+    {
         if issuer.registration_endpoint.is_none() {
-            return Err(OidcClientError::new_type_error(
+            return Err(Box::new(OidcClientError::new_type_error(
                 "registration_endpoint must be configured on the issuer",
                 None,
-            ));
+            )));
         }
 
         let mut initial_access_token: Option<String> = None;
@@ -617,8 +499,8 @@ impl Client {
         let mut client_options: Option<ClientOptions> = None;
 
         if let Some(options) = &register_options {
-            initial_access_token = options.initial_access_token.clone();
-            jwks = options.jwks.clone();
+            initial_access_token.clone_from(&options.initial_access_token);
+            jwks.clone_from(&options.jwks);
             client_options = Some(options.client_options.clone());
 
             if options.jwks.is_some()
@@ -639,34 +521,23 @@ impl Client {
             OidcClientError::new_error("client metadata is an invalid json format", None)
         })?;
 
-        let mut headers = HeaderMap::new();
-        headers.insert("Accept", HeaderValue::from_static("application/json"));
+        let mut headers = HashMap::new();
+        headers.insert("accept".to_string(), vec!["application/json".to_string()]);
 
         if let Some(iat) = initial_access_token {
-            let header_value = match HeaderValue::from_str(&format!("Bearer {iat}")) {
-                Ok(v) => v,
-                Err(_) => {
-                    return Err(OidcClientError::new_error(
-                        "access token is invalid. wtf?",
-                        None,
-                    ))
-                }
-            };
-            headers.insert("Authorization", header_value);
+            headers.insert("authorization".to_string(), vec![format!("Bearer {iat}")]);
         }
 
-        let req = Request {
-            url: url.to_string(),
-            method: reqwest::Method::POST,
-            expect_body: true,
-            expected: StatusCode::CREATED,
-            bearer: true,
-            headers,
-            json: Some(body),
-            ..Request::default()
-        };
+        let req = HttpRequest::new()
+            .url(url)
+            .method(HttpMethod::POST)
+            .expect_body(true)
+            .expect_status_code(201)
+            .expect_bearer(true)
+            .headers(headers)
+            .json(body);
 
-        let response = request_async(&req, interceptor.as_mut()).await?;
+        let response = request_async(req, http_client).await?;
 
         let client_metadata = convert_json_to::<ClientMetadata>(response.body.as_ref().unwrap())
             .map_err(|_| {
@@ -674,20 +545,11 @@ impl Client {
                     "invalid client metadata".to_string(),
                     None,
                     None,
-                    None,
-                    None,
                     Some(response),
                 )
             })?;
 
-        Self::from_internal(
-            client_metadata,
-            Some(issuer),
-            interceptor,
-            jwks,
-            client_options,
-            fapi,
-        )
+        Self::from_internal(client_metadata, Some(issuer), jwks, client_options, fapi)
     }
 
     /// # Get Client Metadata
@@ -743,15 +605,13 @@ impl Client {
     }
 
     /// Returs error if JWKS only has private keys
-    pub(crate) fn jwks_only_private_keys_validation(
-        jwks: Option<&Jwks>,
-    ) -> Result<(), OidcClientError> {
+    pub(crate) fn jwks_only_private_keys_validation(jwks: Option<&Jwks>) -> OidcReturnType<()> {
         if let Some(jwks) = jwks {
             if !jwks.is_only_private_keys() || jwks.has_oct_keys() {
-                return Err(OidcClientError::new_error(
+                return Err(Box::new(OidcClientError::new_error(
                     "jwks must only contain private keys",
                     None,
-                ));
+                )));
             }
         }
         Ok(())
@@ -760,8 +620,6 @@ impl Client {
 
 impl Clone for Client {
     fn clone(&self) -> Self {
-        let request_interceptor = self.request_interceptor.as_ref().map(|i| i.clone_box());
-
         Self {
             client_id: self.client_id.clone(),
             client_secret: self.client_secret.clone(),
@@ -808,7 +666,6 @@ impl Clone for Client {
             authorization_signed_response_alg: self.authorization_signed_response_alg.clone(),
             other_fields: self.other_fields.clone(),
             private_jwks: self.private_jwks.clone(),
-            request_interceptor,
             issuer: self.issuer.clone(),
             client_options: self.client_options.clone(),
             skip_max_age_check: self.skip_max_age_check,

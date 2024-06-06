@@ -21,16 +21,14 @@ fn setup_clients() -> TestClients {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let client_with_meta_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -40,7 +38,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_meta = issuer
-        .client(client_with_meta_metadata, None, None, None, None)
+        .client(client_with_meta_metadata, None, None, None)
         .unwrap();
 
     let client_with_multiple_metas_metadata = ClientMetadata {
@@ -54,7 +52,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_multiple_metas = issuer
-        .client(client_with_multiple_metas_metadata, None, None, None, None)
+        .client(client_with_multiple_metas_metadata, None, None, None)
         .unwrap();
 
     let issuer_metadata_with_query = IssuerMetadata {
@@ -63,7 +61,7 @@ fn setup_clients() -> TestClients {
         ..Default::default()
     };
 
-    let issuer_with_query = Issuer::new(issuer_metadata_with_query, None);
+    let issuer_with_query = Issuer::new(issuer_metadata_with_query);
 
     let client_with_query_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
@@ -71,7 +69,7 @@ fn setup_clients() -> TestClients {
     };
 
     let client_with_query = issuer_with_query
-        .client(client_with_query_metadata, None, None, None, None)
+        .client(client_with_query_metadata, None, None, None)
         .unwrap();
 
     TestClients {
@@ -295,16 +293,14 @@ fn returns_error_if_authorization_endpoint_is_not_configured() {
         ..Default::default()
     };
 
-    let issuer = Issuer::new(issuer_metadata, None);
+    let issuer = Issuer::new(issuer_metadata);
 
     let client_metadata = ClientMetadata {
         client_id: Some("identifier".to_string()),
         ..Default::default()
     };
 
-    let client = issuer
-        .client(client_metadata, None, None, None, None)
-        .unwrap();
+    let client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
         .authorization_url(AuthorizationParameters::default())

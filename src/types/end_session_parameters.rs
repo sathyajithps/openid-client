@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 /// # EndSessionParameters
-/// Parameters for customizing [`crate::client::Client::end_session_url()`]
+/// Parameters for customizing end session url
 #[derive(Debug, Default)]
 pub struct EndSessionParameters {
     /// [Id token hint](https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout)

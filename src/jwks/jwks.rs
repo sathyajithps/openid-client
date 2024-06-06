@@ -14,20 +14,20 @@ use josekit::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::types::OidcClientError;
+use crate::types::{OidcClientError, OidcReturnType};
 
 pub(crate) trait CustomJwk {
     fn algorithms(&self) -> HashSet<String>;
 
     fn is_private_key(&self) -> bool;
 
-    fn to_signer(&self) -> Result<Box<dyn JwsSigner>, OidcClientError>;
+    fn to_signer(&self) -> OidcReturnType<Box<dyn JwsSigner>>;
 
-    fn to_verifier(&self) -> Result<Box<dyn JwsVerifier>, OidcClientError>;
+    fn to_verifier(&self) -> OidcReturnType<Box<dyn JwsVerifier>>;
 
-    fn to_jwe_decrypter(&self) -> Result<Box<dyn JweDecrypter>, OidcClientError>;
+    fn to_jwe_decrypter(&self) -> OidcReturnType<Box<dyn JweDecrypter>>;
 
-    fn to_jwe_encrypter(&self) -> Result<Box<dyn JweEncrypter>, OidcClientError>;
+    fn to_jwe_encrypter(&self) -> OidcReturnType<Box<dyn JweEncrypter>>;
 }
 
 impl CustomJwk for Jwk {
@@ -90,14 +90,14 @@ impl CustomJwk for Jwk {
         self.key_type() == "oct" || self.parameter("d").is_some()
     }
 
-    fn to_signer(&self) -> Result<Box<dyn JwsSigner>, OidcClientError> {
+    fn to_signer(&self) -> OidcReturnType<Box<dyn JwsSigner>> {
         let alg = match self.algorithm() {
             Some(a) => a,
             None => {
-                return Err(OidcClientError::new_error(
+                return Err(Box::new(OidcClientError::new_error(
                     "jwk does not have algorithm",
                     None,
-                ))
+                )))
             }
         };
 
@@ -189,21 +189,21 @@ impl CustomJwk for Jwk {
                 ))
             }
             "none" => Ok(Box::new(UnsecuredJwsAlgorithm::None.signer())),
-            _ => Err(OidcClientError::new_error(
+            _ => Err(Box::new(OidcClientError::new_error(
                 "invalid algorithm for creating a signer",
                 None,
-            )),
+            ))),
         }
     }
 
-    fn to_verifier(&self) -> Result<Box<dyn JwsVerifier>, OidcClientError> {
+    fn to_verifier(&self) -> OidcReturnType<Box<dyn JwsVerifier>> {
         let alg = match self.algorithm() {
             Some(a) => a,
             None => {
-                return Err(OidcClientError::new_error(
+                return Err(Box::new(OidcClientError::new_error(
                     "jwk does not have algorithm",
                     None,
-                ))
+                )))
             }
         };
 
@@ -295,14 +295,14 @@ impl CustomJwk for Jwk {
                 ))
             }
             "none" => Ok(Box::new(UnsecuredJwsAlgorithm::None.verifier())),
-            _ => Err(OidcClientError::new_error(
+            _ => Err(Box::new(OidcClientError::new_error(
                 "invalid algorithm for creating a signer",
                 None,
-            )),
+            ))),
         }
     }
 
-    fn to_jwe_decrypter(&self) -> Result<Box<dyn JweDecrypter>, OidcClientError> {
+    fn to_jwe_decrypter(&self) -> OidcReturnType<Box<dyn JweDecrypter>> {
         if let Ok(decrypter) = jwe::A128GCMKW.decrypter_from_jwk(self) {
             return Ok(Box::new(decrypter));
         }
@@ -380,13 +380,13 @@ impl CustomJwk for Jwk {
             return Ok(Box::new(decrypter));
         }
 
-        Err(OidcClientError::new_error(
+        Err(Box::new(OidcClientError::new_error(
             "Could not convert Jwk to a JWE Decrpter",
             None,
-        ))
+        )))
     }
 
-    fn to_jwe_encrypter(&self) -> Result<Box<dyn JweEncrypter>, OidcClientError> {
+    fn to_jwe_encrypter(&self) -> OidcReturnType<Box<dyn JweEncrypter>> {
         if let Ok(encrypter) = jwe::A128GCMKW.encrypter_from_jwk(self) {
             return Ok(Box::new(encrypter));
         }
@@ -464,10 +464,10 @@ impl CustomJwk for Jwk {
             return Ok(Box::new(decrypter));
         }
 
-        Err(OidcClientError::new_error(
+        Err(Box::new(OidcClientError::new_error(
             "Could not convert Jwk to a JWE Decrpter",
             None,
-        ))
+        )))
     }
 }
 
@@ -505,12 +505,12 @@ impl Jwks {
         alg: Option<String>,
         key_use: Option<String>,
         kid: Option<String>,
-    ) -> Result<Vec<&Jwk>, OidcClientError> {
+    ) -> OidcReturnType<Vec<&Jwk>> {
         if key_use.is_none() || alg.is_none() {
-            return Err(OidcClientError::new_error(
+            return Err(Box::new(OidcClientError::new_error(
                 "key_use or alg should be present",
                 None,
-            ));
+            )));
         }
         let kty = get_kty_from_alg(alg.as_ref());
 
