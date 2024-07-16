@@ -5,7 +5,7 @@ A feature complete OpenID Client library for Rust. Not stable, kindly report any
 **TODO**
 
 - [ ] Write and Pass conformance
-- [ ] Allow to use custom http client instead of interceptor
+- [x] Allow to use custom http client instead of interceptor
 - [ ] Code cleanup
 - [ ] Thin up a lot of inefficient decisions made for the sake of completion of the library
 - [ ] Test out the ported features
