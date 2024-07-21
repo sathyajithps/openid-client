@@ -40,17 +40,17 @@ pub fn generate_nonce(bytes: Option<u32>) -> String {
 }
 
 /// Generates a random string as the code_verifier. Uses [generate_random] under the hood.
-pub fn generate_code_verifier(bytes: Option<u32>) -> String {
-    generate_random(bytes)
+pub fn generate_code_verifier() -> String {
+    generate_random(None)
 }
 
 /// Generates the S256 PKCE code challenge for `verifier`.
-pub fn code_challenge(verifier: &str) -> Vec<u8> {
+pub fn code_challenge(verifier: &str) -> String {
     let mut hasher = Sha256::new();
 
     hasher.update(verifier);
 
-    hasher.finalize().to_vec()
+    base64_url::encode(&hasher.finalize().to_vec())
 }
 
 /// Converts plain JSON to a struct/enum that impl's serde's [Deserialize]. Uses [serde_json::from_str] under
@@ -112,4 +112,26 @@ pub fn decode_jwt(token: &str) -> OidcReturnType<DecodedToken> {
         payload,
         signature,
     })
+}
+
+#[cfg(test)]
+mod helper_tests {
+    use crate::helpers::{code_challenge, generate_code_verifier};
+
+    #[test]
+    fn code_challenge_should_work() {
+        let verifier = "xupVEHY65t6sSASJL5eWq8e736TvtlgQUrU2c9hMqaA";
+
+        assert_eq!(
+            "TQduXP_9QfLCe9TY10TxZEP4gXy6xBPirtydtDOoQC0",
+            code_challenge(&verifier)
+        );
+    }
+
+    #[test]
+    fn code_verifier_should_only_create_string_of_length_43() {
+        for _ in 1..100 {
+            assert_eq!(43, generate_code_verifier().len());
+        }
+    }
 }
