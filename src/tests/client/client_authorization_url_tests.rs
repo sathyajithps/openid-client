@@ -121,7 +121,7 @@ fn returns_a_space_delimited_scope_parameter() {
     let url = clients.client.authorization_url(auth_params).unwrap();
 
     assert_eq!(
-        Some("openid%20profile%20email".to_string()),
+        Some("openid profile email".to_string()),
         get_query(&url, "scope")
     );
 }
@@ -241,7 +241,7 @@ fn allows_to_overwrite_the_defaults() {
         get_query(&url, "response_type")
     );
     assert_eq!(
-        Some("openid%20offline_access".to_string()),
+        Some("openid offline_access".to_string()),
         get_query(&url, "scope")
     );
 }

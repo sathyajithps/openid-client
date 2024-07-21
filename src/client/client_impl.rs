@@ -2,7 +2,6 @@ use josekit::jwe::JweHeader;
 use josekit::jws::JwsHeader;
 use josekit::{jwe, jws};
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -73,15 +72,24 @@ impl Client {
 
         let mut new_query_params = form_urlencoded::Serializer::new(String::new());
 
+        let mut scope_str = None;
+
         for (query, value) in &query_params {
             if query == "scope" {
-                new_query_params.append_pair(query, urlencoding::encode(value).deref());
+                scope_str = Some(urlencoding::encode(value).to_string());
+                continue;
             }
             new_query_params.append_pair(query, value);
         }
 
         if !query_params.is_empty() {
-            authorization_endpiont.set_query(Some(&new_query_params.finish()));
+            let mut query = new_query_params.finish();
+
+            if let Some(scope) = scope_str {
+                query.push_str(&format!("&scope={}", scope));
+            }
+
+            authorization_endpiont.set_query(Some(&query));
         }
 
         Ok(authorization_endpiont)
