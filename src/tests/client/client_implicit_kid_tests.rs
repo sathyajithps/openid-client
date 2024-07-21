@@ -74,7 +74,7 @@ mod no_implicit_key_ids {
             .unwrap();
 
         let jwt = client
-            .request_object_async(json!({}), &DefaultHttpClient)
+            .request_object_async(&DefaultHttpClient, json!({}))
             .await
             .unwrap();
 
@@ -124,7 +124,7 @@ mod no_implicit_key_ids {
             ..Default::default()
         };
 
-        let _ = Client::register_async(&issuer, client_metadata, Some(reg_opt), None, &http_client)
+        let _ = Client::register_async(&http_client, &issuer, client_metadata, Some(reg_opt), None)
             .await
             .unwrap();
     }

@@ -247,11 +247,11 @@ impl Issuer {
     ///
     /// Discover an OIDC Issuer using the issuer url.
     ///
-    /// - `issuer` - The issuer url (absolute).
     /// - `http_client` - The http client used to make the request.
+    /// - `issuer` - The issuer url (absolute).
     ///
     /// *Only an absolute urls are accepted, passing in `auth.example.com` will result in an error.*
-    pub async fn discover_async<T>(issuer: &str, http_client: &T) -> OidcReturnType<Issuer>
+    pub async fn discover_async<T>(http_client: &T, issuer: &str) -> OidcReturnType<Issuer>
     where
         T: OidcHttpClient,
     {
@@ -302,10 +302,10 @@ impl Issuer {
     ///
     /// Discover an OIDC Issuer using the user email, url, url with port syntax or acct syntax.
     ///
-    /// - `input` - The resource.
     /// - `http_client` - The http client to make the request
+    /// - `input` - The resource.
     ///
-    pub async fn webfinger_async<T>(input: &str, http_client: &T) -> OidcReturnType<Issuer>
+    pub async fn webfinger_async<T>(http_client: &T, input: &str) -> OidcReturnType<Issuer>
     where
         T: OidcHttpClient,
     {
@@ -315,7 +315,7 @@ impl Issuer {
 
         let expected_issuer = Self::process_webfinger_response(res)?;
 
-        let issuer_result = Issuer::discover_async(&expected_issuer, http_client).await;
+        let issuer_result = Issuer::discover_async(http_client, &expected_issuer).await;
 
         Self::process_webfinger_issuer_result(issuer_result, expected_issuer)
     }

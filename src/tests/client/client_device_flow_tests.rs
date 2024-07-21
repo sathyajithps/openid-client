@@ -65,7 +65,7 @@ mod device_authorization {
         params.other.insert("foo".to_string(), json!("bar"));
 
         let handle = client
-            .device_authorization_async(params, None, &http_client)
+            .device_authorization_async(&http_client, params, None)
             .await
             .unwrap();
 
@@ -104,7 +104,7 @@ mod device_authorization {
         let (_, mut client) = get_client();
 
         let handle = client
-            .device_authorization_async(DeviceAuthorizationParams::default(), None, &http_client)
+            .device_authorization_async(&http_client, DeviceAuthorizationParams::default(), None)
             .await
             .unwrap();
 
@@ -130,9 +130,9 @@ mod device_authorization {
 
         let err = client
             .device_authorization_async(
+                &DefaultHttpClient,
                 DeviceAuthorizationParams::default(),
                 None,
-                &DefaultHttpClient,
             )
             .await
             .unwrap_err();
@@ -154,9 +154,9 @@ mod device_authorization {
 
         let err = client
             .device_authorization_async(
+                &DefaultHttpClient,
                 DeviceAuthorizationParams::default(),
                 None,
-                &DefaultHttpClient,
             )
             .await
             .unwrap_err();

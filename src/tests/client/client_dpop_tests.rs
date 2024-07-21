@@ -220,7 +220,7 @@ async fn is_enabled_for_userinfo() {
     };
 
     client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap();
 }
@@ -280,7 +280,7 @@ async fn handles_dpop_nonce_in_userinfo() {
     };
 
     let _ = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await;
 
     let options2 = UserinfoOptions {
@@ -289,7 +289,7 @@ async fn handles_dpop_nonce_in_userinfo() {
     };
 
     let _ = client
-        .userinfo_async(&token_set, options2, &http_client)
+        .userinfo_async(&http_client, &token_set, options2)
         .await;
 
     let options3 = UserinfoOptions {
@@ -298,7 +298,7 @@ async fn handles_dpop_nonce_in_userinfo() {
     };
 
     let _ = client
-        .userinfo_async(&token_set, options3, &http_client)
+        .userinfo_async(&http_client, &token_set, options3)
         .await;
 
     let options4 = UserinfoOptions {
@@ -307,7 +307,7 @@ async fn handles_dpop_nonce_in_userinfo() {
     };
 
     let err = client
-        .userinfo_async(&token_set, options4, &http_client)
+        .userinfo_async(&http_client, &token_set, options4)
         .await
         .unwrap_err();
 
@@ -473,7 +473,7 @@ async fn handles_dpop_nonce_in_request_resource() {
         .retry(true)
         .options(options);
 
-    let _ = client.request_resource_async(params, &http_client).await;
+    let _ = client.request_resource_async(&http_client, params).await;
 
     let options2 = RequestResourceOptions {
         dpop: Some(&key),
@@ -486,7 +486,7 @@ async fn handles_dpop_nonce_in_request_resource() {
         .retry(true)
         .options(options2);
 
-    let _ = client.request_resource_async(params, &http_client).await;
+    let _ = client.request_resource_async(&http_client, params).await;
 
     let options3 = RequestResourceOptions {
         dpop: Some(&key),
@@ -500,7 +500,7 @@ async fn handles_dpop_nonce_in_request_resource() {
         .options(options3);
 
     let err = client
-        .request_resource_async(params, &http_client)
+        .request_resource_async(&http_client, params)
         .await
         .unwrap_err();
 
@@ -536,7 +536,7 @@ async fn is_enabled_for_request_resource() {
         .options(options);
 
     client
-        .request_resource_async(params, &http_client)
+        .request_resource_async(&http_client, params)
         .await
         .unwrap();
 }
@@ -580,7 +580,7 @@ async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in(
         .options(options);
 
     let err = client
-        .request_resource_async(params, &DefaultHttpClient)
+        .request_resource_async(&DefaultHttpClient, params)
         .await
         .unwrap_err();
 
@@ -652,7 +652,7 @@ async fn is_enabled_for_refresh() {
     };
 
     client
-        .refresh_async(token_set, Some(params), &http_client)
+        .refresh_async(&http_client, token_set, Some(params))
         .await
         .unwrap();
 }
@@ -772,9 +772,9 @@ async fn is_enabled_for_deviceauthorization() {
 
     let mut handle = client
         .device_authorization_async(
+            &http_client,
             DeviceAuthorizationParams::default(),
             Some(extras),
-            &http_client,
         )
         .await
         .unwrap();
@@ -806,7 +806,7 @@ async fn is_enabled_for_pushed_authorization() {
         client_assertion_payload: None,
     };
     client
-        .pushed_authorization_request_async(None, Some(extras), &http_client)
+        .pushed_authorization_request_async(&http_client, None, Some(extras))
         .await
         .unwrap();
 }

@@ -921,14 +921,14 @@ impl Client {
     /// # Introspect
     /// Performs an introspection request at `Issuer::introspection_endpoint`
     ///
-    /// - `token` : The token to introspect
     /// - `http_client` : The http client to make the request
+    /// - `token` : The token to introspect
     /// - `token_type_hint` : Type of the token passed in `token`. Usually `access_token` or `refresh_token`
     /// - `extras`: See [IntrospectionExtras]
     pub async fn introspect_async<T>(
         &mut self,
-        token: String,
         http_client: &T,
+        token: String,
         token_type_hint: Option<String>,
         extras: Option<IntrospectionExtras>,
     ) -> OidcReturnType<HttpResponse>
@@ -988,13 +988,13 @@ impl Client {
     /// # Request Resource
     /// Performs a request to fetch using the access token at `resource_url`.
     ///
-    /// - `params` : [RequestResourceParams]
     /// - `http_client` : The http client to make the request
+    /// - `params` : [RequestResourceParams]
     #[async_recursion::async_recursion(? Send)]
     pub async fn request_resource_async<T>(
         &mut self,
-        mut params: RequestResourceParams<'async_recursion>,
         http_client: &T,
+        mut params: RequestResourceParams<'async_recursion>,
     ) -> OidcReturnType<HttpResponse>
     where
         T: OidcHttpClient,
@@ -1060,7 +1060,7 @@ impl Client {
                 if params.retry && e.error == "use_dpop_nonce" {
                     if let Some(header_val) = res.www_authenticate.as_ref() {
                         if header_val.starts_with("dpop ") {
-                            return self.request_resource_async(params, http_client).await;
+                            return self.request_resource_async(http_client, params).await;
                         }
                     }
                 }
@@ -1142,14 +1142,14 @@ impl Client {
     /// # Refresh Request
     /// Performs a Token Refresh request at Issuer's `token_endpoint`
     ///
+    /// - `http_client`: The http client to make the request
     /// - `token_set` : [TokenSet] with refresh token that will be used to perform the request
     /// - `extras` : See [RefreshTokenExtras]
-    /// - `http_client`: The http client to make the request
     pub async fn refresh_async<T>(
         &mut self,
+        http_client: &T,
         token_set: TokenSet,
         extras: Option<RefreshTokenExtras<'_>>,
-        http_client: &T,
     ) -> OidcReturnType<TokenSet>
     where
         T: OidcHttpClient,
@@ -1222,16 +1222,16 @@ impl Client {
     /// # Revoke Token
     /// Performs a token revocation at Issuer's `revocation_endpoint`
     ///
+    /// - `http_client` : The http client to make the request
     /// - `token` : The token to be revoked
     /// - `token_type_hint` : Hint to which type of token is being revoked
     /// - `extras` : See [RevokeExtras]
-    /// - `http_client` : The http client to make the request
     pub async fn revoke_async<T>(
         &mut self,
+        http_client: &T,
         token: &str,
         token_type_hint: Option<&str>,
         extras: Option<RevokeExtras>,
-        http_client: &T,
     ) -> OidcReturnType<HttpResponse>
     where
         T: OidcHttpClient,
@@ -1293,14 +1293,14 @@ impl Client {
     /// # Userinfo
     /// Performs userinfo request at Issuer's `userinfo` endpoint.
     ///
+    /// - `http_client` : The http client to make the request
     /// - `token_set` : [TokenSet] with `access_token` that will be used to perform the request
     /// - `options` : See [UserinfoOptions]
-    /// - `http_client` : The http client to make the request
     pub async fn userinfo_async<T>(
         &mut self,
+        http_client: &T,
         token_set: &TokenSet,
         options: UserinfoOptions<'_>,
-        http_client: &T,
     ) -> OidcReturnType<Value>
     where
         T: OidcHttpClient,
@@ -1446,7 +1446,7 @@ impl Client {
         }
 
         let res = self
-            .request_resource_async(resource_params, http_client)
+            .request_resource_async(http_client, resource_params)
             .await?;
 
         let payload = match jwt {
@@ -1553,11 +1553,12 @@ impl Client {
     ///
     /// Creates a request object for JAR
     ///
+    /// - `http_client` : The http client to make the request
     /// - `request_object` : A [Value] which should be an object
     pub async fn request_object_async<T>(
         &mut self,
-        mut request_object: Value,
         http_client: &T,
+        mut request_object: Value,
     ) -> OidcReturnType<String>
     where
         T: OidcHttpClient,
@@ -1715,14 +1716,14 @@ impl Client {
     ///
     /// Performs a PAR on the `pushed_authorization_request_endpoint`
     ///
+    /// - `http_client` : The http client to make the request
     /// - `parameters` : See [AuthorizationParameters]
     /// - `extras` : See [PushedAuthorizationRequestExtras]
-    /// - `http_client` : The http client to make the request
     pub async fn pushed_authorization_request_async<T>(
         &mut self,
+        http_client: &T,
         parameters: Option<AuthorizationParameters>,
         extras: Option<PushedAuthorizationRequestExtras<'_>>,
-        http_client: &T,
     ) -> OidcReturnType<Value>
     where
         T: OidcHttpClient,
@@ -1821,14 +1822,14 @@ impl Client {
     /// # Device Authorization Grant
     /// Performs a Device Authorization Grant at `device_authorization_request_endpoint`.
     ///
+    /// - `http_client` - The http client to make the request
     /// - `params` - See [DeviceAuthorizationParams]
     /// - `extras` - See [DeviceAuthorizationExtras]
-    /// - `http_client` - The http client to make the request
     pub async fn device_authorization_async<T>(
         &mut self,
+        http_client: &T,
         params: DeviceAuthorizationParams,
         extras: Option<DeviceAuthorizationExtras>,
-        http_client: &T,
     ) -> OidcReturnType<DeviceFlowHandle>
     where
         T: OidcHttpClient,
