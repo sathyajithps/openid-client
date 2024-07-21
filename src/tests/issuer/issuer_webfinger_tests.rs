@@ -19,7 +19,7 @@ async fn can_discover_using_the_email_syntax() {
         .set_response_content_type_header("application/json"),
     );
 
-    let _ = Issuer::webfinger_async("joe@openmail.example.com", &http_client).await;
+    let _ = Issuer::webfinger_async(&http_client, "joe@openmail.example.com").await;
 
     http_client.assert();
 }
@@ -35,7 +35,7 @@ async fn verifies_the_webfinger_responds_with_an_issuer() {
     .set_response_content_type_header("application/json")
     .build();
 
-    let error = Issuer::webfinger_async("joe@openmail.example.com", &http_client)
+    let error = Issuer::webfinger_async(&http_client, "joe@openmail.example.com")
         .await
         .unwrap_err();
 
@@ -61,7 +61,7 @@ async fn verifies_the_webfinger_responds_with_an_issuer_which_is_a_valid_issuer_
         .set_response_status_code(404)
     );
 
-    let error = Issuer::webfinger_async("joe@openmail.example.com", &http_client)
+    let error = Issuer::webfinger_async(&http_client, "joe@openmail.example.com")
         .await
         .unwrap_err();
 
@@ -81,7 +81,7 @@ async fn verifies_the_webfinger_responds_with_an_issuer_which_is_a_valid_issuer_
         .set_response_body(r#"{"subject":"https://openmail.example.com/joe","links":[{"rel":"http://openid.net/specs/connect/1.0/issuer","href":"1"}]}"#)
         .set_response_content_type_header("application/json").build();
 
-    let error = Issuer::webfinger_async("joe@openmail.example.com", &http_client)
+    let error = Issuer::webfinger_async(&http_client, "joe@openmail.example.com")
         .await
         .unwrap_err();
 
@@ -108,7 +108,7 @@ async fn validates_the_discovered_issuer_is_the_same_as_from_webfinger() {
         .set_response_content_type_header("application/json")
     );
 
-    let error = Issuer::webfinger_async("joe@openmail.example.com", &http_client)
+    let error = Issuer::webfinger_async(&http_client, "joe@openmail.example.com")
         .await
         .unwrap_err();
     assert_eq!(
@@ -138,7 +138,7 @@ async fn can_discover_using_the_url_syntax() {
     );
 
     let issuer_result =
-        Issuer::webfinger_async("https://opurl.example.com/joe", &http_client).await;
+        Issuer::webfinger_async(&http_client, "https://opurl.example.com/joe").await;
 
     assert!(issuer_result.is_ok());
 
@@ -161,7 +161,7 @@ async fn can_discover_using_the_hostname_and_port_syntax() {
         .set_response_content_type_header("application/json")
     );
 
-    let issuer_result = Issuer::webfinger_async("ophp.example.com:8080", &http_client).await;
+    let issuer_result = Issuer::webfinger_async(&http_client, "ophp.example.com:8080").await;
 
     assert!(issuer_result.is_ok());
 
@@ -185,8 +185,8 @@ async fn can_discover_using_the_acct_syntax() {
     );
 
     let issuer_result = Issuer::webfinger_async(
-        "acct:juliet@capulet.example@opacct.example.com",
         &http_client,
+        "acct:juliet@capulet.example@opacct.example.com",
     )
     .await;
 

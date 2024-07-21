@@ -33,7 +33,7 @@ fn get_client() -> Client {
 #[tokio::test]
 async fn rejects_when_passed_a_token_set_not_containing_refresh_token() {
     let err = get_client()
-        .refresh_async(TokenSet::default(), None, &DefaultHttpClient)
+        .refresh_async(&DefaultHttpClient, TokenSet::default(), None)
         .await
         .unwrap_err();
 
@@ -68,7 +68,7 @@ async fn does_a_refresh_token_grant_with_refresh_token() {
     };
 
     let _ = get_client()
-        .refresh_async(TokenSet::new(token_set_params), None, &http_client)
+        .refresh_async(&http_client, TokenSet::new(token_set_params), None)
         .await;
 
     http_client.assert();
@@ -99,7 +99,7 @@ async fn returns_a_token_set() {
     };
 
     let token_set = get_client()
-        .refresh_async(TokenSet::new(token_set_params), None, &http_client)
+        .refresh_async(&http_client, TokenSet::new(token_set_params), None)
         .await
         .unwrap();
 
@@ -166,7 +166,7 @@ async fn passes_id_token_validations_when_id_token_is_returned() {
     };
 
     let token_set = client
-        .refresh_async(TokenSet::new(token_set_params), None, &http_client)
+        .refresh_async(&http_client, TokenSet::new(token_set_params), None)
         .await
         .unwrap();
 
@@ -233,7 +233,7 @@ async fn rejects_when_returned_id_token_sub_does_not_match_the_one_passed_in() {
     };
 
     let err = client
-        .refresh_async(TokenSet::new(token_set_params), None, &http_client)
+        .refresh_async(&http_client, TokenSet::new(token_set_params), None)
         .await
         .unwrap_err();
 

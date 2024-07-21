@@ -50,7 +50,7 @@ async fn requires_the_issuer_to_have_pushed_authorization_request_endpoint_decla
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .pushed_authorization_request_async(None, None, &DefaultHttpClient)
+        .pushed_authorization_request_async(&DefaultHttpClient, None, None)
         .await
         .unwrap_err();
 
@@ -81,7 +81,7 @@ async fn performs_an_authenticated_post_and_returns_the_response() {
     let (_, mut client) = get_test_data();
 
     let res = client
-        .pushed_authorization_request_async(None, None, &http_client)
+        .pushed_authorization_request_async(&http_client, None, None)
         .await
         .unwrap();
 
@@ -113,7 +113,7 @@ async fn handles_incorrect_status_code() {
     let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None, &http_client)
+        .pushed_authorization_request_async(&http_client, None, None)
         .await
         .unwrap_err();
 
@@ -152,7 +152,7 @@ async fn handles_request_being_part_of_the_params() {
     params.request = Some("jwt".to_string());
 
     let res = client
-        .pushed_authorization_request_async(Some(params), None, &http_client)
+        .pushed_authorization_request_async(&http_client, Some(params), None)
         .await
         .unwrap();
 
@@ -187,7 +187,7 @@ async fn rejects_with_op_error_when_part_of_the_response() {
     let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None, &http_client)
+        .pushed_authorization_request_async(&http_client, None, None)
         .await
         .unwrap_err();
 
@@ -221,7 +221,7 @@ async fn rejects_with_rp_error_when_request_uri_is_missing_from_the_response() {
     let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None, &http_client)
+        .pushed_authorization_request_async(&http_client, None, None)
         .await
         .unwrap_err();
 
@@ -258,7 +258,7 @@ async fn rejects_with_rp_error_when_request_uri_is_not_a_string() {
     let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None, &http_client)
+        .pushed_authorization_request_async(&http_client, None, None)
         .await
         .unwrap_err();
 
@@ -295,7 +295,7 @@ async fn rejects_with_rp_error_when_expires_in_is_missing_from_the_response() {
     let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None, &http_client)
+        .pushed_authorization_request_async(&http_client, None, None)
         .await
         .unwrap_err();
 
@@ -332,7 +332,7 @@ async fn rejects_with_rp_error_when_expires_in_is_not_a_string() {
     let (_, mut client) = get_test_data();
 
     let err = client
-        .pushed_authorization_request_async(None, None, &http_client)
+        .pushed_authorization_request_async(&http_client, None, None)
         .await
         .unwrap_err();
 

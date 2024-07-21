@@ -16,11 +16,11 @@ async fn asserts_the_issuer_has_a_registration_endpoint() {
     let issuer = Issuer::new(issuer_metadata);
 
     let client_error = Client::register_async(
+        &DefaultHttpClient,
         &issuer,
         ClientMetadata::default(),
         None,
         None,
-        &DefaultHttpClient,
     )
     .await
     .unwrap_err();
@@ -54,7 +54,7 @@ async fn accepts_and_assigns_the_registered_metadata() {
     let issuer = Issuer::new(issuer_metadata);
 
     let client =
-        Client::register_async(&issuer, ClientMetadata::default(), None, None, &http_client)
+        Client::register_async(&http_client, &issuer, ClientMetadata::default(), None, None)
             .await
             .unwrap();
 
@@ -87,7 +87,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
     let issuer = Issuer::new(issuer_metadata);
 
     let client_error =
-        Client::register_async(&issuer, ClientMetadata::default(), None, None, &http_client)
+        Client::register_async(&http_client, &issuer, ClientMetadata::default(), None, None)
             .await
             .unwrap_err();
 
@@ -128,7 +128,7 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
     let issuer = Issuer::new(issuer_metadata);
 
     let client_error =
-        Client::register_async(&issuer, ClientMetadata::default(), None, None, &http_client)
+        Client::register_async(&http_client, &issuer, ClientMetadata::default(), None, None)
             .await
             .unwrap_err();
 
@@ -166,7 +166,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
     let issuer = Issuer::new(issuer_metadata);
 
     let client_error =
-        Client::register_async(&issuer, ClientMetadata::default(), None, None, &http_client)
+        Client::register_async(&http_client, &issuer, ClientMetadata::default(), None, None)
             .await
             .unwrap_err();
 
@@ -204,7 +204,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
     let issuer = Issuer::new(issuer_metadata);
 
     let client_error =
-        Client::register_async(&issuer, ClientMetadata::default(), None, None, &http_client)
+        Client::register_async(&http_client, &issuer, ClientMetadata::default(), None, None)
             .await
             .unwrap_err();
 
@@ -252,11 +252,11 @@ mod with_key_store_as_an_option {
         };
 
         let _ = Client::register_async(
+            &http_client,
             &issuer,
             ClientMetadata::default(),
             Some(register_options),
             None,
-            &http_client,
         )
         .await
         .unwrap();
@@ -296,11 +296,11 @@ mod with_key_store_as_an_option {
         };
 
         let _ = Client::register_async(
+            &http_client,
             &issuer,
             client_metadata,
             Some(register_options),
             None,
-            &http_client,
         )
         .await
         .unwrap();
@@ -340,11 +340,11 @@ mod with_key_store_as_an_option {
         };
 
         let _ = Client::register_async(
+            &http_client,
             &issuer,
             client_metadata,
             Some(register_options),
             None,
-            &http_client,
         )
         .await
         .unwrap();
@@ -371,11 +371,11 @@ mod with_key_store_as_an_option {
         let client_metadata = ClientMetadata::default();
 
         let client_error = Client::register_async(
+            &DefaultHttpClient,
             &issuer,
             client_metadata,
             Some(register_options),
             None,
-            &DefaultHttpClient,
         )
         .await
         .unwrap_err();
@@ -405,11 +405,11 @@ mod with_key_store_as_an_option {
         let client_metadata = ClientMetadata::default();
 
         let client_error = Client::register_async(
+            &DefaultHttpClient,
             &issuer,
             client_metadata,
             Some(register_options),
             None,
-            &DefaultHttpClient,
         )
         .await
         .unwrap_err();
@@ -455,11 +455,11 @@ mod with_initial_access_token {
         };
 
         let _ = Client::register_async(
+            &http_client,
             &issuer,
             ClientMetadata::default(),
             Some(register_options),
             None,
-            &http_client,
         )
         .await
         .unwrap();

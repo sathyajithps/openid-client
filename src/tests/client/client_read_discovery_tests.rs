@@ -23,13 +23,13 @@ async fn accepts_and_assigns_discovered_metadata() {
     let client_registration_uri = "https://op.example.com/client/identifier";
 
     let client = Client::from_uri_async(
+        &http_client,
         &client_registration_uri,
         &Issuer::new(IssuerMetadata::default()),
         None,
         None,
         None,
         None,
-        &http_client,
     )
     .await
     .unwrap();
@@ -53,13 +53,13 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
     let client_registration_uri = "https://op.example.com/client/identifier";
 
     let client_error = Client::from_uri_async(
+        &http_client,
         &client_registration_uri,
         &Issuer::new(IssuerMetadata::default()),
         None,
         None,
         None,
         None,
-        &http_client,
     )
     .await
     .unwrap_err();
@@ -91,13 +91,13 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
     let client_registration_uri = "https://op.example.com/client/identifier";
 
     let client_error = Client::from_uri_async(
+        &http_client,
         &client_registration_uri,
         &Issuer::new(IssuerMetadata::default()),
         None,
         None,
         None,
         None,
-        &http_client,
     )
     .await
     .unwrap_err();
@@ -126,13 +126,13 @@ async fn is_rejected_with_when_non_200_is_returned() {
     let client_registration_uri = "https://op.example.com/client/identifier";
 
     let client_error = Client::from_uri_async(
+        &http_client,
         &client_registration_uri,
         &Issuer::new(IssuerMetadata::default()),
         None,
         None,
         None,
         None,
-        &http_client,
     )
     .await
     .unwrap_err();
@@ -160,13 +160,13 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
     let client_registration_uri = "https://op.example.com/client/identifier";
 
     let client_error = Client::from_uri_async(
+        &http_client,
         &client_registration_uri,
         &Issuer::new(IssuerMetadata::default()),
         None,
         None,
         None,
         None,
-        &http_client,
     )
     .await
     .unwrap_err();
@@ -185,13 +185,13 @@ async fn does_not_accept_oct_keys() {
     let jwks = Some(convert_json_to::<Jwks>(r#"{"keys":[{"k":"qHedLw","kty":"oct","kid":"R5OsS5S7xvrW7E0k0t0PwRsskJpdOkyfnAZi8S806Bg"}]}"#).unwrap());
 
     let client_error = Client::from_uri_async(
+        &DefaultHttpClient,
         &client_registration_uri,
         &Issuer::new(IssuerMetadata::default()),
         None,
         jwks,
         None,
         None,
-        &DefaultHttpClient,
     )
     .await
     .unwrap_err();
@@ -208,13 +208,13 @@ async fn does_not_accept_public_keys() {
 
     let jwks = Some(convert_json_to::<Jwks>(r#"{"keys":[{"kty":"EC","kid":"MFZeG102dQiqbANoaMlW_Jmf7fOZmtRsHt77JFhTpF0","crv":"P-256","x":"FWZ9rSkLt6Dx9E3pxLybhdM6xgR5obGsj5_pqmnz5J4","y":"_n8G69C-A2Xl4xUW2lF0i8ZGZnk_KPYrhv4GbTGu5G4"}]}"#).unwrap());
     let client_error = Client::from_uri_async(
+        &DefaultHttpClient,
         &client_registration_uri,
         &Issuer::new(IssuerMetadata::default()),
         None,
         jwks.clone(),
         None,
         None,
-        &DefaultHttpClient,
     )
     .await
     .unwrap_err();

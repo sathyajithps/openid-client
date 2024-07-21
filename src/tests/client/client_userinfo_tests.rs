@@ -40,7 +40,7 @@ async fn takes_a_token_set() {
     let token_set = TokenSet::new(token_set_params);
 
     let _ = client
-        .userinfo_async(&token_set, UserinfoOptions::default(), &http_client)
+        .userinfo_async(&http_client, &token_set, UserinfoOptions::default())
         .await
         .unwrap();
 
@@ -78,7 +78,7 @@ async fn only_get_and_post_is_supported() {
     options.method = "PUT";
 
     let err = client
-        .userinfo_async(&token_set, options, &DefaultHttpClient)
+        .userinfo_async(&DefaultHttpClient, &token_set, options)
         .await
         .unwrap_err();
 
@@ -126,7 +126,7 @@ async fn takes_a_token_set_with_token() {
     let options = UserinfoOptions::default();
 
     let _ = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap();
 
@@ -169,7 +169,7 @@ async fn takes_a_token_set_and_validates_the_subject_in_id_token_is_the_same_in_
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap_err();
 
@@ -210,7 +210,7 @@ async fn validates_an_access_token_is_present_in_the_tokenset() {
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options, &DefaultHttpClient)
+        .userinfo_async(&DefaultHttpClient, &token_set, options)
         .await
         .unwrap_err();
 
@@ -256,7 +256,7 @@ async fn can_do_a_post_call() {
     options.method = "POST";
 
     let _ = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await;
 
     http_client.assert();
@@ -303,7 +303,7 @@ async fn can_submit_access_token_in_a_body_when_post() {
     options.via = "body";
 
     let _ = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap();
 
@@ -354,7 +354,7 @@ async fn can_add_extra_params_in_a_body_when_post() {
     options.params = Some(params);
 
     let _ = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap();
 
@@ -406,7 +406,7 @@ async fn can_add_extra_params_in_a_body_when_post_but_via_header() {
     options.params = Some(params);
 
     let _ = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap();
 
@@ -451,7 +451,7 @@ async fn can_add_extra_params_in_a_query_when_non_post() {
     options.params = Some(params);
 
     let _ = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap();
 
@@ -488,7 +488,7 @@ async fn can_only_submit_access_token_in_a_body_when_post() {
     options.via = "body";
 
     let err = client
-        .userinfo_async(&token_set, options, &DefaultHttpClient)
+        .userinfo_async(&DefaultHttpClient, &token_set, options)
         .await
         .unwrap_err();
 
@@ -533,7 +533,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap_err();
 
@@ -585,7 +585,7 @@ async fn is_rejected_with_op_error_upon_oidc_error_in_www_authenticate_header() 
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap_err();
 
@@ -634,7 +634,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap_err();
 
@@ -683,7 +683,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
     let options = UserinfoOptions::default();
 
     let err = client
-        .userinfo_async(&token_set, options, &http_client)
+        .userinfo_async(&http_client, &token_set, options)
         .await
         .unwrap_err();
 
@@ -742,7 +742,7 @@ mod signed_response_content_type_application_jwt {
         let options = UserinfoOptions::default();
 
         let payload = client
-            .userinfo_async(&token_set, options, &http_client)
+            .userinfo_async(&http_client, &token_set, options)
             .await
             .unwrap();
 
@@ -796,7 +796,7 @@ mod signed_response_content_type_application_jwt {
         let options = UserinfoOptions::default();
 
         let err = client
-            .userinfo_async(&token_set, options, &http_client)
+            .userinfo_async(&http_client, &token_set, options)
             .await
             .unwrap_err();
 
@@ -843,7 +843,7 @@ mod signed_response_content_type_application_jwt {
         let options = UserinfoOptions::default();
 
         let err = client
-            .userinfo_async(&token_set, options, &http_client)
+            .userinfo_async(&http_client, &token_set, options)
             .await
             .unwrap_err();
 
@@ -883,7 +883,7 @@ async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in(
     let token_set = TokenSet::new(token_set_params);
 
     let err = client
-        .userinfo_async(&token_set, UserinfoOptions::default(), &DefaultHttpClient)
+        .userinfo_async(&DefaultHttpClient, &token_set, UserinfoOptions::default())
         .await
         .unwrap_err();
 

@@ -35,7 +35,7 @@ async fn posts_the_token_in_a_body_and_returns_the_parsed_response() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let response = client
-        .introspect_async("tokenValue".to_owned(), &http_client, None, None)
+        .introspect_async(&http_client, "tokenValue".to_owned(), None, None)
         .await
         .unwrap();
 
@@ -73,8 +73,8 @@ async fn posts_the_token_and_a_hint_in_a_body() {
 
     let _ = client
         .introspect_async(
-            "tokenValue".to_owned(),
             &http_client,
+            "tokenValue".to_owned(),
             Some("access_token".to_owned()),
             None,
         )
@@ -117,7 +117,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .introspect_async("tokenValue".to_owned(), &http_client, None, None)
+        .introspect_async(&http_client, "tokenValue".to_owned(), None, None)
         .await
         .unwrap_err();
 
@@ -163,7 +163,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .introspect_async("tokenValue".to_owned(), &http_client, None, None)
+        .introspect_async(&http_client, "tokenValue".to_owned(), None, None)
         .await
         .unwrap_err();
 
@@ -209,7 +209,7 @@ async fn is_rejected_with_error_upon_invalid_response() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .introspect_async("tokenValue".to_owned(), &http_client, None, None)
+        .introspect_async(&http_client, "tokenValue".to_owned(), None, None)
         .await
         .unwrap_err();
 

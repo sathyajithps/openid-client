@@ -131,14 +131,14 @@ async fn requires_mtls_for_userinfo_when_tls_client_certificate_bound_access_tok
     http_client.return_client_cert(true);
 
     client
-        .userinfo_async(&token, UserinfoOptions::default(), &http_client)
+        .userinfo_async(&http_client, &token, UserinfoOptions::default())
         .await
         .unwrap();
 
     http_client.return_client_cert(false);
 
     let err = client
-        .userinfo_async(&token, UserinfoOptions::default(), &http_client)
+        .userinfo_async(&http_client, &token, UserinfoOptions::default())
         .await
         .unwrap_err();
 
@@ -171,14 +171,14 @@ async fn requires_mtls_for_introspection_authentication_when_introspection_endpo
     http_client.return_client_cert(true);
 
     client
-        .introspect_async("foo".to_owned(), &http_client, None, None)
+        .introspect_async(&http_client, "foo".to_owned(), None, None)
         .await
         .unwrap();
 
     http_client.return_client_cert(false);
 
     let err = client
-        .introspect_async("foo".to_owned(), &http_client, None, None)
+        .introspect_async(&http_client, "foo".to_owned(), None, None)
         .await
         .unwrap_err();
 
@@ -210,14 +210,14 @@ async fn requires_mtls_for_revocation_authentication_when_revocation_endpoint_au
     http_client.return_client_cert(true);
 
     client
-        .revoke_async("foo", None, None, &http_client)
+        .revoke_async(&http_client, "foo", None, None)
         .await
         .unwrap();
 
     http_client.return_client_cert(false);
 
     let err = client
-        .revoke_async("foo", None, None, &http_client)
+        .revoke_async(&http_client, "foo", None, None)
         .await
         .unwrap_err();
 

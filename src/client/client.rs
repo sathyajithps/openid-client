@@ -412,21 +412,21 @@ impl Client {
     ///
     /// Creates a [Client] from the Client read endpoint.
     ///
+    /// - `http_client` - The http client to make the request
     /// - `registration_client_uri` - The client read endpoint
     /// - `issuer` - [Issuer]
     /// - `registration_access_token` - The access token to be sent with the request
     /// - `jwks` - Private [Jwks] of the client
     /// - `client_options` - The [ClientOptions]
     /// - `fapi` - [Fapi] version.
-    /// - `http_client` - The http client to make the request
     pub async fn from_uri_async<T>(
+        http_client: &T,
         registration_client_uri: &str,
         issuer: &Issuer,
         registration_access_token: Option<String>,
         jwks: Option<Jwks>,
         client_options: Option<ClientOptions>,
         fapi: Option<Fapi>,
-        http_client: &T,
     ) -> OidcReturnType<Self>
     where
         T: OidcHttpClient,
@@ -472,17 +472,17 @@ impl Client {
     ///
     /// Attempts a Dynamic Client Registration using the Issuer's `registration_endpoint`
     ///
+    /// - `http_client` - The http client to make the request
     /// - `issuer` - The [Issuer] client should be registered to.
     /// - `client_metadata` - The [ClientMetadata] to be sent using the registration request.
     /// - `register_options` - [ClientRegistrationOptions]
     /// - `fapi` - [Fapi] version.
-    /// - `http_client` - The http client to make the request
     pub async fn register_async<T>(
+        http_client: &T,
         issuer: &Issuer,
         mut client_metadata: ClientMetadata,
         register_options: Option<ClientRegistrationOptions>,
         fapi: Option<Fapi>,
-        http_client: &T,
     ) -> OidcReturnType<Self>
     where
         T: OidcHttpClient,

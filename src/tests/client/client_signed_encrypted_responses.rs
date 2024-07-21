@@ -179,7 +179,7 @@ async fn handles_signed_and_encrypted_id_tokens_from_refresh_grant() {
     client.set_skip_nonce_check(true);
 
     let _ = client
-        .refresh_async(token_set, None, &http_client)
+        .refresh_async(&http_client, token_set, None)
         .await
         .unwrap();
 }
@@ -226,7 +226,7 @@ async fn handles_encrypted_but_not_signed_responses_too() {
     token_set.now = || 1473076413;
 
     let payload = client
-        .userinfo_async(&token_set, UserinfoOptions::default(), &http_client)
+        .userinfo_async(&http_client, &token_set, UserinfoOptions::default())
         .await
         .unwrap();
 
@@ -283,7 +283,7 @@ async fn verifies_no_invalid_unsigned_plain_json_jwe_payloads_get_through() {
     token_set.now = || 1473076413;
 
     let err = client
-        .userinfo_async(&token_set, UserinfoOptions::default(), &http_client)
+        .userinfo_async(&http_client, &token_set, UserinfoOptions::default())
         .await
         .unwrap_err();
 
@@ -336,7 +336,7 @@ async fn handles_valid_but_no_object_top_level_unsigned_plain_json_jwe_payloads(
     token_set.now = || 1473076413;
 
     let err = client
-        .userinfo_async(&token_set, UserinfoOptions::default(), &http_client)
+        .userinfo_async(&http_client, &token_set, UserinfoOptions::default())
         .await
         .unwrap_err();
 

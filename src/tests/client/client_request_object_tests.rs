@@ -47,7 +47,7 @@ async fn verifies_that_keystore_is_set() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap_err();
 
@@ -79,7 +79,7 @@ async fn verifies_keystore_has_the_appropriate_key() {
         .unwrap();
 
     let err = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap_err();
 
@@ -103,7 +103,7 @@ async fn sign_alg_none() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -154,7 +154,7 @@ async fn sign_alg_hsxxx() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -207,7 +207,7 @@ async fn sign_alg_rsxxx() {
         .unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -274,7 +274,7 @@ async fn encrypts_for_issuer_using_issuers_public_key_explicit_enc() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &http_client)
+        .request_object_async(&http_client, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -321,7 +321,7 @@ async fn encrypts_for_issuer_using_issuers_public_key_default_enc() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &http_client)
+        .request_object_async(&http_client, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -357,7 +357,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_gcmkw() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -394,7 +394,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a128_cbc_hs256()
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -431,7 +431,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a192_cbc_hs384()
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -468,7 +468,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_a256_cbc_hs512()
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -504,7 +504,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_dir_defaulted_to_a12
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -540,7 +540,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_pbes2() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -576,7 +576,7 @@ async fn encrypts_for_issuer_using_pre_shared_client_secret_axxx_kw() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let signed = client
-        .request_object_async(json!({"state":"foobar"}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({"state":"foobar"}))
         .await
         .unwrap();
 
@@ -609,7 +609,7 @@ async fn throws_on_non_object_inputs() {
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
     let err = client
-        .request_object_async(json!(true), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!(true))
         .await
         .unwrap_err();
 
@@ -646,7 +646,7 @@ async fn fapi_client_includes_nbf_by_default() {
         .unwrap();
 
     let signed = client
-        .request_object_async(json!({}), &DefaultHttpClient)
+        .request_object_async(&DefaultHttpClient, json!({}))
         .await
         .unwrap();
 
@@ -712,7 +712,7 @@ mod ecryption_where_multiple_keys_match {
         let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let signed = client
-            .request_object_async(json!({"state":"foobar"}), &http_client)
+            .request_object_async(&http_client, json!({"state":"foobar"}))
             .await
             .unwrap();
 
@@ -758,7 +758,7 @@ mod ecryption_where_multiple_keys_match {
         let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
         let signed = client
-            .request_object_async(json!({"state":"foobar"}), &http_client)
+            .request_object_async(&http_client, json!({"state":"foobar"}))
             .await
             .unwrap();
 

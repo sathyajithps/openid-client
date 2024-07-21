@@ -22,7 +22,7 @@ mod custom_well_known {
             .set_response_content_type_header("application/json")
             .build();
 
-        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+        let issuer = Issuer::discover_async(&http_client, &issuer_discovery_url)
             .await
             .unwrap();
 
@@ -66,7 +66,7 @@ mod well_known {
             .set_response_content_type_header("application/json")
             .build();
 
-        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+        let issuer = Issuer::discover_async(&http_client, &issuer_discovery_url)
             .await
             .unwrap();
 
@@ -105,7 +105,7 @@ mod well_known {
                 .set_response_content_type_header("application/json")
                 .build();
 
-        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+        let issuer = Issuer::discover_async(&http_client, &issuer_discovery_url)
             .await
             .unwrap();
 
@@ -122,7 +122,7 @@ mod well_known {
                 .set_response_content_type_header("application/json")
                 .build();
 
-        let issuer = Issuer::discover_async("https://op.example.com/oidc/", &http_client)
+        let issuer = Issuer::discover_async(&http_client, "https://op.example.com/oidc/")
             .await
             .unwrap();
 
@@ -141,7 +141,7 @@ mod well_known {
                 .set_response_content_type_header("application/json")
                 .build();
 
-        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+        let issuer = Issuer::discover_async(&http_client, &issuer_discovery_url)
             .await
             .unwrap();
 
@@ -160,7 +160,7 @@ mod well_known {
             .set_response_content_type_header("application/json")
             .build();
 
-        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+        let issuer = Issuer::discover_async(&http_client, &issuer_discovery_url)
             .await
             .unwrap();
 
@@ -183,7 +183,7 @@ mod well_known_oauth_authorization_server {
             .set_response_content_type_header("application/json")
             .build();
 
-        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+        let issuer = Issuer::discover_async(&http_client, &issuer_discovery_url)
             .await
             .unwrap();
 
@@ -222,7 +222,7 @@ mod well_known_oauth_authorization_server {
             .set_response_content_type_header("application/json")
             .build();
 
-        let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+        let issuer = Issuer::discover_async(&http_client, &issuer_discovery_url)
             .await
             .unwrap();
 
@@ -241,7 +241,7 @@ async fn assigns_discovery_1_0_defaults_1_of_2() {
         .set_response_content_type_header("application/json")
         .build();
 
-    let issuer = Issuer::discover_async(&issuer_discovery_url, &http_client)
+    let issuer = Issuer::discover_async(&http_client, &issuer_discovery_url)
         .await
         .unwrap();
 
@@ -281,7 +281,7 @@ async fn assigns_discovery_1_0_defaults_2_of_2() {
             .set_response_content_type_header("application/json")
             .build();
 
-    let issuer = Issuer::discover_async("https://op.example.com", &http_client)
+    let issuer = Issuer::discover_async(&http_client, "https://op.example.com")
         .await
         .unwrap();
 
@@ -323,7 +323,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
             .set_response_status_code(500)
             .build();
 
-    let error = Issuer::discover_async("https://op.example.com", &http_client)
+    let error = Issuer::discover_async(&http_client, "https://op.example.com")
         .await
         .unwrap_err();
 
@@ -341,7 +341,7 @@ async fn is_rejected_with_op_error_upon_oidc_error() {
 
 #[tokio::test]
 async fn is_rejected_with_error_when_no_absolute_url_is_provided() {
-    let error = Issuer::discover_async("op.example.com/.well-known/foobar", &mut DefaultHttpClient)
+    let error = Issuer::discover_async(&DefaultHttpClient, "op.example.com/.well-known/foobar")
         .await
         .unwrap_err();
 
@@ -362,7 +362,7 @@ async fn is_rejected_with_rp_error_when_error_is_not_a_string() {
             .set_response_status_code(400)
             .build();
 
-    let error = Issuer::discover_async("https://op.example.com", &http_client)
+    let error = Issuer::discover_async(&http_client, "https://op.example.com")
         .await
         .unwrap_err();
 
@@ -387,7 +387,7 @@ async fn is_rejected_with_when_non_200_is_returned() {
             .set_response_status_code(500)
             .build();
 
-    let error = Issuer::discover_async("https://op.example.com", &http_client)
+    let error = Issuer::discover_async(&http_client, "https://op.example.com")
         .await
         .unwrap_err();
 
@@ -415,7 +415,7 @@ async fn is_rejected_with_json_parse_error_upon_invalid_response() {
             .set_response_status_code(200)
             .build();
 
-    let error = Issuer::discover_async("https://op.example.com", &http_client)
+    let error = Issuer::discover_async(&http_client, "https://op.example.com")
         .await
         .unwrap_err();
 
@@ -437,7 +437,7 @@ async fn is_rejected_when_no_body_is_returned() {
             .set_response_status_code(200)
             .build();
 
-    let error = Issuer::discover_async("https://op.example.com", &http_client)
+    let error = Issuer::discover_async(&http_client, "https://op.example.com")
         .await
         .unwrap_err();
 
@@ -462,7 +462,7 @@ async fn is_rejected_when_unepexted_status_code_is_returned() {
             .set_response_status_code(301)
             .build();
 
-    let error = Issuer::discover_async("https://op.example.com", &http_client)
+    let error = Issuer::discover_async(&http_client, "https://op.example.com")
         .await
         .unwrap_err();
 
