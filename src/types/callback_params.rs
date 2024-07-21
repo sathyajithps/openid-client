@@ -35,6 +35,8 @@ pub struct CallbackParams {
     pub response: Option<String>,
     /// Issuer url
     pub iss: Option<String>,
+    /// Scopes requested
+    pub scope: Option<String>,
     /// Other fields received from Auth server
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub other: Option<HashMap<String, String>>,
@@ -56,6 +58,7 @@ impl CallbackParams {
             session_state: None,
             response: None,
             iss: None,
+            scope: None,
             other: None,
         }
     }
@@ -132,6 +135,12 @@ impl CallbackParams {
         self
     }
 
+    /// Sets the scope field.
+    pub fn scope(mut self, scope: Option<String>) -> Self {
+        self.scope = scope;
+        self
+    }
+
     /// Sets the other field.
     pub fn other(mut self, other: Option<HashMap<String, String>>) -> Self {
         self.other = other;
@@ -156,6 +165,7 @@ impl CallbackParams {
             session_state: Self::json_value_to_string_option(payload.claim("session_state")),
             response: Self::json_value_to_string_option(payload.claim("response")),
             iss: Self::json_value_to_string_option(payload.claim("iss")),
+            scope: Self::json_value_to_string_option(payload.claim("scope")),
             other: None,
         };
 
