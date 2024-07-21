@@ -67,6 +67,10 @@
 //! [feature-jar]: https://www.rfc-editor.org/rfc/rfc9101.html
 //! [feature-iss]: https://www.rfc-editor.org/rfc/rfc9207.html
 //!
+//! ## Generating JWKs
+//!
+//! This crate uses [Josekit](https://crates.io/crates/josekit) for JWKs. To create JWKs, refer [JWK](https://docs.rs/josekit/0.8.6/josekit/jwk/struct.Jwk.html) in the Josekit documentation.
+//!
 //! ## Issuer API
 //!
 //! ### New Instance
