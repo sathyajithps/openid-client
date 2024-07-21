@@ -2,7 +2,7 @@ use josekit::jwk::Jwk;
 use serde_json::Value;
 use std::collections::HashMap;
 
-use super::{CallbackExtras, CallbackParams, OAuthCallbackChecks, OpenIDCallbackChecks};
+use super::{CallbackExtras, CallbackParams, OpenIDCallbackChecks};
 
 #[derive(Default)]
 /// #OpenIdCallbackParams
@@ -64,15 +64,9 @@ impl<'a> OpenIdCallbackParams<'a> {
 
     /// Checks if the response type is of the given type
     pub fn check_response_type(mut self, response_type: &'a str) -> Self {
-        let mut oidc_checks = match self.checks {
-            Some(oidc_checks) => oidc_checks,
-            None => OpenIDCallbackChecks::default(),
-        };
+        let mut oidc_checks = self.checks.unwrap_or_default();
 
-        let mut oauth_checks = match oidc_checks.oauth_checks {
-            Some(oauth_checks) => oauth_checks,
-            None => OAuthCallbackChecks::default(),
-        };
+        let mut oauth_checks = oidc_checks.oauth_checks.unwrap_or_default();
 
         oauth_checks.response_type = Some(response_type);
 
@@ -85,15 +79,9 @@ impl<'a> OpenIdCallbackParams<'a> {
 
     /// Verifies the code verifier
     pub fn check_code_verifier(mut self, code_verifier: &'a str) -> Self {
-        let mut oidc_checks = match self.checks {
-            Some(oidc_checks) => oidc_checks,
-            None => OpenIDCallbackChecks::default(),
-        };
+        let mut oidc_checks = self.checks.unwrap_or_default();
 
-        let mut oauth_checks = match oidc_checks.oauth_checks {
-            Some(oauth_checks) => oauth_checks,
-            None => OAuthCallbackChecks::default(),
-        };
+        let mut oauth_checks = oidc_checks.oauth_checks.unwrap_or_default();
 
         oauth_checks.code_verifier = Some(code_verifier);
 
@@ -106,15 +94,9 @@ impl<'a> OpenIdCallbackParams<'a> {
 
     /// Checks the response state
     pub fn check_state(mut self, state: &'a str) -> Self {
-        let mut oidc_checks = match self.checks {
-            Some(oidc_checks) => oidc_checks,
-            None => OpenIDCallbackChecks::default(),
-        };
+        let mut oidc_checks = self.checks.unwrap_or_default();
 
-        let mut oauth_checks = match oidc_checks.oauth_checks {
-            Some(oauth_checks) => oauth_checks,
-            None => OAuthCallbackChecks::default(),
-        };
+        let mut oauth_checks = oidc_checks.oauth_checks.unwrap_or_default();
 
         oauth_checks.state = Some(state);
 
@@ -127,15 +109,9 @@ impl<'a> OpenIdCallbackParams<'a> {
 
     /// Check if the response is JARM
     pub fn check_jarm(mut self, jarm: bool) -> Self {
-        let mut oidc_checks = match self.checks {
-            Some(oidc_checks) => oidc_checks,
-            None => OpenIDCallbackChecks::default(),
-        };
+        let mut oidc_checks = self.checks.unwrap_or_default();
 
-        let mut oauth_checks = match oidc_checks.oauth_checks {
-            Some(oauth_checks) => oauth_checks,
-            None => OAuthCallbackChecks::default(),
-        };
+        let mut oauth_checks = oidc_checks.oauth_checks.unwrap_or_default();
 
         oauth_checks.jarm = Some(jarm);
 
