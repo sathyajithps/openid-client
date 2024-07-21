@@ -130,6 +130,8 @@ impl Issuer {
                 Some(v) => Some(v),
             };
 
+        let jwks_uri = metadata.jwks_uri.clone();
+
         Self {
             issuer: metadata.issuer,
             authorization_endpoint: metadata.authorization_endpoint,
@@ -154,6 +156,7 @@ impl Issuer {
             pushed_authorization_request_endpoint: metadata.pushed_authorization_request_endpoint,
             require_pushed_authorization_requests: metadata.require_pushed_authorization_requests,
             other_fields: metadata.other_fields,
+            keystore: Some(KeyStore::new(jwks_uri)),
             ..Issuer::default()
         }
     }
