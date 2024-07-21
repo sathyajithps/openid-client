@@ -10,8 +10,7 @@ use crate::{
     jwks::{jwks::CustomJwk, Jwks},
     tokenset::{TokenSet, TokenSetParams},
     types::{
-        CallbackParams, ClientMetadata, ClientOptions, Fapi, IssuerMetadata, OAuthCallbackChecks,
-        OpenIDCallbackChecks, OpenIdCallbackParams,
+        CallbackParams, ClientMetadata, ClientOptions, Fapi, IssuerMetadata, OpenIdCallbackParams,
     },
 };
 
@@ -1316,7 +1315,7 @@ async fn validates_at_hash_presence_for_implicit_flow() {
         ..Default::default()
     };
 
-    let params = OpenIdCallbackParams::default().parameters(params);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params);
 
     let err = test_data
         .client
@@ -1355,7 +1354,7 @@ async fn validates_c_hash_presence_for_hybrid_flow() {
         ..Default::default()
     };
 
-    let params = OpenIdCallbackParams::default().parameters(params);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params);
 
     let err = test_data
         .client
@@ -1431,17 +1430,7 @@ async fn fapi_client_validates_s_hash_presence() {
         ..Default::default()
     };
 
-    let checks = OpenIDCallbackChecks {
-        oauth_checks: Some(OAuthCallbackChecks {
-            state: Some("foo"),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let params = OpenIdCallbackParams::default()
-        .parameters(params)
-        .checks(checks);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params).check_state("foo");
 
     let err = fapi_client
         .callback_async(&http_client, params)
@@ -1519,17 +1508,7 @@ async fn fapi_client_checks_iat_is_fresh() {
         ..Default::default()
     };
 
-    let checks = OpenIDCallbackChecks {
-        oauth_checks: Some(OAuthCallbackChecks {
-            state: Some("foo"),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let params = OpenIdCallbackParams::default()
-        .parameters(params)
-        .checks(checks);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params).check_state("foo");
 
     let err = fapi_client
         .callback_async(&http_client, params)
@@ -1567,7 +1546,7 @@ async fn validates_state_presence_when_s_hash_is_returned() {
         ..Default::default()
     };
 
-    let params = OpenIdCallbackParams::default().parameters(params);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params);
 
     let err = test_data
         .client
@@ -1608,17 +1587,7 @@ async fn validates_s_hash() {
         ..Default::default()
     };
 
-    let checks = OpenIDCallbackChecks {
-        oauth_checks: Some(OAuthCallbackChecks {
-            state: Some(state),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let params = OpenIdCallbackParams::default()
-        .parameters(params)
-        .checks(checks);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params).check_state(state);
 
     let err = test_data
         .client
@@ -1663,17 +1632,7 @@ async fn passes_with_the_right_s_hash() {
         ..Default::default()
     };
 
-    let checks = OpenIDCallbackChecks {
-        oauth_checks: Some(OAuthCallbackChecks {
-            state: Some(state),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let params = OpenIdCallbackParams::default()
-        .parameters(params)
-        .checks(checks);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params).check_state(state);
 
     let result = test_data
         .client

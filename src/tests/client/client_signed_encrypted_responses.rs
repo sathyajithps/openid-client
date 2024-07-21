@@ -6,8 +6,8 @@ use crate::{
     jwks::Jwks,
     tokenset::{TokenSet, TokenSetParams},
     types::{
-        CallbackParams, ClientMetadata, HttpMethod, IssuerMetadata, OAuthCallbackChecks,
-        OpenIDCallbackChecks, OpenIdCallbackParams, UserinfoOptions,
+        CallbackParams, ClientMetadata, HttpMethod, IssuerMetadata, OpenIdCallbackParams,
+        UserinfoOptions,
     },
 };
 
@@ -99,19 +99,9 @@ async fn handles_signed_and_encrypted_id_tokens_from_implicit_and_code_responses
         ..Default::default()
     };
 
-    let checks = OpenIDCallbackChecks {
-        nonce: Some("c645fffa40075532ef29a2ea627cfa37"),
-        oauth_checks: Some(OAuthCallbackChecks {
-            state: Some("36853f4ea7c9d26f4b0b95f126afe6a2"),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let params = OpenIdCallbackParams::default()
-        .redirect_uri("https://oidc-client.dev/cb")
-        .checks(checks)
-        .parameters(params);
+    let params = OpenIdCallbackParams::new("https://oidc-client.dev/cb", params)
+        .check_nonce("c645fffa40075532ef29a2ea627cfa37")
+        .check_state("36853f4ea7c9d26f4b0b95f126afe6a2");
 
     let _ = client.callback_async(&http_client, params).await.unwrap();
 }
@@ -388,15 +378,8 @@ async fn handles_symmetric_encryption() {
         ..Default::default()
     };
 
-    let checks = OpenIDCallbackChecks {
-        nonce: Some("9cda9a61a2b01b31aa0b31d3c33631a1"),
-        ..Default::default()
-    };
-
-    let params = OpenIdCallbackParams::default()
-        .redirect_uri("https://oidc-client.dev/cb")
-        .checks(checks)
-        .parameters(params);
+    let params = OpenIdCallbackParams::new("https://oidc-client.dev/cb", params)
+        .check_nonce("9cda9a61a2b01b31aa0b31d3c33631a1");
 
     let _ = client.callback_async(&http_client, params).await.unwrap();
 }

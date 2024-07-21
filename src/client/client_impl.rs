@@ -16,8 +16,8 @@ use crate::types::{
     CallbackParams, ClaimParam, DeviceAuthorizationExtras, DeviceAuthorizationParams,
     DeviceAuthorizationResponse, Fapi, GrantExtras, HttpRequest, HttpResponse, IntrospectionExtras,
     OAuthCallbackChecks, OAuthCallbackParams, OidcHttpClient, OidcReturnType, OpenIdCallbackParams,
-    PushedAuthorizationRequestExtras, RefreshTokenExtras, RequestResourceOptions,
-    RequestResourceParams, RevokeExtras, UserinfoOptions,
+    PushedAuthorizationRequestExtras, RefreshTokenExtras, RequestResourceParams, RevokeExtras,
+    UserinfoOptions,
 };
 use crate::{
     helpers::convert_json_to,
@@ -469,9 +469,7 @@ impl Client {
                 "code".to_string(),
                 params.parameters.code.as_ref().unwrap().to_owned(),
             );
-            if let Some(ru) = params.redirect_uri {
-                exchange_body.insert("redirect_uri".to_string(), ru.to_owned());
-            };
+            exchange_body.insert("redirect_uri".to_string(), params.redirect_uri.to_owned());
 
             if let Some(cv) = checks.code_verifier {
                 exchange_body.insert("code_verifier".to_string(), cv.to_owned());
@@ -819,9 +817,7 @@ impl Client {
                 "code".to_string(),
                 params.parameters.code.as_ref().unwrap().to_owned(),
             );
-            if let Some(ru) = params.redirect_uri {
-                exchange_body.insert("redirect_uri".to_string(), ru.to_owned());
-            };
+            exchange_body.insert("redirect_uri".to_string(), params.redirect_uri.to_owned());
 
             if let Some(cv) = oauth_checks.code_verifier {
                 exchange_body.insert("code_verifier".to_string(), cv.to_owned());
@@ -1356,12 +1352,16 @@ impl Client {
         let jwt = self.userinfo_signed_response_alg.is_some()
             || self.userinfo_encrypted_response_alg.is_some();
 
-        let mut headers: HashMap<String, Vec<String>> = HashMap::new();
+        let mut resource_params = RequestResourceParams::default()
+            .access_token(&access_token)
+            .use_bearer(options.via == "header")
+            .expect_json_body(!jwt)
+            .retry(true);
 
         if jwt {
-            headers.insert("accept".to_string(), vec!["application/jwt".to_string()]);
+            resource_params = resource_params.set_header("accept", "application/jwt");
         } else {
-            headers.insert("accept".to_string(), vec!["application/json".to_string()]);
+            resource_params = resource_params.set_header("accept", "application/json");
         }
 
         let mtls = self
@@ -1385,20 +1385,11 @@ impl Client {
 
         if options.via == "body" {
             // What?
-            headers.remove("authorization");
-            headers.insert(
-                "content-type".to_string(),
-                vec!["application/x-www-form-urlencoded".to_string()],
-            );
+            resource_params = resource_params
+                .remove_header("authorization")
+                .set_header("content-type", "application/x-www-form-urlencoded");
             form_body.insert("access_token".to_string(), access_token.to_owned());
         }
-
-        let mut req_res_params = RequestResourceOptions {
-            bearer: options.via == "header",
-            expect_body_to_be_json: !jwt,
-            dpop: options.dpop,
-            ..Default::default()
-        };
 
         if let Some(params) = options.params {
             if options.method == "GET" {
@@ -1410,11 +1401,9 @@ impl Client {
                     form_body.insert(k, v);
                 }
             } else {
-                headers.remove("content-type");
-                headers.insert(
-                    "content-type".to_string(),
-                    vec!["application/x-www-form-urlencoded".to_string()],
-                );
+                resource_params = resource_params
+                    .remove_header("content-type")
+                    .set_header("content-type", "application/x-www-form-urlencoded");
                 for (k, v) in params {
                     form_body.insert(k, v);
                 }
@@ -1426,19 +1415,23 @@ impl Client {
             body = Some(string_map_to_form_url_encoded(&form_body)?);
         }
 
-        req_res_params.body = body;
-        req_res_params.method = if options.method == "GET" {
+        let method = if options.method == "GET" {
             HttpMethod::GET
         } else {
             HttpMethod::POST
         };
-        req_res_params.headers = headers;
 
-        let mut resource_params = RequestResourceParams::default()
-            .access_token(&access_token)
-            .options(req_res_params)
-            .retry(true)
+        resource_params = resource_params
+            .set_method(method)
             .resource_url(url.as_str());
+
+        if let Some(dpop) = options.dpop {
+            resource_params = resource_params.set_dpop_key(dpop);
+        }
+
+        if let Some(body) = body {
+            resource_params = resource_params.set_body(body);
+        }
 
         let token_type = token_set.get_token_type();
         if let Some(tt) = token_type.as_deref() {

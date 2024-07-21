@@ -61,9 +61,7 @@ async fn does_an_authorization_code_grant_with_code_and_redirect_uri() {
         ..Default::default()
     };
 
-    let params = OAuthCallbackParams::default()
-        .redirect_uri("https://rp.example.com/cb")
-        .parameters(callback_params);
+    let params = OAuthCallbackParams::new("https://rp.example.com/cb", callback_params);
 
     let token_set = client
         .oauth_callback_async(&http_client, params)
@@ -84,7 +82,7 @@ async fn handles_implicit_responses_too() {
         ..Default::default()
     };
 
-    let params = OAuthCallbackParams::default().parameters(callback_params);
+    let params = OAuthCallbackParams::new("http://example.org/cb", callback_params);
 
     let token_set = client
         .oauth_callback_async(&DefaultHttpClient, params)
@@ -112,7 +110,7 @@ mod oauth_2_0_authorization_server_issuer_identification {
             ..Default::default()
         };
 
-        let params = OAuthCallbackParams::default().parameters(callback_params);
+        let params = OAuthCallbackParams::new("http://example.org/cb", callback_params);
 
         let token_set = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -137,7 +135,7 @@ mod oauth_2_0_authorization_server_issuer_identification {
             ..Default::default()
         };
 
-        let params = OpenIdCallbackParams::default().parameters(callback_params);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", callback_params);
 
         let token_set = client
             .callback_async(&DefaultHttpClient, params)
@@ -164,7 +162,8 @@ mod oauth_2_0_authorization_server_issuer_identification {
 
         let mut client = iss.client(client_metadata, None, None, None).unwrap();
 
-        let params = OAuthCallbackParams::default();
+        let params =
+            OAuthCallbackParams::new("https://rp.example.com/cb", CallbackParams::default());
 
         let token_set = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -210,7 +209,7 @@ mod jarm_response_mode {
     };
     use serde_json::json;
 
-    use crate::{helpers::now, types::OAuthCallbackChecks};
+    use crate::helpers::now;
 
     use super::*;
 
@@ -271,15 +270,8 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            jarm: Some(true),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(callback_params)
-            .checks(checks);
+        let params =
+            OAuthCallbackParams::new("https://rp.example.com/cb", callback_params).check_jarm(true);
 
         let _ = client.oauth_callback_async(&http_client, params).await;
 
@@ -357,15 +349,8 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            jarm: Some(true),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(callback_params)
-            .checks(checks);
+        let params =
+            OAuthCallbackParams::new("https://rp.example.com/cb", callback_params).check_jarm(true);
 
         let _ = client.oauth_callback_async(&http_client, params).await;
 
@@ -379,17 +364,10 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            jarm: Some(true),
-            ..Default::default()
-        };
-
         let (_, mut client, _) = get_iss_client_iss();
 
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(callback_params)
-            .checks(checks);
+        let params =
+            OAuthCallbackParams::new("https://rp.example.com/cb", callback_params).check_jarm(true);
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -439,15 +417,8 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            jarm: Some(true),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(callback_params)
-            .checks(checks);
+        let params =
+            OAuthCallbackParams::new("https://rp.example.com/cb", callback_params).check_jarm(true);
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -476,9 +447,7 @@ mod cannot_be_used_for_id_token_responses {
             ..Default::default()
         };
 
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params);
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -500,9 +469,7 @@ mod cannot_be_used_for_id_token_responses {
             ..Default::default()
         };
 
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params);
 
         let tokens = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -539,9 +506,7 @@ mod cannot_be_used_for_id_token_responses {
             ..Default::default()
         };
 
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params);
 
         let err = client
             .oauth_callback_async(&http_client, params)
@@ -579,9 +544,7 @@ mod cannot_be_used_for_id_token_responses {
             ..Default::default()
         };
 
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params);
 
         let tokens = client
             .oauth_callback_async(&http_client, params)
@@ -594,7 +557,7 @@ mod cannot_be_used_for_id_token_responses {
 
 #[cfg(test)]
 mod response_type_checks {
-    use crate::{http_client::DefaultHttpClient, types::OAuthCallbackChecks};
+    use crate::http_client::DefaultHttpClient;
 
     use super::*;
 
@@ -609,15 +572,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            response_type: Some("code token"),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("code token");
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -640,15 +596,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            response_type: Some("code token"),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("code token");
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -674,15 +623,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            response_type: Some("code token"),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("code token");
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -706,15 +648,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            response_type: Some("none"),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("none");
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -738,15 +673,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            response_type: Some("none"),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("none");
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -771,9 +699,7 @@ async fn rejects_with_op_error_when_part_of_the_response() {
         ..Default::default()
     };
 
-    let params = OAuthCallbackParams::default()
-        .redirect_uri("https://rp.example.com/cb")
-        .parameters(params);
+    let params = OAuthCallbackParams::new("https://rp.example.com/cb", params);
 
     let err = client
         .oauth_callback_async(&DefaultHttpClient, params)
@@ -787,7 +713,7 @@ async fn rejects_with_op_error_when_part_of_the_response() {
 
 #[cfg(test)]
 mod state_checks {
-    use crate::{http_client::DefaultHttpClient, types::OAuthCallbackChecks};
+    use crate::http_client::DefaultHttpClient;
 
     use super::*;
 
@@ -800,9 +726,7 @@ mod state_checks {
             ..Default::default()
         };
 
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params);
+        let params = OAuthCallbackParams::new("https://rp.example.com/cb", params);
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -821,14 +745,9 @@ mod state_checks {
     async fn rejects_with_an_error_when_states_mismatch_not_returned() {
         let (_, mut client, _) = get_iss_client_iss();
 
-        let checks = OAuthCallbackChecks {
-            state: Some("should be this"),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .checks(checks);
+        let params =
+            OAuthCallbackParams::new("https://rp.example.com/cb", CallbackParams::default())
+                .check_state("should be this");
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)
@@ -852,15 +771,8 @@ mod state_checks {
             ..Default::default()
         };
 
-        let checks = OAuthCallbackChecks {
-            state: Some("bar"),
-            ..Default::default()
-        };
-
-        let params = OAuthCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params =
+            OAuthCallbackParams::new("https://rp.example.com/cb", params).check_state("bar");
 
         let err = client
             .oauth_callback_async(&DefaultHttpClient, params)

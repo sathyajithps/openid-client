@@ -43,26 +43,6 @@ pub struct CallbackParams {
 }
 
 impl CallbackParams {
-    /// Creates new instance of CallbackParams
-    pub fn new() -> Self {
-        Self {
-            access_token: None,
-            code: None,
-            error: None,
-            error_description: None,
-            error_uri: None,
-            expires_in: None,
-            id_token: None,
-            state: None,
-            token_type: None,
-            session_state: None,
-            response: None,
-            iss: None,
-            scope: None,
-            other: None,
-        }
-    }
-
     /// Sets the access_token field.
     pub fn access_token(mut self, access_token: Option<String>) -> Self {
         self.access_token = access_token;

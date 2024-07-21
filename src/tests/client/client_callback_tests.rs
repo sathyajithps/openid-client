@@ -3,10 +3,7 @@ use crate::{
     client::Client,
     http_client::DefaultHttpClient,
     issuer::Issuer,
-    types::{
-        CallbackParams, ClientMetadata, HttpMethod, IssuerMetadata, OAuthCallbackChecks,
-        OpenIDCallbackChecks, OpenIdCallbackParams,
-    },
+    types::{CallbackParams, ClientMetadata, HttpMethod, IssuerMetadata, OpenIdCallbackParams},
 };
 
 fn get_iss_client_iss() -> (Issuer, Client, Issuer) {
@@ -60,9 +57,7 @@ async fn does_an_authorization_code_grant_with_code_and_redirect_uri() {
         ..Default::default()
     };
 
-    let params = OpenIdCallbackParams::default()
-        .redirect_uri("https://rp.example.com/cb")
-        .parameters(callback_params);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", callback_params);
 
     let _ = client.callback_async(&http_client, params).await;
 
@@ -78,18 +73,8 @@ async fn resolves_a_tokenset_with_just_a_state_for_response_type_none() {
         ..Default::default()
     };
 
-    let checks = OpenIDCallbackChecks {
-        oauth_checks: Some(OAuthCallbackChecks {
-            state: Some("state"),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let params = OpenIdCallbackParams::default()
-        .redirect_uri("https://rp.example.com/cb")
-        .parameters(callback_params)
-        .checks(checks);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", callback_params)
+        .check_state("state");
 
     let token_set = client
         .callback_async(&DefaultHttpClient, params)
@@ -111,9 +96,7 @@ async fn rejects_with_op_error_when_part_of_the_response() {
         ..Default::default()
     };
 
-    let params = OpenIdCallbackParams::default()
-        .redirect_uri("https://rp.example.com/cb")
-        .parameters(params);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params);
 
     let err = client
         .callback_async(&DefaultHttpClient, params)
@@ -127,8 +110,6 @@ async fn rejects_with_op_error_when_part_of_the_response() {
 
 #[cfg(test)]
 mod state_checks {
-    use crate::types::OAuthCallbackChecks;
-
     use super::*;
 
     #[tokio::test]
@@ -140,9 +121,7 @@ mod state_checks {
             ..Default::default()
         };
 
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params);
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -161,17 +140,9 @@ mod state_checks {
     async fn rejects_with_an_error_when_states_mismatch_not_returned() {
         let (_, mut client, _) = get_iss_client_iss();
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                state: Some("should be this"),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .checks(checks);
+        let params =
+            OpenIdCallbackParams::new("https://rp.example.com/cb", CallbackParams::default())
+                .check_state("should be this");
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -195,18 +166,8 @@ mod state_checks {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                state: Some("bar"),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params =
+            OpenIdCallbackParams::new("https://rp.example.com/cb", params).check_state("bar");
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -231,7 +192,7 @@ mod jarm_response_mode {
     };
     use serde_json::json;
 
-    use crate::{helpers::now, types::OAuthCallbackChecks};
+    use crate::helpers::now;
 
     use super::*;
 
@@ -289,18 +250,8 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                jarm: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(callback_params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", callback_params)
+            .check_jarm(true);
 
         let _ = client.callback_async(&http_client, params).await;
 
@@ -375,18 +326,8 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                jarm: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(callback_params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", callback_params)
+            .check_jarm(true);
 
         let _ = client.callback_async(&http_client, params).await;
 
@@ -400,20 +341,10 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                jarm: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
         let (_, mut client, _) = get_iss_client_iss();
 
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(callback_params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", callback_params)
+            .check_jarm(true);
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -463,18 +394,8 @@ mod jarm_response_mode {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                jarm: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(callback_params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", callback_params)
+            .check_jarm(true);
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -491,7 +412,6 @@ mod jarm_response_mode {
 
 #[cfg(test)]
 mod response_type_checks {
-    use crate::types::OAuthCallbackChecks;
 
     use super::*;
 
@@ -507,18 +427,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("code id_token token"),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("code id_token token");
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -542,18 +452,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("code id_token token"),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("code id_token token");
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -580,18 +480,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("code id_token token"),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("code id_token token");
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -618,18 +508,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("code id_token token"),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("code id_token token");
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -653,18 +533,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("none"),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("none");
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -688,18 +558,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("none"),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("none");
 
         let err = client
             .callback_async(&DefaultHttpClient, params)
@@ -723,18 +583,8 @@ mod response_type_checks {
             ..Default::default()
         };
 
-        let checks = OpenIDCallbackChecks {
-            oauth_checks: Some(OAuthCallbackChecks {
-                response_type: Some("none"),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let params = OpenIdCallbackParams::default()
-            .redirect_uri("https://rp.example.com/cb")
-            .parameters(params)
-            .checks(checks);
+        let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params)
+            .check_response_type("none");
 
         let err = client
             .callback_async(&DefaultHttpClient, params)

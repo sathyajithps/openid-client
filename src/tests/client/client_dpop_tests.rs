@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use josekit::jwk::{
     alg::{ec::EcCurve, ed::EdCurve},
     Jwk,
@@ -12,10 +10,9 @@ use crate::{
     issuer::Issuer,
     tokenset::{TokenSet, TokenSetParams},
     types::{
-        grant_params::GrantParams, http_client::HttpMethod, CallbackExtras, CallbackParams,
-        ClientMetadata, DeviceAuthorizationExtras, DeviceAuthorizationParams, GrantExtras,
-        IssuerMetadata, OAuthCallbackParams, OpenIdCallbackParams,
-        PushedAuthorizationRequestExtras, RefreshTokenExtras, RequestResourceOptions,
+        grant_params::GrantParams, http_client::HttpMethod, CallbackParams, ClientMetadata,
+        DeviceAuthorizationExtras, DeviceAuthorizationParams, IssuerMetadata, OAuthCallbackParams,
+        OpenIdCallbackParams, PushedAuthorizationRequestExtras, RefreshTokenExtras,
         RequestResourceParams, UserinfoOptions,
     },
 };
@@ -389,21 +386,12 @@ async fn handles_dpop_nonce_in_grant() {
 
     let key = get_rsa_private_key();
 
-    let extras = GrantExtras {
-        dpop: Some(&key),
-        ..Default::default()
-    };
-
-    let mut body = HashMap::new();
-
-    body.insert("grant_type".to_string(), "client_credentials".to_owned());
-
     let _ = client
         .grant_async(
             &http_client,
             GrantParams::default()
-                .body(body.clone())
-                .extras(extras.clone()),
+                .set_grant_type("client_credentials")
+                .set_dpop_key(&key),
         )
         .await;
 
@@ -411,15 +399,17 @@ async fn handles_dpop_nonce_in_grant() {
         .grant_async(
             &http_client,
             GrantParams::default()
-                .body(body.clone())
-                .extras(extras.clone()),
+                .set_grant_type("client_credentials")
+                .set_dpop_key(&key),
         )
         .await;
 
     let err = client
         .grant_async(
             &http_client,
-            GrantParams::default().body(body).extras(extras),
+            GrantParams::default()
+                .set_grant_type("client_credentials")
+                .set_dpop_key(&key),
         )
         .await
         .unwrap_err();
@@ -462,42 +452,27 @@ async fn handles_dpop_nonce_in_request_resource() {
 
     let key = get_rsa_private_key();
 
-    let options = RequestResourceOptions {
-        dpop: Some(&key),
-        ..Default::default()
-    };
-
     let params = RequestResourceParams::default()
         .resource_url("https://rs.example.com/resource")
         .access_token("foo")
         .retry(true)
-        .options(options);
+        .set_dpop_key(&key);
 
     let _ = client.request_resource_async(&http_client, params).await;
 
-    let options2 = RequestResourceOptions {
-        dpop: Some(&key),
-        ..Default::default()
-    };
-
     let params = RequestResourceParams::default()
         .resource_url("https://rs.example.com/resource")
         .access_token("foo")
         .retry(true)
-        .options(options2);
+        .set_dpop_key(&key);
 
     let _ = client.request_resource_async(&http_client, params).await;
 
-    let options3 = RequestResourceOptions {
-        dpop: Some(&key),
-        ..Default::default()
-    };
-
     let params = RequestResourceParams::default()
         .resource_url("https://rs.example.com/resource")
         .access_token("foo")
         .retry(true)
-        .options(options3);
+        .set_dpop_key(&key);
 
     let err = client
         .request_resource_async(&http_client, params)
@@ -523,17 +498,12 @@ async fn is_enabled_for_request_resource() {
 
     let key = get_rsa_private_key();
 
-    let options = RequestResourceOptions {
-        dpop: Some(&key),
-        method: HttpMethod::POST,
-        ..Default::default()
-    };
-
     let params = RequestResourceParams::default()
         .resource_url("https://rs.example.com/resource")
         .access_token("foo")
         .retry(true)
-        .options(options);
+        .set_dpop_key(&key)
+        .set_method(HttpMethod::POST);
 
     client
         .request_resource_async(&http_client, params)
@@ -568,16 +538,10 @@ async fn returns_error_if_access_token_is_dpop_bound_but_dpop_was_not_passed_in(
 
     let mut client = issuer.client(client_metadata, None, None, None).unwrap();
 
-    let options = RequestResourceOptions {
-        dpop: None,
-        ..Default::default()
-    };
-
     let params = RequestResourceParams::default()
         .resource_url("https://rs.example.com/resource")
         .access_token("foo")
-        .retry(true)
-        .options(options);
+        .retry(true);
 
     let err = client
         .request_resource_async(&DefaultHttpClient, params)
@@ -607,16 +571,10 @@ async fn is_enabled_for_grant() {
     let (_, mut client) = get_client();
 
     let key = get_rsa_private_key();
-    let extras = GrantExtras {
-        dpop: Some(&key),
-        ..Default::default()
-    };
 
-    let mut body = HashMap::new();
-
-    body.insert("grant_type".to_string(), "client_credentials".to_owned());
-
-    let params = GrantParams::default().body(body).extras(extras);
+    let params = GrantParams::default()
+        .set_grant_type("client_credentials")
+        .set_dpop_key(&key);
 
     client.grant_async(&http_client, params).await.unwrap();
 }
@@ -665,9 +623,9 @@ async fn is_enabled_for_oauthcallback() {
             "content-type",
             vec!["application/x-www-form-urlencoded".to_string()],
         )
-        .assert_request_header("content-length", vec!["56".to_string()])
+        .assert_request_header("content-length", vec!["103".to_string()])
         .assert_request_header("accept", vec!["application/json".to_string()])
-        .assert_request_body("grant_type=authorization_code&client_id=client&code=code")
+        .assert_request_body("grant_type=authorization_code&client_id=client&code=code&redirect_uri=https://rp.example.com/cb")
         .assert_dpop()
         .set_response_body(r#"{"access_token":"foo"}"#)
         .build();
@@ -679,15 +637,8 @@ async fn is_enabled_for_oauthcallback() {
         ..Default::default()
     };
 
-    let extras = CallbackExtras {
-        dpop: Some(get_rsa_private_key()),
-        client_assertion_payload: None,
-        exchange_body: None,
-    };
-
-    let params = OAuthCallbackParams::default()
-        .parameters(params)
-        .extras(extras);
+    let params = OAuthCallbackParams::new("https://rp.example.com/cb", params)
+        .set_dpop_key(get_rsa_private_key());
 
     client
         .oauth_callback_async(&http_client, params)
@@ -703,9 +654,9 @@ async fn is_enabled_for_callback() {
             "content-type",
             vec!["application/x-www-form-urlencoded".to_string()],
         )
-        .assert_request_header("content-length", vec!["56".to_string()])
+        .assert_request_header("content-length", vec!["103".to_string()])
         .assert_request_header("accept", vec!["application/json".to_string()])
-        .assert_request_body("grant_type=authorization_code&client_id=client&code=code")
+        .assert_request_body("grant_type=authorization_code&client_id=client&code=code&redirect_uri=https://rp.example.com/cb")
         .assert_dpop()
         .set_response_body(r#"{"access_token":"foo"}"#)
         .build();
@@ -717,15 +668,8 @@ async fn is_enabled_for_callback() {
         ..Default::default()
     };
 
-    let extras = CallbackExtras {
-        dpop: Some(get_rsa_private_key()),
-        client_assertion_payload: None,
-        exchange_body: None,
-    };
-
-    let params = OpenIdCallbackParams::default()
-        .parameters(params)
-        .extras(extras);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params)
+        .set_dpop_key(get_rsa_private_key());
 
     client
         .callback_async(&http_client, params)
