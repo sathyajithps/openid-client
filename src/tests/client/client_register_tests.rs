@@ -246,10 +246,8 @@ mod with_key_store_as_an_option {
 
         let issuer = Issuer::new(issuer_metadata);
 
-        let register_options = ClientRegistrationOptions {
-            jwks: Some(convert_json_to::<Jwks>(DEFAULT_JWKS).unwrap()),
-            ..Default::default()
-        };
+        let register_options = ClientRegistrationOptions::default()
+            .set_jwks(convert_json_to::<Jwks>(DEFAULT_JWKS).unwrap());
 
         let _ = Client::register_async(
             &http_client,
@@ -285,10 +283,8 @@ mod with_key_store_as_an_option {
 
         let issuer = Issuer::new(issuer_metadata);
 
-        let register_options = ClientRegistrationOptions {
-            jwks: Some(convert_json_to::<Jwks>(DEFAULT_JWKS).unwrap()),
-            ..Default::default()
-        };
+        let register_options = ClientRegistrationOptions::default()
+            .set_jwks(convert_json_to::<Jwks>(DEFAULT_JWKS).unwrap());
 
         let client_metadata = ClientMetadata {
             jwks: Some(Jwks::default()),
@@ -329,10 +325,8 @@ mod with_key_store_as_an_option {
 
         let issuer = Issuer::new(issuer_metadata);
 
-        let register_options = ClientRegistrationOptions {
-            jwks: Some(convert_json_to::<Jwks>(DEFAULT_JWKS).unwrap()),
-            ..Default::default()
-        };
+        let register_options = ClientRegistrationOptions::default()
+            .set_jwks(convert_json_to::<Jwks>(DEFAULT_JWKS).unwrap());
 
         let client_metadata = ClientMetadata {
             jwks_uri: Some("https://rp.example.com/certs".to_string()),
@@ -363,10 +357,7 @@ mod with_key_store_as_an_option {
 
         let issuer = Issuer::new(issuer_metadata);
 
-        let register_options = ClientRegistrationOptions {
-                        jwks: Some(convert_json_to::<Jwks>(r#"{"keys":[{"k":"qHedLw","kty":"oct","kid":"R5OsS5S7xvrW7E0k0t0PwRsskJpdOkyfnAZi8S806Bg"}]}"#).unwrap()),
-                        ..Default::default()
-                    };
+        let register_options = ClientRegistrationOptions::default().set_jwks(convert_json_to::<Jwks>(r#"{"keys":[{"k":"qHedLw","kty":"oct","kid":"R5OsS5S7xvrW7E0k0t0PwRsskJpdOkyfnAZi8S806Bg"}]}"#).unwrap());
 
         let client_metadata = ClientMetadata::default();
 
@@ -397,10 +388,7 @@ mod with_key_store_as_an_option {
 
         let issuer = Issuer::new(issuer_metadata);
 
-        let register_options = ClientRegistrationOptions {
-                        jwks: Some(convert_json_to::<Jwks>(r#"{"keys":[{"kty":"EC","kid":"MFZeG102dQiqbANoaMlW_Jmf7fOZmtRsHt77JFhTpF0","crv":"P-256","x":"FWZ9rSkLt6Dx9E3pxLybhdM6xgR5obGsj5_pqmnz5J4","y":"_n8G69C-A2Xl4xUW2lF0i8ZGZnk_KPYrhv4GbTGu5G4"}]}"#).unwrap()),
-                        ..Default::default()
-                    };
+        let register_options = ClientRegistrationOptions::default().set_jwks(convert_json_to::<Jwks>(r#"{"keys":[{"kty":"EC","kid":"MFZeG102dQiqbANoaMlW_Jmf7fOZmtRsHt77JFhTpF0","crv":"P-256","x":"FWZ9rSkLt6Dx9E3pxLybhdM6xgR5obGsj5_pqmnz5J4","y":"_n8G69C-A2Xl4xUW2lF0i8ZGZnk_KPYrhv4GbTGu5G4"}]}"#).unwrap());
 
         let client_metadata = ClientMetadata::default();
 
@@ -449,10 +437,8 @@ mod with_initial_access_token {
 
         let issuer = Issuer::new(issuer_metadata);
 
-        let register_options = ClientRegistrationOptions {
-            initial_access_token: Some("foobar".to_string()),
-            ..Default::default()
-        };
+        let register_options =
+            ClientRegistrationOptions::default().set_iniatial_access_token("foobar");
 
         let _ = Client::register_async(
             &http_client,

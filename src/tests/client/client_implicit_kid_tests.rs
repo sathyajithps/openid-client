@@ -114,10 +114,7 @@ mod no_implicit_key_ids {
         };
         let issuer = Issuer::new(issuer_metadata);
 
-        let reg_opt = ClientRegistrationOptions {
-            jwks: Some(jwks),
-            ..Default::default()
-        };
+        let reg_opt = ClientRegistrationOptions::default().set_jwks(jwks);
 
         let client_metadata = ClientMetadata {
             token_endpoint_auth_method: Some("private_key_jwt".to_string()),

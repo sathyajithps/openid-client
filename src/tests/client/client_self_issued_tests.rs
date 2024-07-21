@@ -99,7 +99,7 @@ async fn consumes_a_self_issued_response() {
         ..Default::default()
     };
 
-    let params = OpenIdCallbackParams::default().parameters(params);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params);
 
     client
         .callback_async(&DefaultHttpClient, params)
@@ -116,7 +116,7 @@ async fn expects_sub_jwk_to_be_in_the_id_token_claims() {
         ..Default::default()
     };
 
-    let params = OpenIdCallbackParams::default().parameters(params);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params);
 
     let err = client
         .callback_async(&DefaultHttpClient, params)
@@ -143,7 +143,7 @@ async fn expects_sub_jwk_to_be_a_public_jwk() {
         ..Default::default()
     };
 
-    let params = OpenIdCallbackParams::default().parameters(params);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params);
 
     let err = client
         .callback_async(&DefaultHttpClient, params)
@@ -170,7 +170,7 @@ async fn expects_sub_to_be_the_thumbprint_of_the_sub_jwk() {
         ..Default::default()
     };
 
-    let params = OpenIdCallbackParams::default().parameters(params);
+    let params = OpenIdCallbackParams::new("https://rp.example.com/cb", params);
 
     let err = client
         .callback_async(&DefaultHttpClient, params)
