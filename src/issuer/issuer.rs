@@ -135,6 +135,7 @@ impl Issuer {
         Self {
             issuer: metadata.issuer,
             authorization_endpoint: metadata.authorization_endpoint,
+            device_authorization_endpoint: metadata.device_authorization_endpoint,
             token_endpoint: metadata.token_endpoint,
             jwks_uri: metadata.jwks_uri,
             userinfo_endpoint: metadata.userinfo_endpoint,
