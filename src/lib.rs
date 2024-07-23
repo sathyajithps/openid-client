@@ -71,6 +71,13 @@
 //!
 //! This crate uses [Josekit](https://crates.io/crates/josekit) for JWKs. To create JWKs, refer [JWK](https://docs.rs/josekit/0.8.6/josekit/jwk/struct.Jwk.html) in the Josekit documentation.
 //!
+//! ## Using MTLS
+//!
+//! To use MTLS, ie; certificate authentication, you'll need to create your own http client out of the [types::OidcHttpClient] trait.
+//! Override the [types::OidcHttpClient::get_client_certificate] function (which returns [None] by default) to return Some([types::http_client::ClientCertificate]).
+//!
+//! When the request requires MTLS, and the [types::OidcHttpClient::get_client_certificate] method returns None, a client error will be returned.
+//!
 //! ## Issuer API
 //!
 //! ### New Instance

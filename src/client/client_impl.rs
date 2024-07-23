@@ -16,8 +16,8 @@ use crate::types::{
     CallbackParams, ClaimParam, DeviceAuthorizationExtras, DeviceAuthorizationParams,
     DeviceAuthorizationResponse, Fapi, GrantExtras, HttpRequest, HttpResponse, IntrospectionExtras,
     OAuthCallbackChecks, OAuthCallbackParams, OidcHttpClient, OidcReturnType, OpenIdCallbackParams,
-    PushedAuthorizationRequestExtras, RefreshTokenExtras, RequestResourceParams, RevokeExtras,
-    UserinfoOptions,
+    ParResponse, PushedAuthorizationRequestExtras, RefreshTokenExtras, RequestResourceParams,
+    RevokeExtras, UserinfoOptions,
 };
 use crate::{
     helpers::convert_json_to,
@@ -1717,7 +1717,7 @@ impl Client {
         http_client: &T,
         parameters: Option<AuthorizationParameters>,
         extras: Option<PushedAuthorizationRequestExtras<'_>>,
-    ) -> OidcReturnType<Value>
+    ) -> OidcReturnType<ParResponse>
     where
         T: OidcHttpClient,
     {
@@ -1809,7 +1809,12 @@ impl Client {
             )));
         }
 
-        Ok(body_obj)
+        serde_json::from_value::<ParResponse>(body_obj).map_err(|_| {
+            Box::new(OidcClientError::new_error(
+                "Could not convert Par Json",
+                None,
+            ))
+        })
     }
 
     /// # Device Authorization Grant

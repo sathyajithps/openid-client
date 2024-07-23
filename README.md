@@ -1,15 +1,8 @@
 # OpenID Client
 
-A feature complete OpenID Client library for Rust. Not stable, kindly report any bugs.
+An OpenID Connect Relying Party (Client) library. This is a port of [node-openid-client](https://github.com/panva/node-openid-client).
 
-**TODO**
-
-- [ ] Write and Pass conformance
-- [x] Allow to use custom http client instead of interceptor
-- [ ] Code cleanup
-- [ ] Thin up a lot of inefficient decisions made for the sake of completion of the library
-- [ ] Test out the ported features
-- [ ] Add more features?
+This library uses async/await but runtime agnostic.
 
 ## Implemented specs & features
 
@@ -60,7 +53,13 @@ openid-client.
 
 [Documentation](https://docs.rs/openid-client)
 
+## Support
+
+Consider supporting this library by creating a PR/Issue in the [repo](https://github.com/sathyajithps/openid-client).
+
 ## Alternatives
+
+If you think this library does not fit your use case, these are popular alternatives.
 
 - [openidconnect](https://crates.io/crates/openidconnect)
 - [openid](https://crates.io/crates/openid)
