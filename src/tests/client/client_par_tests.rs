@@ -1,6 +1,3 @@
-use assert_json_diff::assert_json_include;
-use serde_json::json;
-
 use crate::{
     client::Client,
     http_client::DefaultHttpClient,
@@ -85,13 +82,8 @@ async fn performs_an_authenticated_post_and_returns_the_response() {
         .await
         .unwrap();
 
-    assert_json_include!(
-        expected: json!({
-            "expires_in": 60,
-            "request_uri": "urn:ietf:params:oauth:request_uri:random"
-        }),
-        actual: res
-    );
+    assert_eq!(60, res.expires_in);
+    assert_eq!("urn:ietf:params:oauth:request_uri:random", res.request_uri);
 }
 
 #[tokio::test]
@@ -156,13 +148,8 @@ async fn handles_request_being_part_of_the_params() {
         .await
         .unwrap();
 
-    assert_json_include!(
-        expected: json!({
-            "expires_in": 60,
-            "request_uri": "urn:ietf:params:oauth:request_uri:random"
-        }),
-        actual: res
-    );
+    assert_eq!(60, res.expires_in);
+    assert_eq!("urn:ietf:params:oauth:request_uri:random", res.request_uri);
 }
 
 #[tokio::test]
