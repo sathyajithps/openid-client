@@ -4,6 +4,10 @@ An OpenID Connect Relying Party (Client) library. This is a port of [node-openid
 
 This library uses async/await but runtime agnostic.
 
+## Usage
+
+Visit [this repo](https://github.com/sathyajithps/openid-client-examples) for how to use the library.
+
 ## Implemented specs & features
 
 The following client/RP features from OpenID Connect/OAuth2.0 specifications are implemented by
