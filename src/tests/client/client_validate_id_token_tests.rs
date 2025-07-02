@@ -4,7 +4,7 @@ use josekit::{jwk::Jwk, jws::JwsHeader, jwt::JwtPayload};
 use serde_json::{json, Value};
 
 use crate::{
-    client::Client,
+    client::{validate_id_token_params::ValidateIdTokenParams, Client},
     helpers::{generate_hash, now},
     issuer::Issuer,
     jwks::{jwks::CustomJwk, Jwks},
@@ -170,7 +170,11 @@ async fn validates_the_id_token_and_fulfills_with_input_value() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -197,7 +201,11 @@ async fn validates_the_id_token_signature() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -240,7 +248,11 @@ async fn validates_the_id_token_and_fulfills_with_input_value_when_signed_by_sec
     let token_set = get_token_set(id_token.clone(), None, None);
 
     let validated_token_set = client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -267,7 +279,11 @@ async fn validates_the_id_token_signed_response_alg_is_the_one_used() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -297,7 +313,11 @@ async fn verifies_the_azp() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -329,7 +349,11 @@ async fn verifies_azp_is_present_when_more_audiences_are_provided() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -362,7 +386,11 @@ async fn verifies_the_audience_when_azp_is_there() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -391,7 +419,11 @@ async fn rejects_unknown_additional_party_azp_values_single_additional_value() {
 
     let err = test_data
         .client_with_3rd_party
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -424,7 +456,11 @@ async fn allows_configured_additional_party_azp_value_single_additional_value() 
 
     let validated_token_set = test_data
         .client_with_3rd_party
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -453,7 +489,11 @@ async fn allows_the_default_client_id_additional_party_azp_value_single_addition
 
     let validated_token_set = test_data
         .client_with_3rd_party
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -482,7 +522,11 @@ async fn rejects_unknown_additional_party_azp_values_multiple_additional_values(
 
     let err = test_data
         .client_with_3rd_parties
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -515,7 +559,11 @@ async fn allows_configured_additional_party_azp_value_multiple_additional_values
 
     let validated_token_set = test_data
         .client_with_3rd_parties
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -544,7 +592,11 @@ async fn allows_the_default_client_id_additional_party_azp_value_multiple_additi
 
     let validated_token_set = test_data
         .client_with_3rd_parties
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -569,7 +621,11 @@ async fn verifies_the_audience_when_string() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -599,7 +655,11 @@ async fn verifies_the_audience_when_array() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -634,12 +694,7 @@ async fn passes_with_nonce_check() {
     let validated_token_set = test_data
         .client
         .validate_id_token_async(
-            token_set,
-            Some("nonce!!!".to_string()),
-            "",
-            None,
-            None,
-            &test_data.http_client,
+            ValidateIdTokenParams::new(token_set, "", &test_data.http_client).nonce("nonce!!!"),
         )
         .await
         .unwrap();
@@ -670,12 +725,7 @@ async fn validates_nonce_when_provided_to_check_for() {
     let err = test_data
         .client
         .validate_id_token_async(
-            token_set,
-            Some("nonce!!!".to_string()),
-            "",
-            None,
-            None,
-            &test_data.http_client,
+            ValidateIdTokenParams::new(token_set, "", &test_data.http_client).nonce("nonce!!!"),
         )
         .await
         .unwrap_err();
@@ -710,7 +760,11 @@ async fn validates_nonce_when_in_token() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -746,7 +800,11 @@ async fn verifies_presence_of_payload_property_iss() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -782,7 +840,11 @@ async fn verifies_presence_of_payload_property_sub() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -818,7 +880,11 @@ async fn verifies_presence_of_payload_property_aud() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -854,7 +920,11 @@ async fn verifies_presence_of_payload_property_exp() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -889,7 +959,11 @@ async fn verifies_presence_of_payload_property_iat() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -922,7 +996,11 @@ async fn allows_iat_skew() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -950,7 +1028,11 @@ async fn verifies_exp_is_in_the_future() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -986,7 +1068,11 @@ async fn allow_exp_skew() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -1015,7 +1101,11 @@ async fn verifies_nbf_is_in_the_past() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -1052,7 +1142,11 @@ async fn allows_nbf_skew() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -1081,7 +1175,9 @@ async fn passes_when_auth_time_is_within_max_age() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", Some(300), None, &test_data.http_client)
+        .validate_id_token_async(
+            ValidateIdTokenParams::new(token_set, "", &test_data.http_client).max_age(300),
+        )
         .await
         .unwrap();
 
@@ -1115,7 +1211,9 @@ async fn verifies_auth_time_did_not_exceed_max_age() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", Some(300), None, &test_data.http_client)
+        .validate_id_token_async(
+            ValidateIdTokenParams::new(token_set, "", &test_data.http_client).max_age(300),
+        )
         .await
         .unwrap_err();
 
@@ -1149,7 +1247,11 @@ async fn allows_auth_time_skew() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -1177,7 +1279,9 @@ async fn verifies_auth_time_is_a_number() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", Some(300), None, &test_data.http_client)
+        .validate_id_token_async(
+            ValidateIdTokenParams::new(token_set, "", &test_data.http_client).max_age(300),
+        )
         .await
         .unwrap_err();
 
@@ -1218,7 +1322,11 @@ async fn verifies_auth_time_is_present_when_require_auth_time_is_true() {
     let token_set = get_token_set(id_token.clone(), None, None);
 
     let err = client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -1249,7 +1357,9 @@ async fn verifies_auth_time_is_present_when_max_age_is_passed() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", Some(300), None, &test_data.http_client)
+        .validate_id_token_async(
+            ValidateIdTokenParams::new(token_set, "", &test_data.http_client).max_age(300),
+        )
         .await
         .unwrap_err();
 
@@ -1284,7 +1394,11 @@ async fn passes_with_the_right_at_hash() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -1666,7 +1780,11 @@ async fn fails_with_the_wrong_at_hash() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 
@@ -1705,7 +1823,11 @@ async fn passes_with_the_right_c_hash() {
 
     let validated_token_set = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap();
 
@@ -1726,7 +1848,11 @@ async fn fails_if_tokenset_without_id_token_is_passed_in() {
 
     let err = test_data
         .client
-        .validate_id_token_async(token_set, None, "", None, None, &test_data.http_client)
+        .validate_id_token_async(ValidateIdTokenParams::new(
+            token_set,
+            "",
+            &test_data.http_client,
+        ))
         .await
         .unwrap_err();
 

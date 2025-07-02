@@ -69,6 +69,14 @@ pub struct IssuerMetadata {
     /// Boolean parameter indicating whether the authorization server accepts authorization request data only via PAR.  If omitted, the default value is "false".
     #[serde(default)]
     pub require_pushed_authorization_requests: bool,
+    /// Token delivery modes supported for CIBA
+    pub backchannel_token_delivery_modes_supported: Option<Vec<String>>,
+    /// CIBA authentication endpont
+    pub backchannel_authentication_endpoint: Option<String>,
+    /// CIBA authentication request signing algorithms supported.
+    pub backchannel_authentication_request_signing_alg_values_supported: Option<Vec<String>>,
+    /// Wether CIBA user_code is supported
+    pub backchannel_user_code_parameter_supported: Option<bool>,
     /// Any extra data that was read from the discovery document
     #[serde(flatten)]
     pub other_fields: HashMap<String, Value>,

@@ -156,6 +156,18 @@ pub struct ClientMetadata {
     /// A boolean value specifying whether the client always uses DPoP for token requests. If omitted, the default value is false.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dpop_bound_access_tokens: Option<bool>,
+    /// One of poll, ping, push modes for token delivery
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backchannel_token_delivery_mode: Option<String>,
+    /// Client owned endpoint the authorization server will send a request to if the mode is set to ping or push.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backchannel_client_notification_endpoint: Option<String>,
+    /// The signing algorithm used by the client to sign authentication requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backchannel_authentication_request_signing_alg: Option<String>,
+    /// Specifies if the user_code param is supported by the client.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backchannel_user_code_parameter: Option<bool>,
     /// Extra key values
     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
     pub other_fields: HashMap<String, Value>,

@@ -17,9 +17,9 @@ pub struct DeviceAuthorizationResponse {
     /// The device code
     pub device_code: String,
     /// The lifetime in seconds of the "device_code" and "user_code".
-    pub expires_in: i64,
+    pub expires_in: u64,
     /// The minimum amount of time in seconds that the client
     /// waits between polling requests to the token endpoint.  If no
     /// value is provided, 5 seconds is used by default
-    pub interval: Option<f64>,
+    pub interval: Option<u64>,
 }

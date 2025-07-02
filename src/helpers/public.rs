@@ -10,12 +10,12 @@ use sha2::{Digest, Sha256};
 use crate::types::{DecodedToken, OidcClientError, OidcReturnType};
 
 /// Gets a Unix Timestamp in seconds. Uses [`SystemTime::now`]
-pub fn now() -> i64 {
+pub fn now() -> u64 {
     let start = SystemTime::now();
     start
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
-        .as_secs() as i64
+        .as_secs()
 }
 
 /// Generates a random string using [rand::thread_rng]. You can pass in the bytes to generates

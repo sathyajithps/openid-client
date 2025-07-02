@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use josekit::jwk::Jwk;
 use serde_json::Value;
 
-/// # DeviceAuthorizationExtras
-/// Additional parameters for Device Authorization Request
+/// # CibaGrantExtras
+/// Additional parameters for CIBA Grant
 #[derive(Default, Debug)]
-pub struct DeviceAuthorizationExtras {
-    /// Extra request body properties to be sent to the AS during code exchange.
+pub struct CibaAuthenticationExtras {
+    /// Extra request body properties to be sent in token grant.
     pub exchange_body: Option<HashMap<String, String>>,
     /// Extra client assertion payload parameters to be sent as part of a client JWT assertion.
     /// This is only used when the client's token_endpoint_auth_method is either client_secret_jwt or private_key_jwt
@@ -16,8 +16,8 @@ pub struct DeviceAuthorizationExtras {
     pub dpop: Option<Jwk>,
 }
 
-impl DeviceAuthorizationExtras {
-    /// Creates a new instance.
+impl CibaAuthenticationExtras {
+    /// Create a new instance
     pub fn new() -> Self {
         Self {
             exchange_body: None,

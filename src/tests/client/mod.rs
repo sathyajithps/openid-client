@@ -50,5 +50,7 @@ mod client_device_flow_tests;
 
 mod client_dpop_tests;
 
+mod client_ciba_tests;
+
 #[cfg(test)]
 pub mod helpers;

@@ -16,7 +16,7 @@ pub struct GrantParams<'a> {
     pub retry: bool,
 }
 
-impl<'a> Default for GrantParams<'a> {
+impl Default for GrantParams<'_> {
     fn default() -> Self {
         Self {
             body: HashMap::new(),

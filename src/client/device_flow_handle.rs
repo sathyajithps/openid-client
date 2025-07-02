@@ -1,11 +1,11 @@
-use std::{cmp::max, collections::HashMap, num::Wrapping};
+use std::collections::HashMap;
 
 use crate::types::{
     grant_params::GrantParams, DeviceAuthorizationExtras, DeviceAuthorizationResponse,
     DeviceFlowGrantResponse, GrantExtras, OidcClientError, OidcHttpClient, OidcReturnType,
 };
 
-use super::Client;
+use super::{validate_id_token_params::ValidateIdTokenParams, Client};
 
 /// # DeviceFlowHandle
 /// Handle used for Device Grant
@@ -13,12 +13,12 @@ use super::Client;
 pub struct DeviceFlowHandle {
     client: Client,
     extras: Option<DeviceAuthorizationExtras>,
-    expires_at: i64,
-    interval: f64,
+    expires_at: u64,
+    interval: u64,
     max_age: Option<u64>,
     response: DeviceAuthorizationResponse,
-    last_requested: i64,
-    pub(crate) now: fn() -> i64,
+    last_requested: u64,
+    pub(crate) now: fn() -> u64,
 }
 
 impl DeviceFlowHandle {
@@ -39,7 +39,7 @@ impl DeviceFlowHandle {
             client,
             extras,
             expires_at: now() + response.expires_in,
-            interval: response.interval.unwrap_or(5.0),
+            interval: response.interval.unwrap_or(5),
             max_age,
             response,
             last_requested: 0,
@@ -48,13 +48,18 @@ impl DeviceFlowHandle {
     }
 
     /// Gets the timestamp in seconds of when the device code expires
-    pub fn expires_at(&self) -> i64 {
+    pub fn expires_at(&self) -> u64 {
         self.expires_at
     }
 
     /// Gets the seconds in which the device code expires
-    pub fn expires_in(&self) -> i64 {
-        max((Wrapping(self.expires_at) - Wrapping((self.now)())).0, 0)
+    pub fn expires_in(&self) -> u64 {
+        let now = (self.now)();
+        if now >= self.expires_at {
+            return 0;
+        }
+
+        self.expires_at - now
     }
 
     /// Gets wether the device code is expired or not
@@ -63,12 +68,12 @@ impl DeviceFlowHandle {
     }
 
     /// Gets the polling interval
-    pub fn interval(&self) -> f64 {
+    pub fn interval(&self) -> u64 {
         self.interval
     }
 
     /// Increase the interval by `by` seconds
-    pub fn increase_interval(&mut self, by: f64) {
+    pub fn increase_interval(&mut self, by: u64) {
         self.interval += by;
     }
 
@@ -114,7 +119,7 @@ impl DeviceFlowHandle {
             return Err(Box::new(OidcClientError::new_rp_error(&format!("the device code {} has expired and the device authorization session has concluded", self.device_code()), None)));
         }
 
-        if (((self.now)() - self.last_requested) as f64) < self.interval {
+        if ((self.now)() - self.last_requested) < self.interval {
             return Ok(DeviceFlowGrantResponse::Debounced);
         }
 
@@ -161,7 +166,7 @@ impl DeviceFlowHandle {
                 match e.as_ref() {
                     OidcClientError::OPError(sbe, _) => {
                         if sbe.error == "slow_down" {
-                            self.increase_interval(5.0);
+                            self.increase_interval(5);
                             return Ok(DeviceFlowGrantResponse::SlowDown);
                         }
                         if sbe.error == "authorization_pending" {
@@ -179,10 +184,14 @@ impl DeviceFlowHandle {
 
         if token_set.get_id_token().is_some() {
             token_set = self.client.decrypt_id_token(token_set)?;
-            token_set = self
-                .client
-                .validate_id_token_async(token_set, None, "token", self.max_age, None, http_client)
-                .await?;
+
+            let mut params = ValidateIdTokenParams::new(token_set, "token", http_client);
+
+            if let Some(max_age) = self.max_age {
+                params = params.max_age(max_age);
+            }
+
+            token_set = self.client.validate_id_token_async(params).await?;
         }
 
         Ok(DeviceFlowGrantResponse::Successful(Box::new(token_set)))

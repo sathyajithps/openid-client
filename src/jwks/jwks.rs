@@ -39,7 +39,7 @@ impl CustomJwk for Jwk {
             return algs;
         }
 
-        return match self.key_type() {
+        match self.key_type() {
             "EC" => {
                 let key_use = self.key_use();
                 if key_use == Some("enc") || key_use.is_none() {
@@ -83,7 +83,7 @@ impl CustomJwk for Jwk {
                 algs
             }
             _ => algs,
-        };
+        }
     }
 
     fn is_private_key(&self) -> bool {

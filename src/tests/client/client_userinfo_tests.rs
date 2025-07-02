@@ -752,8 +752,8 @@ mod signed_response_content_type_application_jwt {
         );
         assert_eq!("foobar", payload.get("sub").unwrap().as_str().unwrap());
         assert_eq!("foobar", payload.get("aud").unwrap().as_str().unwrap());
-        assert_eq!(exp, payload.get("exp").unwrap().as_i64().unwrap());
-        assert_eq!(iat, payload.get("iat").unwrap().as_i64().unwrap());
+        assert_eq!(exp, payload.get("exp").unwrap().as_u64().unwrap());
+        assert_eq!(iat, payload.get("iat").unwrap().as_u64().unwrap());
     }
 
     #[tokio::test]

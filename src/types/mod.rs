@@ -4,6 +4,10 @@
 pub(crate) mod authentication_post_param;
 mod authorization_parameters;
 mod callback_params;
+mod ciba_auth_request;
+mod ciba_auth_response;
+mod ciba_grant_extras;
+mod ciba_grant_response;
 mod client_metadata;
 mod client_options;
 mod client_registration_options;
@@ -38,6 +42,10 @@ pub use authorization_parameters::{
 pub use callback_params::{
     CallbackExtras, CallbackParams, OAuthCallbackChecks, OpenIDCallbackChecks,
 };
+pub use ciba_auth_request::CibaAuthRequest;
+pub use ciba_auth_response::CibaAuthResponse;
+pub use ciba_grant_extras::CibaAuthenticationExtras;
+pub use ciba_grant_response::CibaGrantResponse;
 pub use client_metadata::ClientMetadata;
 pub use client_options::ClientOptions;
 pub use client_registration_options::ClientRegistrationOptions;

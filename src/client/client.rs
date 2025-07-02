@@ -65,10 +65,14 @@ pub struct Client {
     pub(crate) skip_nonce_check: bool,
     pub(crate) clock_tolerance: Duration,
     pub(crate) fapi: Option<Fapi>,
-    pub(crate) now: fn() -> i64,
     pub(crate) dpop_nonce_cache: DPoPNonceCache,
     pub(crate) dpop_bound_access_tokens: Option<bool>,
+    pub(crate) backchannel_token_delivery_mode: Option<String>,
+    pub(crate) backchannel_client_notification_endpoint: Option<String>,
+    pub(crate) backchannel_authentication_request_signing_alg: Option<String>,
+    pub(crate) backchannel_user_code_parameter: Option<bool>,
     pub(crate) other_fields: HashMap<String, Value>,
+    pub(crate) now: fn() -> u64,
 }
 
 impl Client {
@@ -122,9 +126,13 @@ impl Client {
             skip_nonce_check: false,
             clock_tolerance: Duration::from_secs(0),
             fapi: None,
-            now,
             dpop_nonce_cache: DPoPNonceCache::new(),
             dpop_bound_access_tokens: None,
+            backchannel_token_delivery_mode: None,
+            backchannel_client_notification_endpoint: None,
+            backchannel_authentication_request_signing_alg: None,
+            backchannel_user_code_parameter: None,
+            now,
         };
 
         match fapi.as_ref() {
@@ -200,6 +208,12 @@ impl Client {
             authorization_encrypted_response_alg: metadata.authorization_encrypted_response_alg,
             authorization_encrypted_response_enc: metadata.authorization_encrypted_response_enc,
             dpop_bound_access_tokens: metadata.dpop_bound_access_tokens,
+            backchannel_authentication_request_signing_alg: metadata
+                .backchannel_authentication_request_signing_alg,
+            backchannel_client_notification_endpoint: metadata
+                .backchannel_client_notification_endpoint,
+            backchannel_token_delivery_mode: metadata.backchannel_token_delivery_mode,
+            backchannel_user_code_parameter: metadata.backchannel_user_code_parameter,
             other_fields: metadata.other_fields,
             ..Client::default(fapi)
         };
@@ -600,6 +614,14 @@ impl Client {
             authorization_encrypted_response_alg: self.authorization_encrypted_response_alg.clone(),
             authorization_encrypted_response_enc: self.authorization_encrypted_response_enc.clone(),
             dpop_bound_access_tokens: self.dpop_bound_access_tokens,
+            backchannel_token_delivery_mode: self.backchannel_token_delivery_mode.clone(),
+            backchannel_client_notification_endpoint: self
+                .backchannel_client_notification_endpoint
+                .clone(),
+            backchannel_authentication_request_signing_alg: self
+                .backchannel_authentication_request_signing_alg
+                .clone(),
+            backchannel_user_code_parameter: self.backchannel_user_code_parameter,
             other_fields: self.other_fields.clone(),
         }
     }
@@ -672,9 +694,17 @@ impl Clone for Client {
             skip_nonce_check: self.skip_nonce_check,
             clock_tolerance: self.clock_tolerance,
             fapi: self.fapi.clone(),
-            now: self.now,
             dpop_nonce_cache: self.dpop_nonce_cache.clone(),
             dpop_bound_access_tokens: self.dpop_bound_access_tokens,
+            backchannel_token_delivery_mode: self.backchannel_token_delivery_mode.clone(),
+            backchannel_client_notification_endpoint: self
+                .backchannel_client_notification_endpoint
+                .clone(),
+            backchannel_authentication_request_signing_alg: self
+                .backchannel_authentication_request_signing_alg
+                .clone(),
+            backchannel_user_code_parameter: self.backchannel_user_code_parameter,
+            now: self.now,
         }
     }
 }
