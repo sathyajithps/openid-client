@@ -724,7 +724,7 @@ impl Client {
                         plain_text = String::from_utf8(bytes).ok();
                         break;
                     }
-                    Err(e) => println!("{:?}", e),
+                    Err(e) => println!("{e:?}"),
                 }
             }
         } else {

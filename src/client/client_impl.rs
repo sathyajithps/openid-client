@@ -88,7 +88,7 @@ impl Client {
             let mut query = new_query_params.finish();
 
             if let Some(scope) = scope_str {
-                query.push_str(&format!("&scope={}", scope));
+                query.push_str(&format!("&scope={scope}"));
             }
 
             authorization_endpiont.set_query(Some(&query));
@@ -1032,7 +1032,7 @@ impl Client {
         let mut req = HttpRequest::new()
             .url(Url::parse(params.resource_url).map_err(|e| {
                 Box::new(OidcClientError::new_error(
-                    &format!("Invalid Url: {}", e),
+                    &format!("Invalid Url: {e}"),
                     None,
                 ))
             })?)

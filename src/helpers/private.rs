@@ -212,7 +212,7 @@ pub(crate) fn get_serde_value_as_string(v: &Value) -> OidcReturnType<String> {
             serde_json::to_string(a)
                 .ok()
                 .ok_or(Box::new(OidcClientError::new_error(
-                    &format!("Invalid serde array value to convert to string: {:?}", a),
+                    &format!("Invalid serde array value to convert to string: {a:?}"),
                     None,
                 )))
         }
@@ -220,7 +220,7 @@ pub(crate) fn get_serde_value_as_string(v: &Value) -> OidcReturnType<String> {
             serde_json::to_string(o)
                 .ok()
                 .ok_or(Box::new(OidcClientError::new_error(
-                    &format!("Invalid serde object value to convert to string: {:?}", o),
+                    &format!("Invalid serde object value to convert to string: {o:?}"),
                     None,
                 )))
         }
