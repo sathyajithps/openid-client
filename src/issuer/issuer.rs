@@ -49,7 +49,11 @@ pub struct Issuer {
     pub(crate) dpop_signing_alg_values_supported: Option<Vec<String>>,
     pub(crate) pushed_authorization_request_endpoint: Option<String>,
     pub(crate) require_pushed_authorization_requests: bool,
-    pub(crate) now: fn() -> i64,
+    pub(crate) backchannel_token_delivery_modes_supported: Option<Vec<String>>,
+    pub(crate) backchannel_authentication_endpoint: Option<String>,
+    pub(crate) backchannel_authentication_request_signing_alg_values_supported: Option<Vec<String>>,
+    pub(crate) backchannel_user_code_parameter_supported: bool,
+    pub(crate) now: fn() -> u64,
 }
 
 impl Default for Issuer {
@@ -87,8 +91,12 @@ impl Default for Issuer {
             dpop_signing_alg_values_supported: None,
             pushed_authorization_request_endpoint: None,
             require_pushed_authorization_requests: false,
-            now,
             device_authorization_endpoint: None,
+            backchannel_token_delivery_modes_supported: None,
+            backchannel_authentication_endpoint: None,
+            backchannel_authentication_request_signing_alg_values_supported: None,
+            backchannel_user_code_parameter_supported: false,
+            now,
         }
     }
 }
@@ -158,6 +166,14 @@ impl Issuer {
             require_pushed_authorization_requests: metadata.require_pushed_authorization_requests,
             other_fields: metadata.other_fields,
             keystore: Some(KeyStore::new(jwks_uri)),
+            backchannel_token_delivery_modes_supported: metadata
+                .backchannel_token_delivery_modes_supported,
+            backchannel_authentication_endpoint: metadata.backchannel_authentication_endpoint,
+            backchannel_authentication_request_signing_alg_values_supported: metadata
+                .backchannel_authentication_request_signing_alg_values_supported,
+            backchannel_user_code_parameter_supported: metadata
+                .backchannel_user_code_parameter_supported
+                .unwrap_or(false),
             ..Issuer::default()
         }
     }
@@ -236,8 +252,16 @@ impl Issuer {
             dpop_signing_alg_values_supported: metadata.dpop_signing_alg_values_supported,
             pushed_authorization_request_endpoint: metadata.pushed_authorization_request_endpoint,
             require_pushed_authorization_requests: metadata.require_pushed_authorization_requests,
-            now,
             device_authorization_endpoint: metadata.device_authorization_endpoint,
+            backchannel_token_delivery_modes_supported: metadata
+                .backchannel_token_delivery_modes_supported,
+            backchannel_authentication_endpoint: metadata.backchannel_authentication_endpoint,
+            backchannel_authentication_request_signing_alg_values_supported: metadata
+                .backchannel_authentication_request_signing_alg_values_supported,
+            backchannel_user_code_parameter_supported: metadata
+                .backchannel_user_code_parameter_supported
+                .unwrap_or(false),
+            now,
         }
     }
 }
@@ -330,10 +354,7 @@ impl Issuer {
             let split: Vec<&str> = resource.split('@').collect();
             host = split.last().map(|s| s.to_string());
         } else if resource.starts_with("https://") {
-            let url = match validate_url(&resource) {
-                Ok(parsed) => parsed,
-                Err(err) => return Err(err),
-            };
+            let url = validate_url(&resource)?;
 
             if let Some(host_str) = url.host_str() {
                 host = match url.port() {
@@ -531,8 +552,17 @@ impl Clone for Issuer {
                 .pushed_authorization_request_endpoint
                 .clone(),
             require_pushed_authorization_requests: self.require_pushed_authorization_requests,
-            now,
             device_authorization_endpoint: self.device_authorization_endpoint.clone(),
+            backchannel_token_delivery_modes_supported: self
+                .backchannel_token_delivery_modes_supported
+                .clone(),
+            backchannel_authentication_endpoint: self.backchannel_authentication_endpoint.clone(),
+            backchannel_authentication_request_signing_alg_values_supported: self
+                .backchannel_authentication_request_signing_alg_values_supported
+                .clone(),
+            backchannel_user_code_parameter_supported: self
+                .backchannel_user_code_parameter_supported,
+            now,
         }
     }
 }
@@ -577,6 +607,16 @@ impl Issuer {
                 .pushed_authorization_request_endpoint
                 .clone(),
             require_pushed_authorization_requests: self.require_pushed_authorization_requests,
+            backchannel_token_delivery_modes_supported: self
+                .backchannel_token_delivery_modes_supported
+                .clone(),
+            backchannel_authentication_endpoint: self.backchannel_authentication_endpoint.clone(),
+            backchannel_authentication_request_signing_alg_values_supported: self
+                .backchannel_authentication_request_signing_alg_values_supported
+                .clone(),
+            backchannel_user_code_parameter_supported: Some(
+                self.backchannel_user_code_parameter_supported,
+            ),
             other_fields: self.other_fields.clone(),
         }
     }

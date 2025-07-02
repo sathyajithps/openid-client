@@ -145,10 +145,8 @@ impl HttpRequest {
     }
 
     pub(crate) fn body(mut self, body: String) -> Self {
-        self.headers.insert(
-            "content-length".to_string(),
-            vec![body.as_bytes().len().to_string()],
-        );
+        self.headers
+            .insert("content-length".to_string(), vec![body.len().to_string()]);
         self.body = Some(body);
         self
     }

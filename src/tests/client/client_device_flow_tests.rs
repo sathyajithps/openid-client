@@ -96,7 +96,7 @@ mod device_authorization {
                 "user_code": "AAAA-AAAA",
                 "device_code": "foobar",
                 "expires_in": 300,
-                "interval": 0.006
+                "interval": 5
               }"#,
             )
             .build();
@@ -117,7 +117,7 @@ mod device_authorization {
         );
         assert!(handle.expires_in() <= 300);
         assert_eq!(false, handle.expired());
-        assert_eq!(0.006, handle.interval());
+        assert_eq!(5, handle.interval());
     }
 
     #[tokio::test]
@@ -209,7 +209,7 @@ mod device_flow_handle {
                 verification_uri: "https://op.example.com/device".to_string(),
                 user_code: "AAAA-AAAA".to_string(),
                 device_code: "foobar".to_string(),
-                interval: Some(0.005),
+                interval: Some(5),
                 expires_in: 300,
                 verification_uri_complete: None,
             },
@@ -220,6 +220,7 @@ mod device_flow_handle {
         let res = handle.grant_async(&http_client).await.unwrap();
 
         if let DeviceFlowGrantResponse::Successful(_) = res {
+            assert!(true);
         } else {
             assert!(false);
         }
@@ -250,7 +251,7 @@ mod device_flow_handle {
                 verification_uri: "https://op.example.com/device".to_string(),
                 user_code: "AAAA-AAAA".to_string(),
                 device_code: "foobar".to_string(),
-                interval: Some(0.005),
+                interval: Some(5),
                 expires_in: 300,
                 verification_uri_complete: None,
             },
@@ -262,8 +263,9 @@ mod device_flow_handle {
 
         let res = handle.grant_async(&http_client).await.unwrap();
 
-        if handle.interval() == interval + 5.0 {
+        if handle.interval() == interval + 5 {
             if let DeviceFlowGrantResponse::SlowDown = res {
+                assert!(true);
                 return;
             }
         }
@@ -296,7 +298,7 @@ mod device_flow_handle {
                 verification_uri: "https://op.example.com/device".to_string(),
                 user_code: "AAAA-AAAA".to_string(),
                 device_code: "foobar".to_string(),
-                interval: Some(0.005),
+                interval: Some(5),
                 expires_in: 300,
                 verification_uri_complete: None,
             },
@@ -310,6 +312,7 @@ mod device_flow_handle {
 
         if handle.interval() == interval {
             if let DeviceFlowGrantResponse::AuthorizationPending = res {
+                assert!(true);
                 return;
             }
         }
@@ -344,7 +347,7 @@ mod device_flow_handle {
                 verification_uri: "https://op.example.com/device".to_string(),
                 user_code: "AAAA-AAAA".to_string(),
                 device_code: "foobar".to_string(),
-                interval: Some(0.005),
+                interval: Some(5),
                 expires_in: 300,
                 verification_uri_complete: None,
             },
@@ -388,7 +391,7 @@ mod device_flow_handle {
                 verification_uri: "https://op.example.com/device".to_string(),
                 user_code: "AAAA-AAAA".to_string(),
                 device_code: "foobar".to_string(),
-                interval: Some(0.005),
+                interval: Some(5),
                 expires_in: 300,
                 verification_uri_complete: None,
             },
@@ -417,7 +420,7 @@ mod device_flow_handle {
                 verification_uri: "https://op.example.com/device".to_string(),
                 user_code: "AAAA-AAAA".to_string(),
                 device_code: "foobar".to_string(),
-                interval: Some(0.005),
+                interval: Some(5),
                 expires_in: 0,
                 verification_uri_complete: None,
             },
@@ -446,7 +449,7 @@ mod device_flow_handle {
                 verification_uri: "https://op.example.com/device".to_string(),
                 user_code: "AAAA-AAAA".to_string(),
                 device_code: "foobar".to_string(),
-                interval: Some(0.005),
+                interval: Some(5),
                 expires_in: 300,
                 verification_uri_complete: None,
             },
@@ -493,7 +496,7 @@ mod device_flow_handle {
                 verification_uri: "https://op.example.com/device".to_string(),
                 user_code: "AAAA-AAAA".to_string(),
                 device_code: "foobar".to_string(),
-                interval: Some(5.0),
+                interval: Some(5),
                 expires_in: 300,
                 verification_uri_complete: None,
             },
@@ -510,6 +513,7 @@ mod device_flow_handle {
         let res = handle.grant_async(&http_client).await.unwrap();
 
         if let DeviceFlowGrantResponse::Debounced = res {
+            assert!(true);
             return;
         }
 

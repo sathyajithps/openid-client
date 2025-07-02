@@ -20,12 +20,12 @@ fn sets_the_expire_at_automatically_from_expires_in() {
 #[test]
 fn expired_token_sets_expires_in_to_0() {
     let tokenset = TokenSet::new(TokenSetParams {
-        expires_in: Some(-30),
+        expires_in: Some(0),
         ..Default::default()
     });
 
     assert_eq!(Some(0), tokenset.get_expires_in());
-    assert_eq!(Some(now() - 30), tokenset.get_expires_at());
+    assert_eq!(Some(now() - 0), tokenset.get_expires_at());
     assert_eq!(true, tokenset.expired());
 }
 

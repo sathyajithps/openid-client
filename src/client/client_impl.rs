@@ -13,11 +13,12 @@ use crate::types::grant_params::GrantParams;
 use crate::types::http_client::HttpMethod;
 use crate::types::query_keystore::QueryKeyStore;
 use crate::types::{
-    CallbackParams, ClaimParam, DeviceAuthorizationExtras, DeviceAuthorizationParams,
-    DeviceAuthorizationResponse, Fapi, GrantExtras, HttpRequest, HttpResponse, IntrospectionExtras,
-    OAuthCallbackChecks, OAuthCallbackParams, OidcHttpClient, OidcReturnType, OpenIdCallbackParams,
-    ParResponse, PushedAuthorizationRequestExtras, RefreshTokenExtras, RequestResourceParams,
-    RevokeExtras, UserinfoOptions,
+    CallbackParams, CibaAuthRequest, CibaAuthResponse, CibaAuthenticationExtras, ClaimParam,
+    DeviceAuthorizationExtras, DeviceAuthorizationParams, DeviceAuthorizationResponse, Fapi,
+    GrantExtras, HttpRequest, HttpResponse, IntrospectionExtras, OAuthCallbackChecks,
+    OAuthCallbackParams, OidcHttpClient, OidcReturnType, OpenIdCallbackParams, ParResponse,
+    PushedAuthorizationRequestExtras, RefreshTokenExtras, RequestResourceParams, RevokeExtras,
+    UserinfoOptions,
 };
 use crate::{
     helpers::convert_json_to,
@@ -28,7 +29,8 @@ use crate::{
     },
 };
 
-use super::{Client, DeviceFlowHandle};
+use super::validate_id_token_params::ValidateIdTokenParams;
+use super::{CibaHandle, Client, DeviceFlowHandle};
 
 /// Implementation for Client
 impl Client {
@@ -477,14 +479,11 @@ impl Client {
 
             let mut grant_extras = GrantExtras::default();
 
-            match &params.extras {
-                Some(e) => {
-                    grant_extras
-                        .client_assertion_payload
-                        .clone_from(&e.client_assertion_payload);
-                    grant_extras.dpop = e.dpop.as_ref();
-                }
-                None => {}
+            if let Some(e) = &params.extras {
+                grant_extras
+                    .client_assertion_payload
+                    .clone_from(&e.client_assertion_payload);
+                grant_extras.dpop = e.dpop.as_ref();
             };
 
             let mut token_set = self
@@ -524,7 +523,7 @@ impl Client {
         }
 
         let expires_at = match other_fields.get("expires_at") {
-            Some(eat) => eat.parse::<i64>().ok(),
+            Some(eat) => eat.parse::<u64>().ok(),
             None => None,
         };
         let scope = other_fields.get("scope").map(|s| s.to_owned());
@@ -532,7 +531,7 @@ impl Client {
         let session_state = other_fields.get("session_state").map(|ss| ss.to_owned());
         let refresh_token = other_fields.get("refresh_token").map(|rt| rt.to_owned());
         let expires_in = match params.parameters.expires_in {
-            Some(exp_in) => exp_in.parse::<i64>().ok(),
+            Some(exp_in) => exp_in.parse::<u64>().ok(),
             None => None,
         };
 
@@ -751,7 +750,7 @@ impl Client {
             }
 
             let expires_at = match other_fields.get("expires_at") {
-                Some(eat) => eat.parse::<i64>().ok(),
+                Some(eat) => eat.parse::<u64>().ok(),
                 None => None,
             };
             let scope = other_fields.get("scope").map(|s| s.to_owned());
@@ -759,7 +758,7 @@ impl Client {
             let session_state = other_fields.get("session_state").map(|ss| ss.to_owned());
             let refresh_token = other_fields.get("refresh_token").map(|rt| rt.to_owned());
             let expires_in = match &params.parameters.expires_in {
-                Some(exp_in) => exp_in.parse::<i64>().ok(),
+                Some(exp_in) => exp_in.parse::<u64>().ok(),
                 None => None,
             };
 
@@ -787,16 +786,22 @@ impl Client {
 
             token_set = self.decrypt_id_token(token_set)?;
 
-            token_set = self
-                .validate_id_token_async(
-                    token_set,
-                    checks.nonce.map(|x| x.to_owned()),
-                    "authorization",
-                    checks.max_age,
-                    oauth_checks.state.map(|x| x.to_owned()),
-                    http_client,
-                )
-                .await?;
+            let mut validate_params =
+                ValidateIdTokenParams::new(token_set, "authorization", http_client);
+
+            if let Some(nonce) = checks.nonce {
+                validate_params = validate_params.nonce(nonce);
+            }
+
+            if let Some(max_age) = checks.max_age {
+                validate_params = validate_params.max_age(max_age);
+            }
+
+            if let Some(state) = oauth_checks.state {
+                validate_params = validate_params.state(state);
+            }
+
+            token_set = self.validate_id_token_async(validate_params).await?;
 
             if params.parameters.code.is_none() {
                 return Ok(token_set);
@@ -825,14 +830,11 @@ impl Client {
 
             let mut grant_extras = GrantExtras::default();
 
-            match &params.extras {
-                Some(e) => {
-                    grant_extras
-                        .client_assertion_payload
-                        .clone_from(&e.client_assertion_payload);
-                    grant_extras.dpop = e.dpop.as_ref();
-                }
-                None => {}
+            if let Some(e) = &params.extras {
+                grant_extras
+                    .client_assertion_payload
+                    .clone_from(&e.client_assertion_payload);
+                grant_extras.dpop = e.dpop.as_ref();
             };
 
             let mut token_set = self
@@ -847,16 +849,22 @@ impl Client {
                 .await?;
 
             token_set = self.decrypt_id_token(token_set)?;
-            token_set = self
-                .validate_id_token_async(
-                    token_set,
-                    checks.nonce.map(|x| x.to_owned()),
-                    "token",
-                    checks.max_age,
-                    oauth_checks.state.map(|x| x.to_owned()),
-                    http_client,
-                )
-                .await?;
+
+            let mut validate_params = ValidateIdTokenParams::new(token_set, "token", http_client);
+
+            if let Some(nonce) = checks.nonce {
+                validate_params = validate_params.nonce(nonce);
+            }
+
+            if let Some(max_age) = checks.max_age {
+                validate_params = validate_params.max_age(max_age);
+            }
+
+            if let Some(state) = oauth_checks.state {
+                validate_params = validate_params.state(state);
+            }
+
+            token_set = self.validate_id_token_async(validate_params).await?;
 
             if params.parameters.session_state.is_some() {
                 token_set.set_session_state(params.parameters.session_state);
@@ -879,7 +887,7 @@ impl Client {
         }
 
         let expires_at = match other_fields.get("expires_at") {
-            Some(eat) => eat.parse::<i64>().ok(),
+            Some(eat) => eat.parse::<u64>().ok(),
             None => None,
         };
         let scope = other_fields.get("scope").map(|s| s.to_owned());
@@ -887,7 +895,7 @@ impl Client {
         let session_state = other_fields.get("session_state").map(|ss| ss.to_owned());
         let refresh_token = other_fields.get("refresh_token").map(|rt| rt.to_owned());
         let expires_in = match params.parameters.expires_in {
-            Some(exp_in) => exp_in.parse::<i64>().ok(),
+            Some(exp_in) => exp_in.parse::<u64>().ok(),
             None => None,
         };
 
@@ -1193,7 +1201,11 @@ impl Client {
         if new_token_set.get_id_token().is_some() {
             new_token_set = self.decrypt_id_token(new_token_set)?;
             new_token_set = self
-                .validate_id_token_async(new_token_set, None, "token", None, None, http_client)
+                .validate_id_token_async(ValidateIdTokenParams::new(
+                    new_token_set,
+                    "token",
+                    http_client,
+                ))
                 .await?;
 
             if let Some(Value::String(expected_sub)) =
@@ -2079,5 +2091,169 @@ impl Client {
             extras,
             params.max_age,
         ))
+    }
+
+    /// # CIBA Authenticate
+    /// Performs CIBA Authentication request at `backchannel_authentication_endpoint`
+    pub async fn ciba_authenticate_async<T: OidcHttpClient>(
+        &mut self,
+        http_client: &T,
+        request: CibaAuthRequest,
+        extras: Option<CibaAuthenticationExtras>,
+    ) -> OidcReturnType<(CibaAuthResponse, Option<CibaHandle>)> {
+        let issuer = match self.issuer.as_ref() {
+            Some(iss) => iss,
+            None => {
+                return Err(Box::new(OidcClientError::new_type_error(
+                    "Issuer is required",
+                    None,
+                )))
+            }
+        };
+
+        if issuer.backchannel_authentication_endpoint.is_none() {
+            return Err(Box::new(OidcClientError::new_type_error(
+                "backchannel_authentication_endpoint must be configured on the issuer",
+                None,
+            )));
+        }
+
+        let mut form_body: HashMap<String, String> = HashMap::new();
+
+        form_body.extend(request.other);
+
+        form_body.insert("scope".into(), request.scope.join(" "));
+
+        if let Some(client_notification_token) = request.client_notification_token {
+            form_body.insert(
+                "client_notification_token".into(),
+                client_notification_token,
+            );
+        }
+
+        if let Some(acr_values) = request.acr_values {
+            form_body.insert("acr_values".into(), acr_values.join(" "));
+        }
+
+        if let Some(login_hint_token) = request.login_hint_token {
+            form_body.insert("login_hint_token".into(), login_hint_token);
+        }
+
+        if let Some(id_token_hint) = request.id_token_hint {
+            form_body.insert("id_token_hint".into(), id_token_hint);
+        }
+
+        if let Some(login_hint) = request.login_hint {
+            form_body.insert("login_hint".into(), login_hint);
+        }
+
+        if let Some(binding_message) = request.binding_message {
+            form_body.insert("binding_message".into(), binding_message);
+        }
+
+        if let Some(user_code) = request.user_code {
+            form_body.insert("user_code".into(), user_code);
+        }
+
+        if let Some(requested_expiry) = request.requested_expiry {
+            form_body.insert("requested_expiry".into(), requested_expiry.to_string());
+        }
+
+        let req = HttpRequest::new()
+            .form(form_body)
+            .expect_json_body(true)
+            .expect_status_code(200);
+
+        let client_assertion_payload = extras
+            .as_ref()
+            .and_then(|x| x.client_assertion_payload.as_ref());
+
+        let dpop = extras.as_ref().and_then(|x| x.dpop.as_ref());
+
+        let params = AuthenticationPostParams {
+            client_assertion_payload,
+            endpoint_auth_method: Some("token"),
+            dpop,
+        };
+
+        let res = self
+            .authenticated_post_async("backchannel_authentication", req, params, http_client)
+            .await?;
+
+        let body_obj = match res.body.as_ref().map(|b| convert_json_to::<Value>(b)) {
+            Some(Ok(json)) => json,
+            _ => {
+                return Err(Box::new(OidcClientError::new_error(
+                    "could not convert body to serde::json value",
+                    None,
+                )))
+            }
+        };
+
+        if body_obj.get("expires_in").is_none() {
+            return Err(Box::new(OidcClientError::new_rp_error(
+                "expected expires_in in CIBA Successful Response",
+                Some(res),
+            )));
+        }
+
+        if !body_obj["expires_in"].is_number() {
+            return Err(Box::new(OidcClientError::new_rp_error(
+                "invalid expires_in value in CIBA Successful Response",
+                Some(res),
+            )));
+        }
+
+        if body_obj.get("expires_in").is_none() {
+            return Err(Box::new(OidcClientError::new_rp_error(
+                "expected expires_in in CIBA Successful Response",
+                Some(res),
+            )));
+        }
+
+        if body_obj.get("interval").is_some() && !body_obj["interval"].is_number() {
+            return Err(Box::new(OidcClientError::new_rp_error(
+                "invalid interval value in CIBA Successful Response",
+                Some(res),
+            )));
+        }
+
+        if body_obj.get("auth_req_id").is_none() {
+            return Err(Box::new(OidcClientError::new_rp_error(
+                "expected auth_req_id in CIBA Successful Response",
+                Some(res),
+            )));
+        }
+
+        if !body_obj["auth_req_id"].is_string() {
+            return Err(Box::new(OidcClientError::new_rp_error(
+                "invalid auth_req_id value in CIBA Successful Response",
+                Some(res),
+            )));
+        }
+
+        let mut res = match serde_json::from_value::<CibaAuthResponse>(body_obj).map_err(|_| {
+            Box::new(OidcClientError::new_error(
+                "Could not convert response to Ciba Response",
+                None,
+            ))
+        }) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        res.timestamp = Some((self.now)());
+
+        let mut handle = None;
+
+        if self
+            .backchannel_token_delivery_mode
+            .as_ref()
+            .is_some_and(|d| d == "ping" || d == "poll")
+        {
+            handle = Some(CibaHandle::new(self.clone(), res.clone(), extras));
+        }
+
+        Ok((res, handle))
     }
 }

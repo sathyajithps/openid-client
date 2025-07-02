@@ -30,7 +30,7 @@ use crate::{
 use crate::{jwks::jwks::CustomJwk, types::HttpRequest};
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
-use super::Client;
+use super::{validate_id_token_params::ValidateIdTokenParams, Client};
 
 lazy_static! {
     static ref AGCMKW_REGEX: Regex = Regex::new(r"^A(\d{3})(?:GCM)?KW$").unwrap();
@@ -236,11 +236,11 @@ impl Client {
         Ok(authorization_endpiont)
     }
 
-    pub(crate) async fn authenticated_post_async<'a, T>(
+    pub(crate) async fn authenticated_post_async<T>(
         &mut self,
         endpoint: &str,
         mut req: HttpRequest,
-        params: AuthenticationPostParams<'a>,
+        params: AuthenticationPostParams<'_>,
         http_client: &T,
     ) -> OidcReturnType<HttpResponse>
     where
@@ -297,7 +297,7 @@ impl Client {
             || (endpoint == "token"
                 && self
                     .tls_client_certificate_bound_access_tokens
-                    .map_or(false, |v| v));
+                    .is_some_and(|v| v));
 
         let issuer = self.issuer.as_ref().ok_or(OidcClientError::new_error(
             "Issuer is required for authenticated_post",
@@ -334,6 +334,7 @@ impl Client {
                 "pushed_authorization_request" => {
                     issuer.pushed_authorization_request_endpoint.as_ref()
                 }
+                "backchannel_authentication" => issuer.backchannel_authentication_endpoint.as_ref(),
                 _ => {
                     return Err(Box::new(OidcClientError::new_error(
                         "unknown endpoint",
@@ -425,31 +426,26 @@ impl Client {
                 let exp = iat + 60;
                 let mut jwt_payload = JwtPayload::new();
 
-                if let Some(i) = SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(iat as u64))
-                {
+                if let Some(i) = SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(iat)) {
                     jwt_payload.set_issued_at(&i);
                 }
 
-                if let Some(e) = SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(exp as u64))
-                {
+                if let Some(e) = SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(exp)) {
                     jwt_payload.set_expires_at(&e);
                 }
 
-                jwt_payload.set_jwt_id(&generate_random(None));
+                jwt_payload.set_jwt_id(generate_random(None));
                 jwt_payload.set_issuer(&self.client_id);
                 jwt_payload.set_subject(&self.client_id);
 
-                match &self.issuer {
-                    Some(issuer) => {
-                        let mut values = vec![issuer.issuer.clone()];
+                if let Some(issuer) = &self.issuer {
+                    let mut values = vec![issuer.issuer.clone()];
 
-                        if let Some(token_endpoint) = &issuer.token_endpoint {
-                            values.push(token_endpoint.clone());
-                        }
-
-                        jwt_payload.set_audience(values);
+                    if let Some(token_endpoint) = &issuer.token_endpoint {
+                        values.push(token_endpoint.clone());
                     }
-                    None => {}
+
+                    jwt_payload.set_audience(values);
                 }
 
                 if let Some(cap) = client_assertion_payload {
@@ -617,12 +613,12 @@ impl Client {
 
         let signer = key.to_signer()?;
 
-        return jws::serialize_compact(
+        jws::serialize_compact(
             &serde_json::to_vec(payload.claims_set()).unwrap(),
             &header,
             &*signer,
         )
-        .map_err(|_| Box::new(OidcClientError::new_error("error while creating jwt", None)));
+        .map_err(|_| Box::new(OidcClientError::new_error("error while creating jwt", None)))
     }
 
     pub(crate) fn decrypt_jarm(&self, response: &str) -> OidcReturnType<String> {
@@ -809,7 +805,7 @@ impl Client {
         let is_self_issued = self
             .issuer
             .as_ref()
-            .map_or(false, |x| x.issuer == "https://self-issued.me");
+            .is_some_and(|x| x.issuer == "https://self-issued.me");
 
         let timestamp = (self.now)();
         let decoded_jwt = match decode_jwt(jwt) {
@@ -891,13 +887,14 @@ impl Client {
                 )));
             }
 
-            let nbf_value = nbf.as_i64().unwrap();
+            // Safe?
+            let nbf_value = nbf.as_u64().unwrap();
 
-            if nbf_value > (timestamp.wrapping_add(self.clock_tolerance.as_secs() as i64)) {
+            if nbf_value > (timestamp.wrapping_add(self.clock_tolerance.as_secs())) {
                 return Err(Box::new(OidcClientError::new_rp_error(
                     &format!(
                         "JWT not active yet, now {}, nbf {nbf_value}",
-                        timestamp.wrapping_add(self.clock_tolerance.as_secs() as i64)
+                        timestamp.wrapping_add(self.clock_tolerance.as_secs())
                     ),
                     None,
                 )));
@@ -914,13 +911,14 @@ impl Client {
                 )));
             }
 
-            let exp_value = exp.as_i64().unwrap();
+            // Safe
+            let exp_value = exp.as_u64().unwrap();
 
-            if (timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64)) >= exp_value {
+            if (timestamp.wrapping_sub(self.clock_tolerance.as_secs())) >= exp_value {
                 return Err(Box::new(OidcClientError::new_rp_error(
                     &format!(
                         "JWT expired, now {}, exp {exp_value}",
-                        timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64)
+                        timestamp.wrapping_sub(self.clock_tolerance.as_secs())
                     ),
                     None,
                 )));
@@ -1130,26 +1128,21 @@ impl Client {
 
     pub(crate) async fn validate_id_token_async<T>(
         &mut self,
-        token_set: TokenSet,
-        nonce: Option<String>,
-        returned_by: &str,
-        max_age: Option<u64>,
-        state: Option<String>,
-        http_client: &T,
+        params: ValidateIdTokenParams<'_, T>,
     ) -> OidcReturnType<TokenSet>
     where
         T: OidcHttpClient,
     {
-        if let Some(id_token) = token_set.get_id_token() {
+        if let Some(id_token) = params.token_set.get_id_token() {
             let expected_alg = self.id_token_signed_response_alg.clone();
 
             let timestamp = (self.now)();
 
             let (payload, header, key) = self
-                .validate_jwt_async(&id_token, &expected_alg, None, http_client)
+                .validate_jwt_async(&id_token, &expected_alg, None, params.http_client)
                 .await?;
 
-            if max_age.is_some()
+            if params.max_age.is_some()
                 || (!self.skip_max_age_check && self.require_auth_time.is_some_and(|x| x))
             {
                 match payload.claim("auth_time") {
@@ -1169,10 +1162,12 @@ impl Client {
                 };
             }
 
-            if let (Some(ma), Some(Value::Number(at))) = (max_age, payload.claim("auth_time")) {
+            if let (Some(ma), Some(Value::Number(at))) =
+                (params.max_age, payload.claim("auth_time"))
+            {
                 if let Some(auth_time) = at.as_u64() {
                     if ma.wrapping_add(auth_time)
-                        < timestamp.wrapping_sub(self.clock_tolerance.as_secs() as i64) as u64
+                        < timestamp.wrapping_sub(self.clock_tolerance.as_secs())
                     {
                         return Err(Box::new(OidcClientError::new_rp_error(
                                              &format!("too much time has elapsed since the last End-User authentication, max_age {ma}, auth_time: {auth_time}, now {timestamp}"),
@@ -1188,11 +1183,13 @@ impl Client {
                     _ => None,
                 };
 
-                if (payload_nonce.is_some() || nonce.is_some()) && payload_nonce != nonce.as_ref() {
+                if (payload_nonce.is_some() || params.nonce.is_some())
+                    && payload_nonce != params.nonce.as_ref()
+                {
                     return Err(Box::new(OidcClientError::new_rp_error(
                         &format!(
                             "nonce mismatch, expected {}, got: {}",
-                            nonce.unwrap_or_default(),
+                            params.nonce.unwrap_or_default(),
                             payload_nonce.unwrap_or(&String::new())
                         ),
                         None,
@@ -1200,15 +1197,17 @@ impl Client {
                 }
             }
 
-            if returned_by == "authorization" {
-                if payload.claim("at_hash").is_none() && token_set.get_access_token().is_some() {
+            if params.returned_by == "authorization" {
+                if payload.claim("at_hash").is_none()
+                    && params.token_set.get_access_token().is_some()
+                {
                     return Err(Box::new(OidcClientError::new_rp_error(
                         "missing required property at_hash",
                         None,
                     )));
                 }
 
-                let other_fields = token_set.get_other().unwrap_or_default();
+                let other_fields = params.token_set.get_other().unwrap_or_default();
 
                 let code = other_fields.get("code");
 
@@ -1224,7 +1223,7 @@ impl Client {
                 if self.is_fapi1() {
                     let token_set_state = other_fields.get("state");
 
-                    if s_hash.is_none() && (token_set_state.is_some() || state.is_some()) {
+                    if s_hash.is_none() && (token_set_state.is_some() || params.state.is_some()) {
                         return Err(Box::new(OidcClientError::new_rp_error(
                             "missing required property s_hash",
                             None,
@@ -1233,7 +1232,7 @@ impl Client {
                 }
 
                 if let Some(Value::String(state_hash)) = s_hash {
-                    if state.is_none() {
+                    if params.state.is_none() {
                         return Err(Box::new(OidcClientError::new_type_error(
                             "cannot verify s_hash, \"checks.state\" property not provided",
                             None,
@@ -1252,7 +1251,7 @@ impl Client {
                         source: "state".to_string(),
                     };
 
-                    let state_source = state.unwrap_or_default();
+                    let state_source = params.state.unwrap_or_default();
 
                     match validate_hash(name, state_hash, alg, &state_source, crv).map_err(|e| *e) {
                         Ok(_) => {}
@@ -1271,9 +1270,75 @@ impl Client {
                 }
             }
 
+            if params.returned_by == "ciba" {
+                let id_token_auth_req_id = match payload
+                    .claim("urn:openid:params:jwt:claim:auth_req_id")
+                    .map(|i| i.as_str())
+                {
+                    Some(Some(itari)) => itari,
+                    _ => {
+                        return Err(Box::new(OidcClientError::new_rp_error(
+                            "auth_req_id not found in id token",
+                            None,
+                        )))
+                    }
+                };
+
+                let auth_req_id = match params.auth_req_id.as_ref() {
+                    Some(ari) => ari,
+                    None => {
+                        return Err(Box::new(OidcClientError::new_rp_error(
+                            "auth_req_id required for the check",
+                            None,
+                        )))
+                    }
+                };
+
+                if auth_req_id != id_token_auth_req_id {
+                    return Err(Box::new(OidcClientError::new_rp_error(
+                        "auth_req_id do not match",
+                        None,
+                    )));
+                }
+
+                if let Some(refresh_token) = params.token_set.get_refresh_token() {
+                    if let Some(Value::String(rt_hash)) =
+                        payload.claim("urn:openid:params:jwt:claim:rt_hash")
+                    {
+                        let name = Names {
+                            claim: "urn:openid:params:jwt:claim:rt_hash".to_string(),
+                            source: "refresh_token".to_string(),
+                        };
+
+                        let alg = header
+                            .claim("alg")
+                            .map(|x| x.as_str().unwrap_or_default())
+                            .unwrap_or_default();
+
+                        let crv = key.as_ref().map(|x| x.curve().unwrap_or_default());
+
+                        match validate_hash(name, rt_hash, alg, &refresh_token, crv).map_err(|e| *e)
+                        {
+                            Ok(_) => {}
+                            Err(OidcClientError::Error(e, _)) => {
+                                return Err(Box::new(OidcClientError::new_rp_error(
+                                    &e.message, None,
+                                )));
+                            }
+                            Err(OidcClientError::TypeError(e, _)) => {
+                                return Err(Box::new(OidcClientError::new_rp_error(
+                                    &e.message, None,
+                                )));
+                            }
+                            Err(err) => return Err(Box::new(err)),
+                        };
+                    }
+                }
+            }
+
             let payload_iat = payload
                 .claim("iat")
-                .map(|x| x.as_i64().unwrap_or_default())
+                .map(|x| x.as_u64().unwrap_or_default())
                 .unwrap_or_default();
 
             if self.is_fapi1() && payload_iat < timestamp - 3600 {
@@ -1283,7 +1348,7 @@ impl Client {
                 )));
             }
 
-            if let Some(access_token) = token_set.get_access_token() {
+            if let Some(access_token) = params.token_set.get_access_token() {
                 if let Some(Value::String(at_hash)) = payload.claim("at_hash") {
                     let name = Names {
                         claim: "at_hash".to_string(),
@@ -1310,7 +1375,7 @@ impl Client {
                 }
             }
 
-            let other_fields = token_set.get_other().unwrap_or_default();
+            let other_fields = params.token_set.get_other().unwrap_or_default();
 
             if let Some(Value::String(code)) = other_fields.get("code") {
                 if let Some(Value::String(c_hash)) = payload.claim("c_hash") {
@@ -1339,7 +1404,7 @@ impl Client {
                 }
             }
 
-            return Ok(token_set);
+            return Ok(params.token_set);
         }
 
         Err(Box::new(OidcClientError::new_type_error(

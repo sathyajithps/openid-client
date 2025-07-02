@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use josekit::jwk::Jwk;
 use serde_json::Value;
 
-/// # PushedAuthorizationRequestParams
-/// Parameters for Pushed Authorization Request
+/// # PushedAuthorizationRequestExtras
+/// Extra parameters for Pushed Authorization Request
 #[derive(Default)]
 pub struct PushedAuthorizationRequestExtras<'a> {
     /// Additional claims to be added in the client assertion payload
@@ -14,6 +14,14 @@ pub struct PushedAuthorizationRequestExtras<'a> {
 }
 
 impl<'a> PushedAuthorizationRequestExtras<'a> {
+    /// Creates a new instance
+    pub fn new() -> Self {
+        PushedAuthorizationRequestExtras {
+            client_assertion_payload: None,
+            dpop: None,
+        }
+    }
+
     /// Add extra claims to the client assertion payload
     pub fn add_client_assertion_claim(mut self, key: impl Into<String>, value: Value) -> Self {
         match self.client_assertion_payload.as_mut() {

@@ -16,8 +16,8 @@ pub(crate) struct KeyStore {
     jwks: Option<Jwks>,
     jwks_uri: Option<String>,
     pub(crate) cache: LruCache<u64, bool>,
-    pub(crate) last_accessed: i64,
-    now: fn() -> i64,
+    pub(crate) last_accessed: u64,
+    now: fn() -> u64,
 }
 
 impl KeyStore {

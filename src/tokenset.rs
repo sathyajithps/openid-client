@@ -23,10 +23,10 @@ pub struct TokenSetParams {
     pub refresh_token: Option<String>,
     /// `expires_in` - Access token expiration in (seconds)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub expires_in: Option<i64>,
+    pub expires_in: Option<u64>,
     /// `expires_at` - Access token expiration timestamp, represented as the number of seconds since the epoch
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub expires_at: Option<i64>,
+    pub expires_at: Option<u64>,
     /// `session_state`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_state: Option<String>,
@@ -52,9 +52,9 @@ pub struct TokenSet {
     #[serde(skip_serializing_if = "Option::is_none")]
     refresh_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    expires_in: Option<i64>,
+    expires_in: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    expires_at: Option<i64>,
+    expires_at: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     session_state: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,10 +62,10 @@ pub struct TokenSet {
     #[serde(skip_serializing_if = "Option::is_none", flatten)]
     other: Option<HashMap<String, Value>>,
     #[serde(skip_serializing, skip_deserializing, default = "default_now")]
-    pub(crate) now: fn() -> i64,
+    pub(crate) now: fn() -> u64,
 }
 
-fn default_now() -> fn() -> i64 {
+fn default_now() -> fn() -> u64 {
     now
 }
 
@@ -107,12 +107,6 @@ impl TokenSet {
         if params.expires_at.is_none() && params.expires_in.is_some() {
             if let Some(e) = params.expires_in {
                 tokenset.expires_at = Some((Wrapping((tokenset.now)()) + Wrapping(e)).0);
-            }
-        }
-
-        if let Some(e) = params.expires_in {
-            if e < 0 {
-                tokenset.expires_in = Some(0);
             }
         }
 
@@ -165,12 +159,12 @@ impl TokenSet {
     }
 
     /// Gets the expires in
-    pub fn get_expires_in(&self) -> Option<i64> {
+    pub fn get_expires_in(&self) -> Option<u64> {
         self.expires_in
     }
 
     /// Gets the expires in (seconds)
-    pub fn get_expires_at(&self) -> Option<i64> {
+    pub fn get_expires_at(&self) -> Option<u64> {
         self.expires_at
     }
 
@@ -189,7 +183,7 @@ impl TokenSet {
         self.other.clone()
     }
 
-    pub(self) fn get_expires_in_internal(&self) -> Option<i64> {
+    pub(self) fn get_expires_in_internal(&self) -> Option<u64> {
         if let Some(e) = self.expires_at {
             return Some(max((Wrapping(e) - Wrapping((self.now)())).0, 0));
         }
