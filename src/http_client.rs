@@ -67,7 +67,7 @@ impl OidcHttpClient for DefaultHttpClient {
         let client = ClientBuilder::new()
             .connect_timeout(Duration::from_secs(10))
             .build()
-            .map_err(|e| format!("{}", e))?;
+            .map_err(|e| format!("{e}"))?;
 
         let method = match req.method {
             HttpMethod::GET => Method::GET,
@@ -100,7 +100,7 @@ impl OidcHttpClient for DefaultHttpClient {
 
         match req_builder.send().await {
             Ok(res) => Ok(Self::to_response(res).await),
-            Err(e) => Err(format!("{}", e)),
+            Err(e) => Err(format!("{e}")),
         }
     }
 }
