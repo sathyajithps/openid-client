@@ -4,82 +4,104 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future;
 
-use url::Url;
+use www_authenticate_parser::{parse_header, Challenge, CowStr, UniCase};
 
-use crate::helpers::string_map_to_form_url_encoded;
+use crate::helpers::map_to_url_encoded;
 
 /// The Http methods
 #[derive(Debug, Default, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
+#[allow(clippy::upper_case_acronyms)]
 pub enum HttpMethod {
-    /// The GET method is used to retrieve data from a server.
+    /// Retrieve data from a server.
     #[default]
     GET,
-    /// The POST method is used to submit data to a server.
+    /// Submit data to a server.
     POST,
-    /// The PUT method is used to replace all existing data on a server with the provided data.
+    /// Replace existing data on a server.
     PUT,
-    /// The PATCH method is used to update a specific part of a resource on a server.
+    /// Update a specific part of a resource.
     PATCH,
-    /// The DELETE method is used to delete a resource from a server.
+    /// Delete a resource from a server.
     DELETE,
-    /// The HEAD method is used to retrieve only the headers of a resource, without the actual data.
+    /// Retrieve only the headers of a resource.
     HEAD,
-    /// The OPTIONS method is used to retrieve the capabilities of a server.
+    /// Retrieve the capabilities of a server.
     OPTIONS,
-    /// The TRACE method is used to echo the received request back to the client. (Rarely used)
+    /// Echo the received request back to the client.
     TRACE,
-    /// The CONNECT method is used to establish a tunnel through the proxy server. (For use with secure proxies)
+    /// Establish a tunnel through a proxy server.
     CONNECT,
 }
 
 /// The expectations set by methods such as discover, token grant, callback etc...
 #[derive(Debug, Clone, Copy)]
 pub struct HttpResponseExpectations {
-    /// Whether or not to expect body with the response
+    /// Whether or not to expect body with the response.
     pub body: bool,
-    /// Specifies if the request is using bearer auth, and checks for bearer token related errors
-    pub bearer: bool,
-    /// Specifies if the response should be of type json and validates it
-    pub json_body: bool,
-    /// Expected status code from the server
+    /// Specifies if the response should be of type json and validates it.
+    pub json: bool,
+    /// Expected status code from the server.
     pub status_code: u16,
+    /// Check for bearer token related errors.
+    pub bearer: bool,
 }
 
 /// The client certificate
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ClientCertificate {
-    /// Client public certificate in pem format.
+    /// Chain of PEM encoded X509 certificates, with the leaf certificate first.
     pub cert: String,
-    /// Client private certificate in pem format.
+    /// PEM encoded PKCS #8 formatted private key for the leaf certificate.
     pub key: String,
 }
 
-/// # Request
+/// The supported body types for an HTTP request.
+#[derive(Debug)]
+pub enum RequestBody {
+    /// A map of form parameters encoded as application/x-www-form-urlencoded.
+    Form(HashMap<String, String>),
+    /// A JSON payload as a raw string with an application/json MIME type.
+    Json(String),
+    /// An arbitrary raw string payload.
+    Raw(String),
+}
+
+impl RequestBody {
+    /// Converts the request body to its string representation if possible.
+    pub fn body_string(&self) -> Option<String> {
+        match &self {
+            RequestBody::Form(form) => Some(map_to_url_encoded(form)),
+            RequestBody::Json(json) => Some(json.to_owned()),
+            RequestBody::Raw(raw) => Some(raw.to_owned()),
+        }
+    }
+}
+
 /// Request is an internal struct used to create various OIDC requests.
 #[derive(Debug)]
 pub struct HttpRequest {
-    /// Url of the request without query params
-    pub url: Url,
-    /// Http method of the request
+    /// Target URL of the request without query parameters.
+    pub url: url::Url,
+    /// The HTTP method to be used for the request.
     pub method: HttpMethod,
-    /// Headers that are sent in the request
+    /// Map of HTTP headers to be sent in the request.
     pub headers: HashMap<String, Vec<String>>,
-    /// The request body to be sent
-    pub body: Option<String>,
-    /// Specifies if the request is MTLS and needs client certificate
+    /// The optional payload to be included in the request.
+    pub body: Option<RequestBody>,
+    /// Indicates if the request requires Mutual TLS and a client certificate.
     pub mtls: bool,
-    /// Client certificate to be used in the request
+    /// The certificate and key used for MTLS authentication.
     pub client_certificate: Option<ClientCertificate>,
-    /// Expectations to be fullfilled by the response
     pub(crate) expectations: HttpResponseExpectations,
 }
 
+#[allow(unused)]
 impl HttpRequest {
+    /// Initializes a new request with default settings and a placeholder URL.
     pub(crate) fn new() -> Self {
         Self {
-            url: Url::parse("about:blank").unwrap(),
-
+            url: url::Url::parse("about:blank").unwrap(),
             headers: HashMap::new(),
             method: HttpMethod::GET,
             body: None,
@@ -87,23 +109,34 @@ impl HttpRequest {
             mtls: false,
             expectations: HttpResponseExpectations {
                 body: true,
-                bearer: false,
                 status_code: 200,
-                json_body: true,
+                json: true,
+                bearer: false,
             },
         }
     }
 
-    pub(crate) fn url(mut self, url: Url) -> Self {
+    /// Finalizes the request by calculating and setting the content-length header.
+    pub(crate) fn prepare(&mut self) {
+        if let Some(body) = self.body.as_ref().and_then(|b| b.body_string()) {
+            self.headers
+                .insert("content-length".to_string(), vec![body.len().to_string()]);
+        };
+    }
+
+    /// Sets the target URL for the request.
+    pub(crate) fn url(mut self, url: url::Url) -> Self {
         self.url = url;
         self
     }
 
+    /// Sets the HTTP method for the request.
     pub(crate) fn method(mut self, method: HttpMethod) -> Self {
         self.method = method;
         self
     }
 
+    /// Appends a value to the specified header name.
     pub(crate) fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         let name = name.into();
         let value = value.into();
@@ -117,85 +150,182 @@ impl HttpRequest {
         self
     }
 
+    /// Overwrites any existing values for a specific header with a new list of values.
     pub(crate) fn header_replace(mut self, name: impl Into<String>, value: Vec<String>) -> Self {
         self.headers.insert(name.into(), value);
         self
     }
 
+    /// Replaces the entire header map with the provided collection.
     pub(crate) fn headers(mut self, headers: HashMap<String, Vec<String>>) -> Self {
         self.headers = headers;
         self
     }
 
+    /// Sets the request body to a JSON string and adds the appropriate content-type header.
     pub(crate) fn json(mut self, json: String) -> Self {
         self.headers.insert(
             "content-type".to_string(),
             vec!["application/json".to_string()],
         );
-        self.body(json)
+
+        self.body = Some(RequestBody::Json(json));
+
+        self
     }
 
+    /// Sets the request body as form-encoded data and adds the appropriate content-type header.
     pub(crate) fn form(mut self, form: HashMap<String, String>) -> Self {
-        let form_body = string_map_to_form_url_encoded(&form).unwrap();
         self.headers.insert(
             "content-type".to_string(),
             vec!["application/x-www-form-urlencoded".to_string()],
         );
-        self.body(form_body)
+        self.body(map_to_url_encoded(&form))
     }
 
+    /// Sets a raw string as the request body.
     pub(crate) fn body(mut self, body: String) -> Self {
-        self.headers
-            .insert("content-length".to_string(), vec![body.len().to_string()]);
-        self.body = Some(body);
+        self.body = Some(RequestBody::Raw(body));
         self
     }
 
+    /// Configures whether the request should use Mutual TLS.
     pub(crate) fn mtls(mut self, mtls: bool) -> Self {
         self.mtls = mtls;
         self
     }
 
+    /// Sets the expectation for whether a response body should be returned.
     pub(crate) fn expect_body(mut self, expect: bool) -> Self {
         self.expectations.body = expect;
         self
     }
 
+    /// Sets the HTTP status code that the library expects for a successful operation.
     pub(crate) fn expect_status_code(mut self, code: u16) -> Self {
         self.expectations.status_code = code;
         self
     }
 
-    pub(crate) fn expect_json_body(mut self, expect: bool) -> Self {
-        self.expectations.json_body = expect;
-        self
-    }
-
-    pub(crate) fn expect_bearer(mut self, bearer: bool) -> Self {
-        self.expectations.bearer = bearer;
+    /// Sets the expectation that the response body should be present and valid JSON.
+    pub(crate) fn expect_json(mut self, expect: bool) -> Self {
+        self.expectations.body = expect;
+        self.expectations.json = expect;
         self
     }
 }
-
 /// Represents an HTTP response received from a server.
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
-    /// The HTTP status code of the response (e.g., 200 for success, 404 for Not Found).
+    /// The HTTP status code of the response.
     pub status_code: u16,
-    /// The content type header
-    pub content_type: Option<String>,
-    /// The www authenticate header
-    pub www_authenticate: Option<String>,
-    /// The dpop nonce
-    pub dpop_nonce: Option<String>,
-    /// The optional body content of the response. None if there is no body content (String).
+    /// The optional body content of the response as a string.
     pub body: Option<String>,
+    /// The HTTP headers received in the response.
+    pub headers: HashMap<String, Vec<String>>,
+}
+
+/// Represents the parsed components of a WWW-Authenticate header.
+pub struct OpenIdWwwAuthenticateParsed(Challenge);
+
+impl OpenIdWwwAuthenticateParsed {
+    fn get_value(&self, key: &str) -> Option<&String> {
+        match &self.0 {
+            Challenge::Fields(challenge_fields) => challenge_fields.get(key),
+            _ => None,
+        }
+    }
+
+    /// Checks if the challenge follows the Token68 format.
+    pub fn is_token68(&self) -> bool {
+        matches!(self.0, Challenge::Token68(_))
+    }
+    /// Checks if the challenge contains a map of fields.
+    pub fn is_challenge(&self) -> bool {
+        matches!(self.0, Challenge::Fields(_))
+    }
+
+    /// Returns the raw Token68 string if present.
+    pub fn token68(&self) -> Option<&String> {
+        match &self.0 {
+            Challenge::Token68(t68) => Some(t68),
+            _ => None,
+        }
+    }
+
+    /// Returns the "realm" value from the challenge fields.
+    pub fn realm(&self) -> Option<&String> {
+        self.get_value("realm")
+    }
+
+    /// Returns the "error" code from the challenge fields.
+    pub fn error(&self) -> Option<&String> {
+        self.get_value("error")
+    }
+
+    /// Returns the "error_description" text from the challenge fields.
+    pub fn error_description(&self) -> Option<&String> {
+        self.get_value("error_description")
+    }
+
+    /// Returns the "error_uri" value from the challenge fields.
+    pub fn error_uri(&self) -> Option<&String> {
+        self.get_value("error_uri")
+    }
+
+    /// Returns the "algs" parameter value from the challenge fields.
+    pub fn algs(&self) -> Option<&String> {
+        self.get_value("algs")
+    }
+
+    /// Returns the "scope" parameter value from the challenge fields.
+    pub fn scope(&self) -> Option<&String> {
+        self.get_value("scope")
+    }
+
+    /// Returns the "resource_metadata" value from the challenge fields.
+    pub fn resource_metadata(&self) -> Option<&String> {
+        self.get_value("resource_metadata")
+    }
+}
+
+impl HttpResponse {
+    /// Extracts the value of the "content-type" header from the response.
+    pub fn content_type_header(&self) -> Option<&String> {
+        self.headers.get("content-type").and_then(|ct| ct.first())
+    }
+
+    /// Extracts the value of the "dpop-nonce" header from the response.
+    pub fn dpop_nonce_header(&self) -> Option<&String> {
+        self.headers.get("dpop-nonce").and_then(|ct| ct.first())
+    }
+
+    /// Parses the "www-authenticate" headers into a map of schemes and their associated challenges.
+    pub fn parsed_www_authenticate_errors(
+        &self,
+    ) -> Option<HashMap<UniCase<CowStr>, OpenIdWwwAuthenticateParsed>> {
+        let www_headers = self.headers.get("www-authenticate");
+
+        if let Some(www_headers) = www_headers {
+            let mut map = HashMap::new();
+            for header_val in www_headers {
+                if let Ok((scheme, challenge)) = parse_header(header_val) {
+                    map.insert(scheme, OpenIdWwwAuthenticateParsed(challenge));
+                }
+            }
+
+            if !map.is_empty() {
+                return Some(map);
+            }
+        }
+
+        None
+    }
 }
 
 /// This trait defines the interface for making HTTP requests used by the OpenID library.
-/// Users who need custom HTTP clients need to implement this trait.
 pub trait OidcHttpClient {
-    /// Gets the client certificate for the current request. Return none if the request does not need mtls
+    /// Retrieves the client certificate for Mutual TLS if required by the request.
     fn get_client_certificate(
         &self,
         _req: &HttpRequest,
@@ -203,16 +333,7 @@ pub trait OidcHttpClient {
         future::ready(None)
     }
 
-    /// Makes an HTTP request using the provided HttpRequest object.
-    ///
-    /// This function takes an `HttpRequest` object as input and returns a future
-    /// implementing `std::future::Future<Output = Result<HttpResponse, String>>`.
-    /// The future resolves to either a `Result<HttpResponse, String>`.
-    ///  * On success, the result is `Ok(HttpResponse)` containing the HTTP response.
-    ///  * On error, the result is `Err(String)` with an error message describing the failure.
-    ///
-    /// This function allows the library to be agnostic to the specific HTTP client
-    /// implementation used, as long as it implements this trait.
+    /// Executes the provided HTTP request and returns the response or an error string.
     fn request(
         &self,
         req: HttpRequest,

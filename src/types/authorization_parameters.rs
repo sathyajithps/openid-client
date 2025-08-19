@@ -1,112 +1,318 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
+use crate::{
+    helpers::{generate_pkce, generate_random},
+    types::Pkce,
+};
 
 /// # AuthorizationParameters
-/// Values that will be sent with the authorize request
-#[derive(Debug, Default)]
+/// Represents the parameters used to construct an OIDC or OAuth 2.0 authorization request.
+#[derive(Default)]
 pub struct AuthorizationParameters {
-    /// [Auth Context Class Reference Values](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub acr_values: Option<Vec<String>>,
-    /// Audience of the Access Token
-    pub audience: Option<Vec<String>>,
-    /// Claims customization for `id_token` and `userinfo`
-    pub claims: Option<ClaimParam>,
-    /// Preferred [language script](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest) for claims
-    pub claims_locales: Option<Vec<String>>,
-    /// [Client Id](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
+    /// The unique identifier for the client application issued by the authorization server.
     pub client_id: Option<String>,
-    /// [PKCE code challenge method](https://datatracker.ietf.org/doc/html/rfc7636)
-    pub code_challenge_method: Option<String>,
-    /// [PKCE code challenge](https://datatracker.ietf.org/doc/html/rfc7636)
-    pub code_challenge: Option<String>,
-    /// [Display](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub display: Option<String>,
-    /// [Id token hint](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest). Used for
-    /// hinting the user the authorization request is meant for.
-    pub id_token_hint: Option<String>,
-    /// [Login hint](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest) for
-    /// the authorization server.
-    pub login_hint: Option<String>,
-    /// [Maximum Authentication Age](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub max_age: Option<String>,
-    /// [Nonce](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub nonce: Option<String>,
-    /// [Prompt Parameter](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub prompt: Option<Vec<String>>,
-    /// [Redirect Uri](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    /// to which response will be sent
+    /// Specifies the desired authorization flow, such as "code" for the authorization code flow.
+    pub response_type: Option<String>,
+    /// The URI where the authorization server redirects the user after the request is processed.
     pub redirect_uri: Option<String>,
-    /// Boolean value that marks if the client requesting for authorization is to be dynamically
-    /// registered
-    pub registration: Option<String>,
-    /// [Uri of the request object](https://www.rfc-editor.org/rfc/rfc9101#name-request-using-the-request_u)
-    pub request_uri: Option<String>,
-    /// [Request Object](https://www.rfc-editor.org/rfc/rfc9101#name-passing-a-request-object-by)
-    pub request: Option<String>,
-    /// [Resource Parameter](https://www.rfc-editor.org/rfc/rfc8693.html#section-2.1)
-    pub resource: Option<Vec<String>>,
-    /// [Response Mode](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
+    /// The challenge derived from the PKCE code verifier used to secure the code exchange.
+    pub code_challenge: Option<String>,
+    /// The hashing method used to generate the code challenge, typically "S256".
+    pub code_challenge_method: Option<String>,
+    /// Defines how the authorization response parameters are returned, such as "query" or "fragment".
     pub response_mode: Option<String>,
-    /// [Response Type](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub response_type: Option<Vec<String>>,
-    /// [Scope](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
-    pub scope: Option<Vec<String>>,
-    /// [State Parameter](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
+    /// A hint to the authorization server regarding the user's identity or login name.
+    pub login_hint: Option<String>,
+    /// A random string used to link a client session with an ID Token to prevent replay attacks.
+    pub nonce: Option<String>,
+    /// An opaque value used to maintain state between the request and callback for CSRF protection.
     pub state: Option<String>,
-    /// Preferred [language script](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest) for UI
+    /// Specifies the maximum allowable time in seconds since the user's last authentication.
+    pub max_age: Option<String>,
+    /// Provides a hint about how the authorization server should display the login and consent UI.
+    pub display: Option<String>,
+    /// An ID Token previously issued by the server, used to identify the user for whom the request is made.
+    pub id_token_hint: Option<String>,
+    /// Contains information for dynamic client registration during the authorization request.
+    pub registration: Option<String>,
+    /// A URL that points to a JWT containing the authorization request parameters.
+    pub request_uri: Option<String>,
+    /// A signed or encrypted JWT that bundles the authorization request parameters.
+    pub request: Option<String>,
+    /// A list of requested permissions or access levels for the tokens.
+    pub scope: Option<Vec<String>>,
+    /// Specifies whether the authorization server should prompt the user for re-authentication or consent.
+    pub prompt: Option<Vec<String>>,
+    /// The intended recipients for the issued tokens.
+    pub audience: Option<Vec<String>>,
+    /// Requested Authentication Context Class Reference values for the session.
+    pub acr_values: Option<Vec<String>>,
+    /// Preferred languages and scripts for the claims returned in the ID Token or UserInfo.
+    pub claims_locales: Option<Vec<String>>,
+    /// The target resource server or audience for which the access token is intended.
+    pub resource: Option<Vec<String>>,
+    /// Preferred languages for the authorization server's user interface.
     pub ui_locales: Option<Vec<String>>,
-    /// Other fields that will be sent with the authorization request
-    pub other: Option<HashMap<String, String>>,
+    /// Specific claims requested for the ID Token or UserInfo response.
+    pub claims: Option<ClaimParam>,
+    /// A collection of non-standard or custom parameters to be included in the request.
+    pub additional_parameters: Option<HashMap<String, String>>,
+}
+
+// Builder methods
+impl AuthorizationParameters {
+    /// Sets the response_type to `code`
+    pub fn authorization_code_flow(mut self) -> Self {
+        self.response_type = Some("code".to_owned());
+        self
+    }
+
+    /// Sets the response_type to `none`
+    pub fn none_flow(mut self) -> Self {
+        self.response_type = Some("none".to_owned());
+        self
+    }
+
+    /// Sets the response_type to `token`
+    pub fn token_implicit_flow(mut self) -> Self {
+        self.response_type = Some("token".to_owned());
+        self
+    }
+
+    /// Sets the response_type to `id_token`
+    pub fn id_token_implicit_flow(mut self) -> Self {
+        self.response_type = Some("id_token".to_owned());
+        self
+    }
+
+    /// Sets the response_type to `id_token token`
+    pub fn implicit_flow(mut self) -> Self {
+        self.response_type = Some("id_token token".to_owned());
+        self
+    }
+
+    /// Sets the response_type to `code token`
+    pub fn token_hybrid_flow(mut self) -> Self {
+        self.response_type = Some("code token".to_owned());
+        self
+    }
+
+    /// Sets the response_type to `code id_token`
+    pub fn id_token_hybrid_flow(mut self) -> Self {
+        self.response_type = Some("code id_token".to_owned());
+        self
+    }
+
+    /// Sets the response_type to `code id_token token`
+    pub fn hybrid_flow(mut self) -> Self {
+        self.response_type = Some("code id_token token".to_owned());
+        self
+    }
+
+    /// Sets the `redirect_uri`
+    pub fn redirect_uri(mut self, uri: impl Into<String>) -> Self {
+        self.redirect_uri = Some(uri.into());
+        self
+    }
+
+    /// Sets the `response_mode` parameter
+    pub fn response_mode(mut self, mode: impl Into<String>) -> Self {
+        self.response_mode = Some(mode.into());
+        self
+    }
+
+    /// Sets the `login_hint` parameter
+    pub fn login_hint(mut self, hint: impl Into<String>) -> Self {
+        self.login_hint = Some(hint.into());
+        self
+    }
+
+    /// Sets the `client_id` parameter. If not set, the client id is taken from the config.
+    pub fn client_id(mut self, client_id: impl Into<String>) -> Self {
+        self.client_id = Some(client_id.into());
+        self
+    }
+
+    /// Sets the `max_age` parameter
+    pub fn max_age(mut self, max_age: i64) -> Self {
+        self.max_age = Some(max_age.to_string());
+        self
+    }
+
+    /// Sets the`display` parameter
+    pub fn display(mut self, display: impl Into<String>) -> Self {
+        self.display = Some(display.into());
+        self
+    }
+
+    /// Sets the`id_token_hint` parameter
+    pub fn id_token_hint(mut self, id_token_hint: impl Into<String>) -> Self {
+        self.id_token_hint = Some(id_token_hint.into());
+        self
+    }
+
+    /// Sets the`registration` parameter
+    pub fn registration(mut self, registration: impl Into<String>) -> Self {
+        self.registration = Some(registration.into());
+        self
+    }
+
+    /// Sets the`request_uri` parameter
+    pub fn request_uri(mut self, request_uri: impl Into<String>) -> Self {
+        self.request_uri = Some(request_uri.into());
+        self
+    }
+
+    /// Sets the`request` parameter
+    pub fn request(mut self, request: impl Into<String>) -> Self {
+        self.request = Some(request.into());
+        self
+    }
+
+    /// Add a scope to the `scope` parameter.
+    pub fn add_scope(mut self, scope: impl Into<String>) -> Self {
+        match &mut self.scope {
+            Some(scopes) => scopes.push(scope.into()),
+            None => self.scope = Some(vec![scope.into()]),
+        }
+
+        self
+    }
+
+    /// Add a prompt to the `prompt` parameter.
+    pub fn add_prompt(mut self, prompt: impl Into<String>) -> Self {
+        match &mut self.prompt {
+            Some(prompts) => prompts.push(prompt.into()),
+            None => self.prompt = Some(vec![prompt.into()]),
+        }
+
+        self
+    }
+
+    /// Add a audience to the `audience` parameter.
+    pub fn add_audience(mut self, audience: impl Into<String>) -> Self {
+        match &mut self.audience {
+            Some(audiences) => audiences.push(audience.into()),
+            None => self.audience = Some(vec![audience.into()]),
+        }
+
+        self
+    }
+
+    /// Add a acr_value to the `acr_values` parameter.
+    pub fn add_acr_value(mut self, acr_value: impl Into<String>) -> Self {
+        match &mut self.acr_values {
+            Some(acr_values) => acr_values.push(acr_value.into()),
+            None => self.acr_values = Some(vec![acr_value.into()]),
+        }
+
+        self
+    }
+
+    /// Add a claims_locale to the `claims_locales` parameter.
+    pub fn add_claims_locale(mut self, claims_locale: impl Into<String>) -> Self {
+        match &mut self.claims_locales {
+            Some(claims_locales) => claims_locales.push(claims_locale.into()),
+            None => self.claims_locales = Some(vec![claims_locale.into()]),
+        }
+
+        self
+    }
+
+    /// Add a resource to the `resource` parameter.
+    pub fn add_resource(mut self, resource: impl Into<String>) -> Self {
+        match &mut self.resource {
+            Some(resources) => resources.push(resource.into()),
+            None => self.resource = Some(vec![resource.into()]),
+        }
+
+        self
+    }
+
+    /// Add a ui_locale to the `ui_locales` parameter.
+    pub fn add_ui_locale(mut self, ui_locale: impl Into<String>) -> Self {
+        match &mut self.ui_locales {
+            Some(ui_locales) => ui_locales.push(ui_locale.into()),
+            None => self.ui_locales = Some(vec![ui_locale.into()]),
+        }
+
+        self
+    }
+
+    /// Sets the`claim` parameter
+    pub fn claims(mut self, claim: ClaimParam) -> Self {
+        self.claims = Some(claim);
+        self
+    }
+
+    /// Add additional param to the authorization request
+    pub fn add_additional_param(
+        mut self,
+        param: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Self {
+        match &mut self.additional_parameters {
+            Some(additional_params) => {
+                additional_params.insert(param.into(), value.into());
+            }
+            None => {
+                let mut map = HashMap::new();
+                map.insert(param.into(), value.into());
+                self.additional_parameters = Some(map)
+            }
+        }
+
+        self
+    }
+}
+
+// Helper methods
+impl AuthorizationParameters {
+    /// Generates PKCE and sets it to `code_challenge` parameter
+    pub fn generate_pkce(&mut self) -> Pkce {
+        let pkce = generate_pkce();
+
+        self.code_challenge = Some(pkce.challenge.to_owned());
+        self.code_challenge_method = Some("S256".to_owned());
+
+        pkce
+    }
+
+    /// Sets the `nonce` parameter
+    pub fn nonce(&mut self) -> String {
+        let nonce = generate_random(None);
+        self.nonce = Some(nonce.to_owned());
+        nonce
+    }
+
+    /// Sets the `state` parameter
+    pub fn state(&mut self) -> String {
+        let state = generate_random(None);
+        self.state = Some(state.to_owned());
+        state
+    }
 }
 
 impl From<AuthorizationParameters> for HashMap<String, String> {
     fn from(val: AuthorizationParameters) -> Self {
         let mut query = HashMap::new();
 
-        if let Some(other) = val.other {
-            for (k, v) in other {
+        if let Some(param) = val.additional_parameters {
+            for (k, v) in param {
                 query.entry(k).or_insert(v);
             }
         }
 
         insert_query(&mut query, "client_id", val.client_id);
-
-        if let Some(acr_arr) = val.acr_values {
-            let mut acr_str = String::new();
-            for acr in acr_arr {
-                acr_str += &format!("{acr} ");
-            }
-
-            insert_query(
-                &mut query,
-                "acr_values",
-                Some(acr_str.trim_end().to_owned()),
-            );
-        }
-
-        if let Some(aud_arr) = val.audience {
-            let mut aud_str = String::new();
-            for aud in aud_arr {
-                aud_str += &format!("{aud} ");
-            }
-
-            insert_query(&mut query, "audience", Some(aud_str.trim_end().to_owned()));
-        }
-
-        if let Some(locale_arr) = val.claims_locales {
-            let mut locale_str = String::new();
-            for locale in locale_arr {
-                locale_str += &format!("{locale} ");
-            }
-
-            insert_query(
-                &mut query,
-                "claims_locales",
-                Some(locale_str.trim_end().to_owned()),
-            );
-        }
+        insert_query(&mut query, "acr_values", stringify_vec(val.acr_values));
+        insert_query(&mut query, "audience", stringify_vec(val.audience));
+        insert_query(
+            &mut query,
+            "claims_locales",
+            stringify_vec(val.claims_locales),
+        );
         insert_query(
             &mut query,
             "code_challenge_method",
@@ -118,76 +324,22 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         insert_query(&mut query, "login_hint", val.login_hint);
         insert_query(&mut query, "max_age", val.max_age);
         insert_query(&mut query, "nonce", val.nonce);
-
-        if let Some(prompt_arr) = val.prompt {
-            let mut prompt_str = String::new();
-            for prompt in prompt_arr {
-                prompt_str += &format!("{prompt} ");
-            }
-
-            insert_query(&mut query, "prompt", Some(prompt_str.trim_end().to_owned()));
-        }
-
+        insert_query(&mut query, "prompt", stringify_vec(val.prompt));
         insert_query(&mut query, "redirect_uri", val.redirect_uri);
         insert_query(&mut query, "registration", val.registration);
         insert_query(&mut query, "request_uri", val.request_uri);
         insert_query(&mut query, "request", val.request);
         insert_query(&mut query, "response_mode", val.response_mode);
-
-        if let Some(res_arr) = val.response_type {
-            let mut res_str = String::new();
-            for res in res_arr {
-                res_str += &format!("{res} ");
-            }
-
-            insert_query(
-                &mut query,
-                "response_type",
-                Some(res_str.trim_end().to_owned()),
-            );
-        }
-
-        if let Some(scope_arr) = val.scope {
-            let mut scope_str = String::new();
-            for scope in scope_arr {
-                scope_str += &format!("{scope} ");
-            }
-
-            insert_query(&mut query, "scope", Some(scope_str.trim_end().to_owned()));
-        }
-
+        insert_query(&mut query, "response_type", val.response_type);
+        insert_query(&mut query, "scope", stringify_vec(val.scope));
         insert_query(&mut query, "state", val.state);
-
-        if let Some(ui_locales_arr) = val.ui_locales {
-            let mut ui_locales_str = String::new();
-            for ui_locale in ui_locales_arr {
-                ui_locales_str += &format!("{ui_locale} ");
-            }
-
-            insert_query(
-                &mut query,
-                "ui_locales",
-                Some(ui_locales_str.trim_end().to_owned()),
-            );
-        }
+        insert_query(&mut query, "resource", stringify_vec(val.resource));
+        insert_query(&mut query, "ui_locales", stringify_vec(val.ui_locales));
 
         if let Some(c) = &val.claims {
             if let Ok(s) = serde_json::to_string(c) {
                 query.insert("claims".to_owned(), s);
             }
-        }
-
-        if let Some(resource) = &val.resource {
-            let mut resource_str = String::new();
-            for r in resource {
-                resource_str += &format!("{r} ");
-            }
-
-            insert_query(
-                &mut query,
-                "resource",
-                Some(resource_str.trim_end().to_owned()),
-            );
         }
 
         query
@@ -198,6 +350,19 @@ fn insert_query(qp: &mut HashMap<String, String>, key: &str, value: Option<Strin
     if let Some(v) = value {
         qp.insert(key.to_owned(), v);
     }
+}
+
+fn stringify_vec(val: Option<Vec<String>>) -> Option<String> {
+    if let Some(val) = val {
+        let mut stringified = String::new();
+        for v in val {
+            stringified += &format!("{v} ");
+        }
+
+        return Some(stringified.trim_end().to_owned());
+    }
+
+    None
 }
 
 /// # ClaimParamValue
@@ -238,7 +403,7 @@ pub struct ClaimsParameterMember {
     pub values: Option<Vec<String>>,
     #[serde(flatten)]
     /// Other fields that should be sent
-    pub other: Option<HashMap<String, Value>>,
+    pub other: Option<HashMap<String, serde_json::Value>>,
 }
 
 #[cfg(test)]

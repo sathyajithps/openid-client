@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
+use serde_json::Value;
 
 /// # DeviceAuthorizationResponse
 /// The response from OP for a Device Authorization.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct DeviceAuthorizationResponse {
     /// The end-user verification URI on the authorization
     ///  server.  The URI should be short and easy to remember as end users
@@ -22,4 +25,8 @@ pub struct DeviceAuthorizationResponse {
     /// waits between polling requests to the token endpoint.  If no
     /// value is provided, 5 seconds is used by default
     pub interval: Option<u64>,
+
+    /// Extra key-value sent by the server
+    #[serde(flatten)]
+    pub others: HashMap<String, Value>,
 }
