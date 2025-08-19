@@ -1,69 +1,87 @@
 # OpenID Client
 
-An OpenID Connect Relying Party (Client) library. This is a port of [node-openid-client](https://github.com/panva/node-openid-client).
-
-This library uses async/await but runtime agnostic.
+Async, runtime-agnostic OpenID Connect / OAuth 2.0 client helpers for Rust. Currently being
+refactored, so the public API is still evolving.
 
 ## Usage
 
-Visit [this repo](https://github.com/sathyajithps/openid-client-examples) for how to use the library.
+- Documentation: <https://docs.rs/openid-client>
+- Examples: <https://github.com/sathyajithps/openid-client-examples>
 
-## Implemented specs & features
+## What Is Currently Implemented
 
-The following client/RP features from OpenID Connect/OAuth2.0 specifications are implemented by
-openid-client.
+The current tree includes helpers for:
+
+- discovery: OIDC discovery, OAuth authorization server discovery, WebFinger lookup, and JWKS fetch
+- authorization requests: authorization URLs, HTML form-post requests, PAR, request objects, and RP-initiated logout URLs
+- callback and token flows: authorization code, implicit, hybrid, JARM, refresh token, and client credentials
+- protected endpoints: UserInfo, generic resource requests, introspection, and revocation
+- extension flows: device authorization, CIBA, token exchange, DPoP, and mTLS endpoint aliases
+- dynamic client registration: registration plus `registration_client_uri` fetch
+
+Supporting modules expose request builders, metadata types, JOSE helpers, JWK utilities, token
+helpers, and a custom async HTTP client trait.
+
+## Specs And Features
 
 - [OpenID Connect Core 1.0][feature-core]
-  - Authorization Callback
-    - Authorization Code Flow
-    - Implicit Flow
-    - Hybrid Flow
-  - UserInfo Request
-  - Offline Access / Refresh Token Grant
-  - Client Credentials Grant
-  - Client Authentication
-    - none
-    - client_secret_basic
-    - client_secret_post
-    - client_secret_jwt
-    - private_key_jwt
-  - Consuming Self-Issued OpenID Provider ID Token response
-- [OpenID Connect Discovery 1.0][feature-discovery]
-  - Discovery of OpenID Provider (Issuer) Metadata
-  - Discovery of OpenID Provider (Issuer) Metadata via user provided inputs (via [webfinger][documentation-webfinger])
+  - authorization code, implicit, and hybrid response validation
+  - UserInfo requests, including JWT responses when configured
+  - refresh token and client credentials grants
+  - client authentication via `none`, `client_secret_basic`, `client_secret_post`, `client_secret_jwt`, and `private_key_jwt`
+- [OpenID Connect Discovery 1.0][feature-discovery] and [RFC 8414][feature-rfc8414]
+  - issuer discovery
+  - WebFinger-based issuer discovery
+  - JWKS fetch from `jwks_uri`
 - [OpenID Connect Dynamic Client Registration 1.0][feature-registration]
-  - Dynamic Client Registration request
-  - Client initialization via registration client uri
-- [RFC7009 - OAuth 2.0 Token revocation][feature-revocation]
-  - Client Authenticated request to token revocation
-- [RFC7662 - OAuth 2.0 Token introspection][feature-introspection]
-  - Client Authenticated request to token introspection
-- [RFC8628 - OAuth 2.0 Device Authorization Grant (Device Flow)][feature-device-flow]
-- [RFC8705 - OAuth 2.0 Mutual TLS Client Authentication and Certificate-Bound Access Tokens][feature-mtls]
-  - Mutual TLS Client Certificate-Bound Access Tokens
-  - Metadata for Mutual TLS Endpoint Aliases
-  - Client Authentication
-    - tls_client_auth
-    - self_signed_tls_client_auth
-- [RFC9101 - OAuth 2.0 JWT-Secured Authorization Request (JAR)][feature-jar]
-- [RFC9126 - OAuth 2.0 Pushed Authorization Requests (PAR)][feature-par]
-- [RFC9449 - OAuth 2.0 Demonstration of Proof-of-Possession at the Application Layer (DPoP)][feature-dpop]
+  - dynamic registration requests and responses
+  - `registration_client_uri` fetch
+- [RFC 7009][feature-revocation] token revocation
+- [RFC 7662][feature-introspection] token introspection
+- [RFC 8628][feature-device-flow] device authorization and device code grant
+- [RFC 8693][feature-token-exchange] generic token exchange helper with required response-field validation
+- [RFC 8705][feature-mtls]
+  - mTLS endpoint aliases
+  - certificate-bound access tokens
+  - `tls_client_auth` and `self_signed_tls_client_auth`
+- [OpenID Connect Client Initiated Backchannel Authentication Flow - Core 1.0][feature-ciba]
+  - backchannel authentication requests
+  - CIBA polling grant
+- [RFC 9101][feature-jar] signed request objects
+- [RFC 9126][feature-par] pushed authorization requests
+- [RFC 9207][feature-iss] authorization response issuer validation
+- [JWT Secured Authorization Response Mode for OAuth 2.0][feature-jarm]
+- [RFC 9449][feature-dpop]
+  - DPoP proof generation
+  - nonce extraction and caching
+  - DPoP-bound token and resource requests
 - [OpenID Connect RP-Initiated Logout 1.0][feature-rp-logout]
-- [Financial-grade API Security Profile 1.0 - Part 2: Advanced (FAPI)][feature-fapi]
-- [JWT Secured Authorization Response Mode for OAuth 2.0 (JARM)][feature-jarm]
-- [OAuth 2.0 Authorization Server Issuer Identification][feature-iss]
+- FAPI-oriented helpers such as `fapi` request object shaping and hybrid `s_hash` checks
 
-## Documentation
+## Crypto And HTTP Backend Notes
 
-[Documentation](https://docs.rs/openid-client)
+This crate is transport-agnostic. Implement the custom HTTP client trait if you want to bring your
+own async HTTP stack, or enable the bundled reqwest client with the `http_client` feature.
+
+Two optional crypto backends exist:
+
+- `jws_only_crypto`: JWS signing and verification only, no JWE support
+- `openssl_crypto`: JWS and JWE support via Josekit
+
+Important: the current default feature set enables both backends, and the crate selects
+`jws_only_crypto` whenever it is present. If you need encrypted ID tokens, encrypted UserInfo or
+JARM responses, or other JWE-dependent flows, use `openssl_crypto` without default features:
+
+## Current Limitations
+
+- Request object encryption is not implemented yet; `Client::request_object` only creates signed or unsigned request objects.
+- JWE-dependent flows require an OpenSSL/Josekit-backed build and configured decryption keys.
 
 ## Support
 
-Consider supporting this library by creating a PR/Issue in the [repo](https://github.com/sathyajithps/openid-client).
+Issues and pull requests are welcome: <https://github.com/sathyajithps/openid-client>
 
 ## Alternatives
-
-If you think this library does not fit your use case, these are popular alternatives.
 
 - [openidconnect](https://crates.io/crates/openidconnect)
 - [openid](https://crates.io/crates/openid)
@@ -76,10 +94,12 @@ If you think this library does not fit your use case, these are popular alternat
 [feature-introspection]: https://tools.ietf.org/html/rfc7662
 [feature-mtls]: https://tools.ietf.org/html/rfc8705
 [feature-device-flow]: https://tools.ietf.org/html/rfc8628
+[feature-token-exchange]: https://tools.ietf.org/html/rfc8693
+[feature-ciba]: https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html
 [feature-rp-logout]: https://openid.net/specs/openid-connect-rpinitiated-1_0.html
 [feature-jarm]: https://openid.net/specs/oauth-v2-jarm.html
-[feature-fapi]: https://openid.net/specs/openid-financial-api-part-2-1_0.html
 [feature-dpop]: https://www.rfc-editor.org/rfc/rfc9449.html
 [feature-par]: https://www.rfc-editor.org/rfc/rfc9126.html
 [feature-jar]: https://www.rfc-editor.org/rfc/rfc9101.html
 [feature-iss]: https://www.rfc-editor.org/rfc/rfc9207.html
+[feature-rfc8414]: https://www.rfc-editor.org/rfc/rfc8414.html

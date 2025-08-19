@@ -30,9 +30,6 @@ pub struct CibaAuthRequest {
 
     /// An optional requested expiry time for the authentication request in seconds.
     pub requested_expiry: Option<u64>,
-
-    /// A map for any other additional parameters not covered by the standard fields.
-    pub other: HashMap<String, String>,
 }
 
 impl Default for CibaAuthRequest {
@@ -54,7 +51,6 @@ impl CibaAuthRequest {
             binding_message: None,
             user_code: None,
             requested_expiry: None,
-            other: HashMap::new(),
         }
     }
 
@@ -113,14 +109,51 @@ impl CibaAuthRequest {
         self.requested_expiry = Some(expiry);
         self
     }
+}
 
-    /// Add additional body parameter to be sent
-    pub fn add_request_body_param(
-        mut self,
-        key: impl Into<String>,
-        value: impl Into<String>,
-    ) -> Self {
-        self.other.insert(key.into(), value.into());
-        self
+impl From<CibaAuthRequest> for HashMap<String, String> {
+    fn from(request: CibaAuthRequest) -> Self {
+        let mut map = HashMap::new();
+
+        if !request.scope.is_empty() {
+            map.insert("scope".to_owned(), request.scope.join(" "));
+        }
+
+        if let Some(client_notification_token) = request.client_notification_token {
+            map.insert(
+                "client_notification_token".to_owned(),
+                client_notification_token,
+            );
+        }
+
+        if let Some(acr_values) = request.acr_values {
+            map.insert("acr_values".to_owned(), acr_values.join(" "));
+        }
+
+        if let Some(login_hint_token) = request.login_hint_token {
+            map.insert("login_hint_token".to_owned(), login_hint_token);
+        }
+
+        if let Some(id_token_hint) = request.id_token_hint {
+            map.insert("id_token_hint".to_owned(), id_token_hint);
+        }
+
+        if let Some(login_hint) = request.login_hint {
+            map.insert("login_hint".to_owned(), login_hint);
+        }
+
+        if let Some(binding_message) = request.binding_message {
+            map.insert("binding_message".to_owned(), binding_message);
+        }
+
+        if let Some(user_code) = request.user_code {
+            map.insert("user_code".to_owned(), user_code);
+        }
+
+        if let Some(requested_expiry) = request.requested_expiry {
+            map.insert("requested_expiry".to_owned(), requested_expiry.to_string());
+        }
+
+        map
     }
 }

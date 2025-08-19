@@ -3,172 +3,190 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::jwks::Jwks;
+use crate::types::{JweAlg, JweEncAlg, JwtSigningAlg};
 
 /// # Client Metadata
-/// This struct is used to create a client as well as to register a client.
-/// This is why you would see `Option<bool>` in places. Set it explicitly to register a client or
-/// create one
-#[derive(Debug, Serialize, Deserialize, Default)]
+/// Options of a configured client instance
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClientMetadata {
     /// Client Id
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_id: Option<String>,
-    /// Client secret
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_secret: Option<String>,
-    /// [Registration Access Token](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registration_access_token: Option<String>,
-    /// [Registration Client Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registration_client_uri: Option<String>,
-    /// [Client Id Issued At](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_id_issued_at: Option<i64>,
-    /// [Secret Expiry](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    /// Epoch Seconds
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_secret_expires_at: Option<i64>,
-    /// [Authentication method](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    /// used by the client for authenticating with the OP
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_endpoint_auth_method: Option<String>,
-    /// [Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    /// used for signing the JWT used to authenticate
-    /// the client at the token endpoint.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_endpoint_auth_signing_alg: Option<String>,
-    /// [Authentication method](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
-    /// used by the client for introspection endpoint
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub introspection_endpoint_auth_method: Option<String>,
-    /// [Algorithm](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
-    /// used for signing the JWT used to authenticate
-    /// the client at the introspection endpoint.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub introspection_endpoint_auth_signing_alg: Option<String>,
-    /// [Authentication method](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
-    /// used by the client for revocation endpoint
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub revocation_endpoint_auth_method: Option<String>,
-    /// [Algorithm](https://www.rfc-editor.org/rfc/rfc8414.html#section-2)
-    /// used for signing the JWT used to authenticate
-    /// the client at the revocation endpoint.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub revocation_endpoint_auth_signing_alg: Option<String>,
-    /// The [redirect uri](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep)
-    /// where response will be sent
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub redirect_uri: Option<String>,
-    /// A list of acceptable [redirect uris](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub redirect_uris: Option<Vec<String>>,
-    /// [Response type](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep) supported by the client.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_type: Option<String>,
-    /// List of [Response type](https://openid.net/specs/openid-connect-http-redirect-1_0-01.html#rf_prep) supported by the client
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_types: Option<Vec<String>>,
-    /// [Grant Types](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub grant_types: Option<Vec<String>>,
-    /// [Jwks Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub jwks_uri: Option<String>,
-    /// [JWKS](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub jwks: Option<Jwks>,
-    /// [Sector Identifier Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sector_identifier_uri: Option<String>,
-    /// [Subject Type](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subject_type: Option<String>,
-    /// [Id Token Signed Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id_token_signed_response_alg: Option<String>,
-    /// [Id Token Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id_token_encrypted_response_alg: Option<String>,
-    /// [Id Token Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id_token_encrypted_response_enc: Option<String>,
-    /// [Userinfo Signed Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub userinfo_signed_response_alg: Option<String>,
-    /// [Userinfo Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub userinfo_encrypted_response_alg: Option<String>,
-    /// [Userinfo Encrypted Response Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub userinfo_encrypted_response_enc: Option<String>,
-    /// [Request Object Signing Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_object_signing_alg: Option<String>,
-    /// [Request Object Encryption Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_object_encryption_alg: Option<String>,
-    /// [Request Object Encryption Algorithm](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_object_encryption_enc: Option<String>,
-    /// [Default Max Age](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_max_age: Option<u64>,
-    /// [Require Auth Time](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub require_auth_time: Option<bool>,
-    /// [Default Acr Values](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_acr_values: Option<Vec<String>>,
-    /// [Initiate Login Uri](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub initiate_login_uri: Option<String>,
-    /// [Request Uris](https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_uris: Option<String>,
-    /// Client's intention to use [mutual-TLS client certificate-bound access tokens](https://datatracker.ietf.org/doc/html/rfc8705#name-client-registration-metadata-2)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: String,
+
+    /// Post logout redirect uri
+    pub post_logout_redirect_uri: Option<String>,
+
+    /// Client requires tls bound access tokens
     pub tls_client_certificate_bound_access_tokens: Option<bool>,
-    /// Client's allowed redirect uris after a logout
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub post_logout_redirect_uris: Option<Vec<String>>,
-    /// Algorithm used for signing authorization responses.
-    /// If this is specified, the response will be signed using JWS and the configured algorithm.
-    /// The algorithm none is not allowed. The default, if omitted, is RS256
-    /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authorization_signed_response_alg: Option<String>,
-    /// Algorithm used for encrypting authorization responses.
-    /// If both signing and encryption are requested, the response will be signed then encrypted,
-    /// with the result being a Nested JWT, as defined in JWT RFC7519.
-    /// The default, if omitted, is that no encryption is performed.
-    /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authorization_encrypted_response_alg: Option<String>,
-    /// Algoritm for encrypting authorization responses.
-    /// If authorization_encrypted_response_alg is specified, the default for this value is A128CBC-HS256.
-    ///  When authorization_encrypted_response_enc is included, authorization_encrypted_response_alg MUST
-    /// also be provided.
-    /// [See JARM Spec](https://openid.net/specs/openid-financial-api-jarm.html#client-metadata)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authorization_encrypted_response_enc: Option<String>,
-    /// A boolean value specifying whether the client always uses DPoP for token requests. If omitted, the default value is false.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dpop_bound_access_tokens: Option<bool>,
-    /// One of poll, ping, push modes for token delivery
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub backchannel_token_delivery_mode: Option<String>,
-    /// Client owned endpoint the authorization server will send a request to if the mode is set to ping or push.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub backchannel_client_notification_endpoint: Option<String>,
-    /// The signing algorithm used by the client to sign authentication requests.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub backchannel_authentication_request_signing_alg: Option<String>,
-    /// Specifies if the user_code param is supported by the client.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub backchannel_user_code_parameter: Option<bool>,
+
+    /// Jarm supported alg value
+    pub authorization_signed_response_alg: Option<JwtSigningAlg>,
+
+    /// Algorithm for signing the ID Token issued
+    pub id_token_signed_response_alg: Option<JwtSigningAlg>,
+
+    /// Algorithm for encrypting ID Token responses
+    pub id_token_encrypted_response_alg: Option<JweAlg>,
+
+    /// Content encryption algorithm for ID Token
+    pub id_token_encrypted_response_enc: Option<JweEncAlg>,
+
+    /// Default Maximum Authentication Age
+    pub default_max_age: Option<u64>,
+
+    /// Boolean value specifying whether the auth_time Claim in the ID Token is required
+    pub require_auth_time: Option<bool>,
+
+    /// Algorithm for signing UserInfo JWT responses
+    pub userinfo_signed_response_alg: Option<JwtSigningAlg>,
+
+    /// Algorithm for encrypting UserInfo responses
+    pub userinfo_encrypted_response_alg: Option<JweAlg>,
+
+    /// Content encryption algorithm for UserInfo
+    pub userinfo_encrypted_response_enc: Option<JweEncAlg>,
+
+    /// Algorithm for signing request objects
+    pub request_object_signing_alg: Option<JwtSigningAlg>,
+
+    /// Algorithm for encrypting request objects
+    pub request_object_encryption_alg: Option<JweAlg>,
+
+    /// Content encryption algorithm for request objects
+    pub request_object_encryption_enc: Option<JweEncAlg>,
+
     /// Extra key values
     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
-    pub other_fields: HashMap<String, Value>,
+    pub additional_data: HashMap<String, Value>,
 }
+
+// use serde::{Deserialize, Serialize};
+// use std::collections::HashMap;
+
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct ClientRegistration {
+//     pub redirect_uris: Vec<String>,
+
+//     /// OPTIONAL. List of OAuth 2.0 response_type values
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub response_types: Option<Vec<String>>,
+
+//     /// OPTIONAL. List of OAuth 2.0 Grant Types
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub grant_types: Option<Vec<String>>,
+
+//     /// OPTIONAL. Application type (web | native)
+//     #[serde(default = "default_application_type")]
+//     pub application_type: String,
+
+//     /// OPTIONAL. Contact emails
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub contacts: Option<Vec<String>>,
+
+//     /// OPTIONAL. Client name (can support multilingual versions via map)
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub client_name: Option<String>,
+
+//     /// OPTIONAL. Logo URI
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub logo_uri: Option<String>,
+
+//     /// OPTIONAL. Client home page
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub client_uri: Option<String>,
+
+//     /// OPTIONAL. Policy page URI
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub policy_uri: Option<String>,
+
+//     /// OPTIONAL. Terms of Service URI
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub tos_uri: Option<String>,
+
+//     /// OPTIONAL. JWKS URI
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub jwks_uri: Option<String>,
+
+//     /// OPTIONAL. JWK Set (inline)
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub jwks: Option<serde_json::Value>,
+
+//     /// OPTIONAL. Sector Identifier URI
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub sector_identifier_uri: Option<String>,
+
+//     /// OPTIONAL. subject_type (pairwise | public)
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub subject_type: Option<String>,
+
+//     /// OPTIONAL. ID Token signing algorithm
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub id_token_signed_response_alg: Option<String>,
+
+//     /// OPTIONAL. ID Token encryption alg
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub id_token_encrypted_response_alg: Option<String>,
+
+//     /// OPTIONAL. ID Token encryption enc
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub id_token_encrypted_response_enc: Option<String>,
+
+//     /// OPTIONAL. UserInfo signing algorithm
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub userinfo_signed_response_alg: Option<String>,
+
+//     /// OPTIONAL. UserInfo encryption alg
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub userinfo_encrypted_response_alg: Option<String>,
+
+//     /// OPTIONAL. UserInfo encryption enc
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub userinfo_encrypted_response_enc: Option<String>,
+
+//     /// OPTIONAL. Request Object signing alg
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub request_object_signing_alg: Option<String>,
+
+//     /// OPTIONAL. Request Object encryption alg
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub request_object_encryption_alg: Option<String>,
+
+//     /// OPTIONAL. Request Object encryption enc
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub request_object_encryption_enc: Option<String>,
+
+//     /// OPTIONAL. Token endpoint authentication method
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub token_endpoint_auth_method: Option<String>,
+
+//     /// OPTIONAL. Token endpoint signing algorithm
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub token_endpoint_auth_signing_alg: Option<String>,
+
+//     /// OPTIONAL. Default max authentication age (in seconds)
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub default_max_age: Option<u64>,
+
+//     /// OPTIONAL. Require auth_time claim in ID Token
+//     #[serde(default)]
+//     pub require_auth_time: bool,
+
+//     /// OPTIONAL. Default ACR values
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub default_acr_values: Option<Vec<String>>,
+
+//     /// OPTIONAL. Initiate login URI
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub initiate_login_uri: Option<String>,
+
+//     /// OPTIONAL. Request URIs
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub request_uris: Option<Vec<String>>,
+
+//     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
+//     pub other_fields: HashMap<String, Value>,
+// }
+
+// /// Default for application_type
+// fn default_application_type() -> String {
+//     "web".to_string()
+// }

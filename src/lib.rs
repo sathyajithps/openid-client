@@ -4,52 +4,121 @@
 
 //! # OpenID Client
 //!
-//! A feature complete OpenID Client library for Rust. Not stable, kindly report any bugs.
+//! Async, runtime-agnostic OpenID Connect / OAuth 2.0 client helpers for Rust.
 //!
-//! ## Implemented specs & features
+//! The current source tree centers on [`client::Client`] plus configuration, metadata, token,
+//! JOSE, and HTTP integration types. The crate is still under active refactoring, so the public
+//! API should be treated as unstable.
 //!
-//! The following client/RP features from OpenID Connect/OAuth2.0 specifications are implemented by
-//! openid-client.
+//! ## What The Crate Covers
+//!
+//! [`client::Client`] currently provides helpers for:
+//! - discovery: [`client::Client::discover_oidc_async`],
+//!   [`client::Client::discover_oauth_async`], [`client::Client::webfinger_async`],
+//!   [`client::Client::fetch_issuer_jwks`]
+//! - authorization request construction: [`client::Client::authorization_url`],
+//!   [`client::Client::authorization_post`], [`client::Client::endsession_url`],
+//!   [`client::Client::pushed_authorization_request`], [`client::Client::request_object`]
+//! - authorization response handling: [`client::Client::authorization_code_grant`],
+//!   [`client::Client::implicit_authentication`], hybrid response validation, and JARM validation
+//!   through [`config::OpenIdClientConfiguration`]
+//! - token operations: [`client::Client::grant_async`], [`client::Client::refresh_grant`],
+//!   [`client::Client::client_credentials_grant`], [`client::Client::device_code_grant`],
+//!   [`client::Client::ciba_grant`], [`client::Client::token_exchange_async`]
+//! - resource and account endpoints: [`client::Client::userinfo_async`],
+//!   [`client::Client::request_resource_async`], [`client::Client::introspect_async`],
+//!   [`client::Client::revoke_async`]
+//! - dynamic client registration: [`client::Client::register`] and [`client::Client::from_uri`]
+//!
+//! Supporting modules include:
+//! - [`config`] for client auth, DPoP, clock skew/tolerance, and assembled client configuration
+//! - [`types`] for request builders, metadata models, JOSE enums, and the custom HTTP client trait
+//! - [`jwk`] and [`token_set`] for key and token helpers
+//! - [`errors`] for client, protocol, and OP error types
+//!
+//! ## Feature Support
+//!
+//! The current tree implements:
 //!
 //! - [OpenID Connect Core 1.0][feature-core]
-//!   - Authorization Callback
-//!     - Authorization Code Flow
-//!     - Implicit Flow
-//!     - Hybrid Flow
-//!   - UserInfo Request
-//!   - Offline Access / Refresh Token Grant
-//!   - Client Credentials Grant
-//!   - Client Authentication
-//!     - none
-//!     - client_secret_basic
-//!     - client_secret_post
-//!     - client_secret_jwt
-//!     - private_key_jwt
-//!   - Consuming Self-Issued OpenID Provider ID Token response
-//! - [OpenID Connect Discovery 1.0][feature-discovery]
-//!   - Discovery of OpenID Provider (Issuer) Metadata
-//!   - Discovery of OpenID Provider (Issuer) Metadata via user provided inputs (via [webfinger][documentation-webfinger])
+//!   - authorization code, implicit, and hybrid response validation
+//!   - UserInfo requests, including JWT responses when configured
+//!   - refresh token and client credentials grants
+//!   - client authentication via `none`, `client_secret_basic`, `client_secret_post`,
+//!     `client_secret_jwt`, and `private_key_jwt`
+//! - [OpenID Connect Discovery 1.0][feature-discovery] and [RFC 8414][feature-rfc8414]
+//!   - issuer discovery
+//!   - WebFinger-based issuer discovery
+//!   - JWKS fetch from `jwks_uri`
 //! - [OpenID Connect Dynamic Client Registration 1.0][feature-registration]
-//!   - Dynamic Client Registration request
-//!   - Client initialization via registration client uri
-//! - [RFC7009 - OAuth 2.0 Token revocation][feature-revocation]
-//!   - Client Authenticated request to token revocation
-//! - [RFC7662 - OAuth 2.0 Token introspection][feature-introspection]
-//!   - Client Authenticated request to token introspection
-//! - [RFC8628 - OAuth 2.0 Device Authorization Grant (Device Flow)][feature-device-flow]
-//! - [RFC8705 - OAuth 2.0 Mutual TLS Client Authentication and Certificate-Bound Access Tokens][feature-mtls]
-//!   - Mutual TLS Client Certificate-Bound Access Tokens
-//!   - Metadata for Mutual TLS Endpoint Aliases
-//!   - Client Authentication
-//!     - tls_client_auth
-//!     - self_signed_tls_client_auth
-//! - [RFC9101 - OAuth 2.0 JWT-Secured Authorization Request (JAR)][feature-jar]
-//! - [RFC9126 - OAuth 2.0 Pushed Authorization Requests (PAR)][feature-par]
-//! - [RFC9449 - OAuth 2.0 Demonstration of Proof-of-Possession at the Application Layer (DPoP)][feature-dpop]
+//!   - dynamic registration requests and responses
+//!   - `registration_client_uri` fetch via [`client::Client::from_uri`]
+//! - [RFC 7009][feature-revocation] token revocation
+//! - [RFC 7662][feature-introspection] token introspection
+//! - [RFC 8628][feature-device-flow] device authorization and device code grant
+//! - [RFC 8693][feature-token-exchange] generic token exchange helper with required response
+//!   field validation
+//! - [RFC 8705][feature-mtls]
+//!   - mTLS endpoint aliases
+//!   - certificate-bound access tokens
+//!   - `tls_client_auth` and `self_signed_tls_client_auth`
+//! - [OpenID Connect Client Initiated Backchannel Authentication Flow - Core 1.0][feature-ciba]
+//!   - backchannel authentication requests
+//!   - CIBA polling grant
+//! - [RFC 9101][feature-jar] signed request objects
+//! - [RFC 9126][feature-par] pushed authorization requests
+//! - [RFC 9207][feature-iss] authorization response issuer validation
+//! - [JWT Secured Authorization Response Mode for OAuth 2.0][feature-jarm]
+//! - [RFC 9449][feature-dpop]
+//!   - DPoP proof generation
+//!   - nonce extraction and caching
+//!   - DPoP-bound token and resource requests
 //! - [OpenID Connect RP-Initiated Logout 1.0][feature-rp-logout]
-//! - [Financial-grade API Security Profile 1.0 - Part 2: Advanced (FAPI)][feature-fapi]
-//! - [JWT Secured Authorization Response Mode for OAuth 2.0 (JARM)][feature-jarm]
-//! - [OAuth 2.0 Authorization Server Issuer Identification][feature-iss]
+//! - FAPI-oriented helpers such as `fapi` request object shaping and hybrid `s_hash` checks
+//!
+//! ## Crypto And HTTP Backends
+//!
+//! This crate is transport-agnostic. Implement [`types::http_client::OidcHttpClient`] to use your
+//! own async HTTP stack, or enable the `http_client` feature to use the bundled reqwest-based
+//! client.
+//!
+//! Two optional crypto backends are present in the source tree:
+//! - `jws_only_crypto` signs and verifies JWS values, but does not support JWE.
+//! - `openssl_crypto` uses Josekit for both JWS and JWE operations.
+//!
+//! Important: the current default feature set enables both backends, and the crate selects
+//! `jws_only_crypto` whenever it is present. If you need encrypted ID tokens, encrypted UserInfo
+//! or JARM responses, or other JWE-dependent flows, build without default features and enable
+//! `openssl_crypto` explicitly.
+//!
+//! ## Current Limitations
+//!
+//! - [`client::Client::request_object`] only creates signed or unsigned request objects; request
+//!   object encryption is not implemented yet.
+//! - JWE-dependent flows require an OpenSSL/Josekit-backed build and a populated
+//!   [`config::OpenIdClientConfiguration::jwe_keys`] set.
+//!
+//! ## JWKs And Certificates
+//!
+//! The crate includes a lightweight [`jwk::Jwk`] model with helpers for structural validation,
+//! public/private key extraction, DPoP keys, JWT client authentication, and JWE decryption keys.
+//!
+//! For mTLS, either use the bundled HTTP client or implement
+//! [`types::http_client::OidcHttpClient::get_client_certificate`] so certificate-bound requests
+//! can attach a PEM certificate chain and PKCS#8 private key.
+//!
+//! ## Useful Types
+//!
+//! Commonly used request, configuration, and response types include:
+//! - [`config::ClientAuth`], [`config::ConfigurationOptions`],
+//!   [`config::OpenIdClientConfiguration`], [`config::DPoPOptions`]
+//! - [`types::AuthorizationParameters`], [`types::AuthorizationCodeGrantParameters`],
+//!   [`types::ImplicitGrantParameters`], [`types::EndSessionParameters`]
+//! - [`types::DeviceAuthorizationRequest`], [`types::DeviceAuthorizationResponse`],
+//!   [`types::CibaAuthRequest`], [`types::CibaAuthResponse`]
+//! - [`types::ClientMetadata`], [`types::IssuerMetadata`],
+//!   [`types::ClientRegistrationRequest`], [`types::ClientRegistrationResponse`]
+//! - [`token_set::TokenSet`], [`types::Pkce`], [`types::UserinfoTokenLocation`]
 //!
 //! [openid-connect]: https://openid.net/connect/
 //! [feature-core]: https://openid.net/specs/openid-connect-core-1_0.html
@@ -59,82 +128,33 @@
 //! [feature-introspection]: https://tools.ietf.org/html/rfc7662
 //! [feature-mtls]: https://tools.ietf.org/html/rfc8705
 //! [feature-device-flow]: https://tools.ietf.org/html/rfc8628
+//! [feature-token-exchange]: https://tools.ietf.org/html/rfc8693
+//! [feature-ciba]: https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html
 //! [feature-rp-logout]: https://openid.net/specs/openid-connect-rpinitiated-1_0.html
 //! [feature-jarm]: https://openid.net/specs/oauth-v2-jarm.html
-//! [feature-fapi]: https://openid.net/specs/openid-financial-api-part-2-1_0.html
 //! [feature-dpop]: https://www.rfc-editor.org/rfc/rfc9449.html
 //! [feature-par]: https://www.rfc-editor.org/rfc/rfc9126.html
 //! [feature-jar]: https://www.rfc-editor.org/rfc/rfc9101.html
 //! [feature-iss]: https://www.rfc-editor.org/rfc/rfc9207.html
-//!
-//! ## Generating JWKs
-//!
-//! This crate uses [Josekit](https://crates.io/crates/josekit) for JWKs. To create JWKs, refer [JWK](https://docs.rs/josekit/0.8.6/josekit/jwk/struct.Jwk.html) in the Josekit documentation.
-//!
-//! ## Using MTLS
-//!
-//! To use MTLS, ie; certificate authentication, you'll need to create your own http client out of the [types::OidcHttpClient] trait.
-//! Override the [types::OidcHttpClient::get_client_certificate] function (which returns [None] by default) to return Some([types::http_client::ClientCertificate]).
-//!
-//! When the request requires MTLS, and the [types::OidcHttpClient::get_client_certificate] method returns None, a client error will be returned.
-//!
-//! ## Issuer API
-//!
-//! ### New Instance
-//!    
-//! - [issuer::Issuer::new]
-//!
-//! ### OIDC Discovery
-//! - [issuer::Issuer::discover_async]
-//!
-//! ### Webfinger Discovery
-//! - [issuer::Issuer::webfinger_async]
-//!
-//! ### Client from Issuer
-//! - [issuer::Issuer::client]
-//!
-//! ## Client
-//!
-//! ### Instance methods
-//! - [client::Client::callback_async]
-//! - [client::Client::oauth_callback_async]
-//! - [client::Client::grant_async]
-//! - [client::Client::authorization_url]
-//! - [client::Client::end_session_url]
-//! - [client::Client::authorization_post]
-//! - [client::Client::introspect_async]
-//! - [client::Client::callback_params]
-//! - [client::Client::request_resource_async]
-//! - [client::Client::refresh_async]
-//! - [client::Client::revoke_async]
-//! - [client::Client::userinfo_async]
-//! - [client::Client::request_object_async]
-//! - [client::Client::pushed_authorization_request_async]
-//! - [client::Client::device_authorization_async]
-//!
-//! ### Client Read
-//! - [client::Client::from_uri_async]
-//!
-//! ### Dynamic Client Registration
-//! - [client::Client::register_async]
+//! [feature-rfc8414]: https://www.rfc-editor.org/rfc/rfc8414.html
 
+/// High-level OpenID Connect and OAuth 2.0 client operations.
 pub mod client;
-/// Helpers
+/// JWT, JWE, and authorization response validation helpers.
+pub mod client_utils;
+/// Client authentication, DPoP, and assembled client configuration types.
+pub mod config;
+/// Feature-gated default crypto and HTTP client implementations.
+pub mod defaults;
+/// Error types returned by the crate.
+pub mod errors;
+/// Shared helper utilities used across the crate.
 pub mod helpers;
-mod http;
-#[cfg(feature = "http_client")]
-pub mod http_client;
-pub mod issuer;
-pub mod jwks;
-mod tests;
-/// TokenSet Module
-pub mod tokenset;
+/// Internal HTTP request orchestration and response expectation handling.
+pub mod http;
+/// JSON Web Key types and key-manipulation helpers.
+pub mod jwk;
+/// Token response model and token claim helpers.
+pub mod token_set;
+/// Request builders, metadata models, JOSE enums, and HTTP integration types.
 pub mod types;
-
-/// Re exports from the crate
-pub mod re_exports {
-    pub use josekit::{self};
-    pub use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-    pub use serde_json::{self, json, Value};
-    pub use url;
-}
