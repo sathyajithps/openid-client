@@ -42,7 +42,7 @@ pub fn deserialize<T: for<'a> Deserialize<'a>>(plain: &str) -> Result<T, String>
     Err("Parse Error".to_string())
 }
 
-/// Generates a random string using [rand::thread_rng]. You can pass in the bytes to generates
+/// Generates a random string using [rand::random]. You can pass in the bytes to generates
 pub fn generate_random(bytes_to_generate: Option<u32>) -> String {
     let mut random_bytes = vec![];
 
