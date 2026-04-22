@@ -48,10 +48,12 @@ impl JwkType {
     }
 }
 
-// TODO: Check if serialization fails if a kty is present in the params
 /// Represents a JSON Web Key (JWK).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Jwk {
+    /// The key type is always present in `params` via flatten; skip during
+    /// serialization to avoid emitting a duplicate `kty` key.
+    #[serde(skip_serializing)]
     kty: JwkType,
     /// The key fields as a JSON map (key-value pairs).
     #[serde(flatten)]

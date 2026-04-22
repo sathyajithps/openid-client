@@ -28,7 +28,7 @@ use crate::{
         AuthorizationParameters, CibaAuthRequest, CibaAuthResponse, ClientRegistrationRequest,
         ClientRegistrationResponse, DeviceAuthorizationRequest, DeviceAuthorizationResponse,
         EndSessionParameters, Header, ImplicitGrantParameters, IssuerMetadata, JwtSigningAlg,
-        OpenIdCrypto, OpenIdResponseType, Payload, PushedAuthorizationResponse,
+        NonceCheck, OpenIdCrypto, OpenIdResponseType, Payload, PushedAuthorizationResponse,
         UserinfoTokenLocation, WebFingerResponse,
     },
 };
@@ -520,9 +520,7 @@ impl Client {
             | (None, None, true) => validate_auth_code_openid_response(
                 config,
                 tokenset,
-                parameters.nonce_check.ok_or(OpenIdError::new_error(
-                    "nonce_check is required for openid auth code validation",
-                ))?,
+                parameters.nonce_check.unwrap_or(NonceCheck::ExpectNoNonce),
                 parameters.max_age_check,
             ),
             (None, None, false) => validate_auth_code_oauth_response(config, tokenset),
@@ -837,11 +835,15 @@ impl Client {
             ciba_parameters.extend(additional_parameters);
         }
 
-        if request.scope.is_empty() {
+        ciba_parameters.extend::<HashMap<String, String>>(request.into());
+
+        // Check scope after merging all parameters so that scope set via
+        // additional_parameters is also accepted.
+        if !ciba_parameters.contains_key("scope")
+            || ciba_parameters.get("scope").is_some_and(|s| s.is_empty())
+        {
             return Err(OpenIdError::new_error("scope is required for CIBA request"));
         }
-
-        ciba_parameters.extend::<HashMap<String, String>>(request.into());
 
         ciba_parameters.insert("client_id".to_owned(), config.client.client_id.to_owned());
 
@@ -1018,8 +1020,10 @@ impl Client {
         body: Option<RequestBody>,
         dpop_options: Option<&DPoPOptions>,
     ) -> OidcReturn<HttpResponse> {
-        if resource_url.scheme() != "https" && resource_url.scheme() != "https" {
-            return Err(OpenIdError::new_error("Only http and https"));
+        if resource_url.scheme() != "https" && resource_url.scheme() != "http" {
+            return Err(OpenIdError::new_error(
+                "only http and https URL schemes are supported",
+            ));
         }
 
         let mut request_headers = headers.unwrap_or_default();
@@ -1132,10 +1136,16 @@ impl Client {
         };
 
         // Determine token type
+        // token_type is normalized to lowercase during deserialization, but
+        // the Authorization header scheme is case-sensitive per RFC 6750 §2.1.
         let token_type = if dpop_options.is_some() {
             "DPoP"
         } else {
-            token_set.token_type.as_deref().unwrap_or("Bearer")
+            match token_set.token_type.as_deref() {
+                Some("bearer") | Some("Bearer") | None => "Bearer",
+                Some("dpop") => "DPoP",
+                Some(other) => other,
+            }
         };
 
         // Build headers

@@ -1,7 +1,7 @@
 /// Default clock skew
 pub const DEFAULT_CLOCK_SKEW: i32 = 0;
 /// Default clock tolerance
-pub const DEFAULT_CLOCK_TOLERANCE: u32 = 300;
+pub const DEFAULT_CLOCK_TOLERANCE: u32 = 30;
 
 /// # ConfigurationOptions
 /// Represents the ConfigurationOptions

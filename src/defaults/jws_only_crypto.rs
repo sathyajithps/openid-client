@@ -122,8 +122,21 @@ impl OpenIdCrypto for JwsOnlyCrypto {
             }
         };
 
+        // Prefer JWK's alg to determine the signing algorithm. Validate
+        // consistency with the header alg to prevent signing with a mismatched algorithm.
+        let alg_str = get_jwk_param(jwk, "alg")?;
+
+        if let Some(header_alg) = header.params.get("alg").and_then(|v| v.as_str()) {
+            if header_alg != alg_str {
+                return Err(format!(
+                    "header alg '{}' does not match JWK alg '{}'",
+                    header_alg, alg_str
+                ));
+            }
+        }
+
         let jsonwebtoken_alg =
-            Algorithm::from_str(get_jwk_param(jwk, "alg")?).map_err(|e| e.to_string())?;
+            Algorithm::from_str(alg_str).map_err(|e| e.to_string())?;
 
         let message = format!(
             "{}.{}",
@@ -182,8 +195,24 @@ impl OpenIdCrypto for JwsOnlyCrypto {
         let signature = parts.get(2).ok_or("Signature not found")?;
         let message = format!("{header}.{payload}");
 
+        // Prefer JWK's alg (prevents algorithm substitution attacks).
+        // Fall back to the JWT header's alg when JWK doesn't specify one
+        // (alg is OPTIONAL per RFC 7517 §4.4).
+        let parsed_header: Map<String, Value> =
+            serde_json::from_str(&String::from_utf8_lossy(&base64_url_to_buf(header)?))
+                .map_err(|e| e.to_string())?;
+
+        let alg_str = match jwk.get_param("alg").and_then(|v| v.as_str()) {
+            Some(alg) => alg.to_owned(),
+            None => parsed_header
+                .get("alg")
+                .and_then(|v| v.as_str())
+                .ok_or("neither JWK nor JWT header contain an 'alg' parameter")?
+                .to_owned(),
+        };
+
         let jsonwebtoken_alg =
-            Algorithm::from_str(get_jwk_param(jwk, "alg")?).map_err(|e| e.to_string())?;
+            Algorithm::from_str(&alg_str).map_err(|e| e.to_string())?;
 
         if let Ok(result) = crypto::verify(
             signature,
@@ -193,10 +222,7 @@ impl OpenIdCrypto for JwsOnlyCrypto {
         ) {
             if result {
                 let header = Header {
-                    params: serde_json::from_str(&String::from_utf8_lossy(&base64_url_to_buf(
-                        header,
-                    )?))
-                    .map_err(|e| e.to_string())?,
+                    params: parsed_header,
                 };
 
                 if header.params.contains_key("kid") && jwk.params.contains_key("kid") {

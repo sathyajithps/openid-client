@@ -766,6 +766,19 @@ pub mod authorization_code {
             ));
         }
 
+        if let Some(error) = callback_params.get("error") {
+            let error_description = callback_params
+                .get("error_description")
+                .map(String::to_owned);
+            let error_uri = callback_params.get("error_uri").map(String::to_owned);
+
+            return Err(OpenIdError::new_op_error(
+                error,
+                error_description,
+                error_uri,
+            ));
+        }
+
         let iss = callback_params.get("iss");
 
         match iss {
@@ -807,19 +820,6 @@ pub mod authorization_code {
                 }
             }
         };
-
-        if let Some(error) = callback_params.get("error") {
-            let error_description = callback_params
-                .get("error_description")
-                .map(String::to_owned);
-            let error_uri = callback_params.get("error_uri").map(String::to_owned);
-
-            return Err(OpenIdError::new_op_error(
-                error,
-                error_description,
-                error_uri,
-            ));
-        }
 
         if callback_params.contains_key("id_token") || callback_params.contains_key("token") {
             return Err(OpenIdError::new_error(
