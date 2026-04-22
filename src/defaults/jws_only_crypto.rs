@@ -135,8 +135,7 @@ impl OpenIdCrypto for JwsOnlyCrypto {
             }
         }
 
-        let jsonwebtoken_alg =
-            Algorithm::from_str(alg_str).map_err(|e| e.to_string())?;
+        let jsonwebtoken_alg = Algorithm::from_str(alg_str).map_err(|e| e.to_string())?;
 
         let message = format!(
             "{}.{}",
@@ -211,8 +210,7 @@ impl OpenIdCrypto for JwsOnlyCrypto {
                 .to_owned(),
         };
 
-        let jsonwebtoken_alg =
-            Algorithm::from_str(&alg_str).map_err(|e| e.to_string())?;
+        let jsonwebtoken_alg = Algorithm::from_str(&alg_str).map_err(|e| e.to_string())?;
 
         if let Ok(result) = crypto::verify(
             signature,
