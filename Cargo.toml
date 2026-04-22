@@ -41,9 +41,5 @@ jws_only_crypto = [
     "dep:ed25519-dalek",
 ]
 
-[dev-dependencies]
-tokio = { version = "1.26.0", features = ["full"] }
-assert-json-diff = "2.0.2"
-
 [lib]
 doctest = false

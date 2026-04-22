@@ -943,21 +943,19 @@ pub mod authorization_code {
         });
 
         match nonce_check {
-            Some(NonceCheck::ExpectNoNonce) => {
-                if nonce.is_some() {
-                    return Err(OpenIdError::new_error(
-                        "unexpected ID Token \"nonce\" claim value",
-                    ));
-                }
+            Some(NonceCheck::ExpectNoNonce) if nonce.is_some() => {
+                return Err(OpenIdError::new_error(
+                    "unexpected ID Token \"nonce\" claim value",
+                ));
             }
-            Some(NonceCheck::Nonce(expected_nonce)) => {
-                if nonce != Some(expected_nonce) {
-                    return Err(OpenIdError::new_error(
-                        "unexpected ID Token \"nonce\" claim value",
-                    ));
-                }
+            Some(NonceCheck::Nonce(expected_nonce))
+                if nonce.as_ref() != Some(&expected_nonce) =>
+            {
+                return Err(OpenIdError::new_error(
+                    "unexpected ID Token \"nonce\" claim value",
+                ));
             }
-            None => {}
+            _ => {}
         }
 
         Ok(token_set)
