@@ -1,37 +1,45 @@
-use crate::{errors::OpenIdError, types::JwtSigningAlg};
+use crate::errors::OpenIdError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 /// # JwkType
 /// Represents the JwkType
 #[derive(PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum JwkType {
     /// OCT - Shared Key
-    Oct,
+    #[serde(rename = "oct")]
+    OCT,
     /// RSA
-    Rsa,
+    #[serde(rename = "RSA")]
+    RSA,
     /// Elliptic curve
-    Ec,
+    #[serde(rename = "EC")]
+    EC,
     /// OKP
-    Okp,
+    #[serde(rename = "OKP")]
+    OKP,
 }
 
-impl From<JwtSigningAlg> for JwkType {
-    fn from(alg: JwtSigningAlg) -> Self {
+impl JwkType {
+    /// Creates [JwkType] from algorithm
+    pub fn from_alg_str(alg: &str) -> Option<JwkType> {
         match alg {
-            JwtSigningAlg::HS256 | JwtSigningAlg::HS384 | JwtSigningAlg::HS512 => Self::Oct,
-            JwtSigningAlg::RS256
-            | JwtSigningAlg::RS384
-            | JwtSigningAlg::RS512
-            | JwtSigningAlg::PS256
-            | JwtSigningAlg::PS384
-            | JwtSigningAlg::PS512 => Self::Rsa,
-            JwtSigningAlg::ES256
-            | JwtSigningAlg::ES384
-            | JwtSigningAlg::ES512
-            | JwtSigningAlg::ES256K => Self::Ec,
-            JwtSigningAlg::EdDSA => Self::Okp,
+            "HS256" | "HS384" | "HS512" => Some(Self::OCT),
+            "RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512" => Some(Self::RSA),
+            "ES256" | "ES384" | "ES512" | "ES256K" => Some(Self::EC),
+            "EdDSA" => Some(Self::OKP),
+            _ => None,
+        }
+    }
+
+    /// Creates [JwkType] from key type
+    pub fn from_kty_str(alg: &str) -> Option<JwkType> {
+        match alg {
+            "oct" => Some(Self::OCT),
+            "RSA" => Some(Self::RSA),
+            "EC" => Some(Self::EC),
+            "OKP" => Some(Self::OKP),
+            _ => None,
         }
     }
 }
@@ -40,10 +48,10 @@ impl JwkType {
     /// Gets the key type as string
     pub fn get_kty(&self) -> &'static str {
         match self {
-            JwkType::Oct => "oct",
-            JwkType::Rsa => "RSA",
-            JwkType::Ec => "EC",
-            JwkType::Okp => "OKP",
+            JwkType::OCT => "oct",
+            JwkType::RSA => "RSA",
+            JwkType::EC => "EC",
+            JwkType::OKP => "OKP",
         }
     }
 }
@@ -51,10 +59,6 @@ impl JwkType {
 /// Represents a JSON Web Key (JWK).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Jwk {
-    /// The key type is always present in `params` via flatten; skip during
-    /// serialization to avoid emitting a duplicate `kty` key.
-    #[serde(skip_serializing)]
-    kty: JwkType,
     /// The key fields as a JSON map (key-value pairs).
     #[serde(flatten)]
     pub(crate) params: Map<String, Value>,
@@ -74,25 +78,7 @@ impl TryFrom<&str> for Jwk {
         let map: Map<String, Value> =
             serde_json::from_str(value).map_err(|e| OpenIdError::new_error(e.to_string()))?;
 
-        let kty_str = map
-            .get("kty")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| OpenIdError::new_error("Missing 'kty' field"))?;
-
-        let kty = match kty_str {
-            "oct" => JwkType::Oct,
-            "RSA" => JwkType::Rsa,
-            "EC" => JwkType::Ec,
-            "OKP" => JwkType::Okp,
-            _ => {
-                return Err(OpenIdError::new_error(format!(
-                    "Unsupported kty: {}",
-                    kty_str
-                )))
-            }
-        };
-
-        Ok(Jwk { kty, params: map })
+        Ok(Jwk { params: map })
     }
 }
 
@@ -106,15 +92,15 @@ impl Jwk {
             Value::String(key_type.get_kty().to_owned()),
         );
 
-        Self {
-            kty: key_type,
-            params,
-        }
+        Self { params }
     }
 
     /// Returns the [JwkType] of the key
-    pub fn key_type(&self) -> JwkType {
-        self.kty
+    pub fn key_type(&self) -> Option<JwkType> {
+        self.params
+            .get("kty")
+            .and_then(|kty| kty.as_str().map(JwkType::from_kty_str))
+            .flatten()
     }
 
     /// Clones the innner map
@@ -134,18 +120,15 @@ impl Jwk {
         params.insert("k".to_string(), Value::String(base64_url::encode(key)));
         params.insert("kty".to_string(), Value::String("oct".to_owned()));
 
-        Self {
-            kty: JwkType::Oct,
-            params,
-        }
+        Self { params }
     }
 
     /// Get the publick key of jwk. Discards unknown parameters.
     ///
     /// This method extracts the parameters but does not check the validity of the values.
     pub fn extract_public_key_jwk(&self) -> Option<Jwk> {
-        match self.kty {
-            JwkType::Rsa => {
+        match self.key_type() {
+            Some(JwkType::RSA) => {
                 let n = self.params.get("n")?;
                 let e = self.params.get("e")?;
 
@@ -164,9 +147,9 @@ impl Jwk {
                     public_key.insert("kid".to_string(), kid.clone());
                 }
 
-                Some(Jwk::new(JwkType::Rsa, Some(public_key)))
+                Some(Jwk::new(JwkType::RSA, Some(public_key)))
             }
-            JwkType::Ec => {
+            Some(JwkType::EC) => {
                 let crv = self.params.get("crv")?;
                 let x = self.params.get("x")?;
                 let y = self.params.get("y")?;
@@ -187,9 +170,9 @@ impl Jwk {
                     public_key.insert("kid".to_string(), kid.clone());
                 }
 
-                Some(Jwk::new(JwkType::Ec, Some(public_key)))
+                Some(Jwk::new(JwkType::EC, Some(public_key)))
             }
-            JwkType::Okp => {
+            Some(JwkType::OKP) => {
                 let crv = self.params.get("crv")?;
                 let x = self.params.get("x")?;
 
@@ -208,9 +191,10 @@ impl Jwk {
                     public_key.insert("kid".to_string(), kid.clone());
                 }
 
-                Some(Jwk::new(JwkType::Okp, Some(public_key)))
+                Some(Jwk::new(JwkType::OKP, Some(public_key)))
             }
-            JwkType::Oct => None,
+            Some(JwkType::OCT) => None,
+            None => None,
         }
     }
 
@@ -218,8 +202,8 @@ impl Jwk {
     ///
     /// This method extracts the parameters but does not check the validity of the values.
     pub fn extract_private_key_jwk(&self) -> Option<Jwk> {
-        match self.kty {
-            JwkType::Rsa => {
+        match self.key_type() {
+            Some(JwkType::RSA) => {
                 let n = self.params.get("n")?;
                 let e = self.params.get("e")?;
                 let d = self.params.get("d")?;
@@ -265,9 +249,9 @@ impl Jwk {
                     private_key.insert("kid".to_string(), kid.clone());
                 }
 
-                Some(Jwk::new(JwkType::Rsa, Some(private_key)))
+                Some(Jwk::new(JwkType::RSA, Some(private_key)))
             }
-            JwkType::Ec => {
+            Some(JwkType::EC) => {
                 let crv = self.params.get("crv")?;
                 let x = self.params.get("x")?;
                 let y = self.params.get("y")?;
@@ -290,9 +274,9 @@ impl Jwk {
                     private_key.insert("kid".to_string(), kid.clone());
                 }
 
-                Some(Jwk::new(JwkType::Ec, Some(private_key)))
+                Some(Jwk::new(JwkType::EC, Some(private_key)))
             }
-            JwkType::Okp => {
+            Some(JwkType::OKP) => {
                 let crv = self.params.get("crv")?;
                 let x = self.params.get("x")?;
                 let d = self.params.get("d")?;
@@ -313,16 +297,17 @@ impl Jwk {
                     private_key.insert("kid".to_string(), kid.clone());
                 }
 
-                Some(Jwk::new(JwkType::Okp, Some(private_key)))
+                Some(Jwk::new(JwkType::OKP, Some(private_key)))
             }
-            JwkType::Oct => None,
+            Some(JwkType::OCT) => None,
+            None => None,
         }
     }
 
     /// Checks if a [Jwk] is a valid public key structurally
     pub fn is_valid_public_key(&self) -> bool {
-        match self.kty {
-            JwkType::Rsa => {
+        match self.key_type() {
+            Some(JwkType::RSA) => {
                 self.params
                     .get("n")
                     .and_then(|v| v.as_str())
@@ -333,7 +318,7 @@ impl Jwk {
                         .and_then(|v| v.as_str())
                         .is_some_and(|s| !s.is_empty())
             }
-            JwkType::Ec => {
+            Some(JwkType::EC) => {
                 self.params
                     .get("crv")
                     .and_then(|v| v.as_str())
@@ -349,7 +334,7 @@ impl Jwk {
                         .and_then(|v| v.as_str())
                         .is_some_and(|s| !s.is_empty())
             }
-            JwkType::Okp => {
+            Some(JwkType::OKP) => {
                 self.params
                     .get("crv")
                     .and_then(|v| v.as_str())
@@ -360,15 +345,16 @@ impl Jwk {
                         .and_then(|v| v.as_str())
                         .is_some_and(|s| !s.is_empty())
             }
-            JwkType::Oct => false,
+            Some(JwkType::OCT) => false,
+            None => false,
         }
     }
 
     /// Checks if a [Jwk] is a valid private key structurally
     pub fn is_valid_private_key(&self) -> bool {
-        match self.kty {
+        match self.key_type() {
             // Add validation for multiprime check?
-            JwkType::Rsa => {
+            Some(JwkType::RSA) => {
                 let has_basic_params = self
                     .params
                     .get("n")
@@ -421,7 +407,7 @@ impl Jwk {
                     .count();
                 crt_count == 0 || crt_count == 5
             }
-            JwkType::Ec => {
+            Some(JwkType::EC) => {
                 self.params
                     .get("crv")
                     .and_then(|v| v.as_str())
@@ -442,7 +428,7 @@ impl Jwk {
                         .and_then(|v| v.as_str())
                         .is_some_and(|s| !s.is_empty())
             }
-            JwkType::Okp => {
+            Some(JwkType::OKP) => {
                 self.params
                     .get("crv")
                     .and_then(|v| v.as_str())
@@ -458,11 +444,13 @@ impl Jwk {
                         .and_then(|v| v.as_str())
                         .is_some_and(|s| !s.is_empty())
             }
-            JwkType::Oct => self
+            Some(JwkType::OCT) => self
                 .params
                 .get("k")
                 .and_then(|v| v.as_str())
                 .is_some_and(|s| !s.is_empty()),
+
+            None => false,
         }
     }
 }

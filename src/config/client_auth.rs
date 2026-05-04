@@ -3,7 +3,6 @@ use std::{borrow::Cow, collections::HashMap, time::Duration};
 
 use crate::{
     config::configuration_options::ConfigurationOptions,
-    defaults::Crypto,
     errors::{OidcReturn, OpenIdError},
     helpers::{base64_encode, generate_random, unix_timestamp, url_encoded},
     jwk::{Jwk, JwkType},
@@ -42,17 +41,17 @@ pub enum ClientAuth {
     /// Auth using client ID and optional secret in HTTP Basic Authorization header.
     ClientSecretBasic {
         /// Client secret
-        client_secret: Cow<'static, str>,
+        client_secret: String,
     },
     /// Auth by sending client ID and optional secret in POST form body.
     ClientSecretPost {
         /// Client secret
-        client_secret: Cow<'static, str>,
+        client_secret: String,
     },
     /// Auth using a client secret JWT with optional custom claims.
     ClientSecretJwt {
         /// The client secret used to sign the JWT.
-        client_secret: Cow<'static, str>,
+        client_secret: String,
         /// Options to configure the JWT assertion.
         options: JwtAssertionOptions,
     },
@@ -78,21 +77,21 @@ impl ClientAuth {
     }
 
     /// Creates a `ClientSecretBasic` authentication method.
-    pub fn client_secret_basic(client_secret: impl Into<Cow<'static, str>>) -> Self {
+    pub fn client_secret_basic(client_secret: impl Into<String>) -> Self {
         ClientAuth::ClientSecretBasic {
             client_secret: client_secret.into(),
         }
     }
 
     /// Creates a `ClientSecretPost` authentication method.
-    pub fn client_secret_post(client_secret: impl Into<Cow<'static, str>>) -> Self {
+    pub fn client_secret_post(client_secret: impl Into<String>) -> Self {
         ClientAuth::ClientSecretPost {
             client_secret: client_secret.into(),
         }
     }
 
     /// Creates a `ClientSecretJwt` authentication method.
-    pub fn client_secret_jwt(client_secret: impl Into<Cow<'static, str>>) -> Self {
+    pub fn client_secret_jwt(client_secret: impl Into<String>) -> Self {
         ClientAuth::ClientSecretJwt {
             client_secret: client_secret.into(),
             options: JwtAssertionOptions::default(),
@@ -126,21 +125,21 @@ impl ClientAuth {
     /// - For `ClientSecretJwt` and `PrivateKeyJwt`, creates an assertion and adds to the body.
     /// - For `Tls` and `SelfSignedTls`, attaches the client certificate.
     /// - For `None`, does nothing.
-    pub fn authenticate(
+    pub fn authenticate<C: OpenIdCrypto>(
         &self,
         client_id: impl AsRef<str>,
         options: &ConfigurationOptions,
         issuer: &IssuerMetadata,
         request: &mut HttpRequest,
+        crypto: &C,
     ) -> OidcReturn<()> {
         match &self {
             ClientAuth::ClientSecretBasic { client_secret } => {
                 let client_id_ref = client_id.as_ref();
-                let client_secret_ref = client_secret.as_ref();
                 let encoded = format!(
                     "{}:{}",
                     url_encoded(client_id_ref.as_bytes()),
-                    url_encoded(client_secret_ref.as_bytes())
+                    url_encoded(client_secret.as_bytes())
                 );
 
                 let header = format!("Basic {}", base64_encode(encoded));
@@ -180,6 +179,7 @@ impl ClientAuth {
                         .unwrap_or(DEFAULT_HS256_ALGORITHM),
                     assertion_type.as_deref(),
                     custom_header_claims,
+                    crypto,
                 )?;
             }
             ClientAuth::PrivateKeyJwt {
@@ -193,7 +193,11 @@ impl ClientAuth {
                     },
                 ..
             } => {
-                if jwk.key_type() == JwkType::Oct {
+                let key_type = jwk
+                    .key_type()
+                    .ok_or(OpenIdError::new_error("Unknown key type"))?;
+
+                if key_type == JwkType::OCT {
                     return Err(OpenIdError::new_error(
                         "Cannot use oct key to sign using private_key_jwt",
                     ));
@@ -209,6 +213,7 @@ impl ClientAuth {
                         .unwrap_or(DEFAULT_RS256_ALGORITHM),
                     assertion_type.as_deref(),
                     custom_header_claims,
+                    crypto,
                 )?;
             }
             ClientAuth::Tls(certificate) | ClientAuth::SelfSignedTls(certificate) => {
@@ -381,7 +386,7 @@ impl ClientAuth {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn create_assertion(
+    fn create_assertion<C: OpenIdCrypto>(
         &self,
         issuer: &IssuerMetadata,
         client_id: &str,
@@ -390,6 +395,7 @@ impl ClientAuth {
         alg: &str,
         assertion_type: Option<&str>,
         custom_header_claims: &Option<HashMap<String, Value>>,
+        crypto: &C,
     ) -> OidcReturn<()> {
         let payload = self.create_assertion_payload(issuer, client_id)?;
 
@@ -414,7 +420,7 @@ impl ClientAuth {
             }
         }
 
-        let assertion = Crypto
+        let assertion = crypto
             .jws_serialize(payload, header, jwk)
             .map_err(OpenIdError::new_error)?;
 

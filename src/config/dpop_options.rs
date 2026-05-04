@@ -3,13 +3,12 @@ use std::{cell::RefCell, collections::HashMap};
 use url::Url;
 
 use crate::{
-    defaults::Crypto,
     errors::{OidcReturn, OpenIdError},
     helpers::{base64_url_encode, generate_random, unix_timestamp},
     jwk::{Jwk, JwkType},
     types::{
         http_client::{HttpMethod, HttpRequest, HttpResponse},
-        DpopSigningAlg, Header, OpenIdCrypto, Payload,
+        Header, OpenIdCrypto, Payload,
     },
 };
 
@@ -19,7 +18,7 @@ pub struct DPoPOptions {
     /// DPoP signing key
     pub key: Jwk,
     /// Signing algorithm. Defaults to RS256.
-    pub algorithm: DpopSigningAlg,
+    pub algorithm: String,
     /// Stores dpop nonces from server
     pub nonce_cache: RefCell<HashMap<String, String>>,
 }
@@ -28,10 +27,10 @@ impl DPoPOptions {
     /// Creates a new instance of [DPoPOptions]
     pub fn new(
         key: Jwk,
-        signing_algorithm: DpopSigningAlg,
+        signing_algorithm: String,
         nonce_cache: Option<HashMap<String, String>>,
     ) -> Self {
-        DPoPOptions {
+        Self {
             key,
             algorithm: signing_algorithm,
             nonce_cache: RefCell::new(nonce_cache.unwrap_or_default()),
@@ -45,10 +44,15 @@ impl DPoPOptions {
         &self,
         req: &mut HttpRequest,
         access_token: Option<&str>,
-        supported_dpop_algorithms: Option<&Vec<DpopSigningAlg>>,
+        supported_dpop_algorithms: Option<&Vec<String>>,
         clock_skew: i32,
+        crypto: &dyn OpenIdCrypto,
     ) -> OidcReturn<()> {
-        if !self.key.is_valid_private_key() || self.key.key_type() == JwkType::Oct {
+        let key_type = self.key.key_type();
+        if !self.key.is_valid_private_key()
+            || key_type.is_none()
+            || self.key.key_type() == Some(JwkType::OCT)
+        {
             return Err(OpenIdError::new_error(
                 "DPoP error: Symmetric key or Invalid private key",
             ));
@@ -124,14 +128,14 @@ impl DPoPOptions {
             .key
             .extract_public_key_jwk()
             .ok_or(OpenIdError::new_error(
-                "DPoP Key does not have a valid public part".to_owned(),
+                "Invalid key or key does not have a valid public part".to_owned(),
             ))?;
 
         header
             .params
             .insert("jwk".to_owned(), Value::Object(public_jwk.params));
 
-        let dpop = Crypto
+        let dpop = crypto
             .jws_serialize(payload, header, &self.key)
             .map_err(OpenIdError::new_error)?;
 

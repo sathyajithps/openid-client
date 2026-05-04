@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::types::{JweAlg, JwtSigningAlg};
-
 /// Represents a JOSE header used in JWE/JWS operations.
 ///
 /// The header contains algorithm and parameter fields as defined by the JOSE standards.
@@ -15,19 +13,10 @@ pub struct Header {
 }
 
 impl Header {
-    /// Extracts and parses the "alg" header parameter specifically for JWS signing.
-    pub fn alg(&self) -> Option<JwtSigningAlg> {
+    /// Extracts and parses the "alg" header parameter.
+    pub fn alg(&self) -> Option<String> {
         self.params
             .get("alg")
-            .and_then(|alg| alg.as_str())
-            .and_then(JwtSigningAlg::from_alg_str)
-    }
-
-    /// Extracts and parses the "alg" header parameter specifically for JWE encryption.
-    pub fn jwe_alg(&self) -> Option<JweAlg> {
-        self.params
-            .get("alg")
-            .and_then(|alg| alg.as_str())
-            .and_then(JweAlg::from_alg_str)
+            .and_then(|alg| alg.as_str().map(|alg_str| alg_str.to_owned()))
     }
 }

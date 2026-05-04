@@ -1,3 +1,5 @@
+//! # OpenSSL crypto
+
 use crate::{
     jwk::Jwk,
     types::{Header, OpenIdCrypto, Payload},

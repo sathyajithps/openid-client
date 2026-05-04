@@ -1,3 +1,5 @@
+//! # JWS only crypto
+
 use std::str::FromStr;
 
 use crate::{
@@ -34,13 +36,15 @@ impl OpenIdCrypto for JwsOnlyCrypto {
     }
 
     fn jws_serialize(&self, payload: Payload, header: Header, jwk: &Jwk) -> Result<String, String> {
-        let encoding_key = match jwk.key_type() {
-            JwkType::Oct => {
+        let key_type = jwk.key_type().ok_or("Unknown key type")?;
+
+        let encoding_key = match key_type {
+            JwkType::OCT => {
                 let secret_b64_url = get_jwk_param(jwk, "k")?;
 
                 EncodingKey::from_secret(&base64_url_to_buf(secret_b64_url)?)
             }
-            JwkType::Rsa => {
+            JwkType::RSA => {
                 let n_b64url = get_jwk_param(jwk, "n")?;
 
                 let e_b64url = get_jwk_param(jwk, "e")?;
@@ -70,7 +74,7 @@ impl OpenIdCrypto for JwsOnlyCrypto {
 
                 EncodingKey::from_rsa_der(der_document.as_bytes())
             }
-            JwkType::Ec => {
+            JwkType::EC => {
                 let mut filtered_ec_keys = Map::new();
 
                 let expected_keys = ["kty", "crv", "x", "y", "d"];
@@ -100,7 +104,7 @@ impl OpenIdCrypto for JwsOnlyCrypto {
 
                 EncodingKey::from_ec_der(der_document.as_bytes())
             }
-            JwkType::Okp => {
+            JwkType::OKP => {
                 let crv = get_jwk_param(jwk, "crv")?;
                 if crv != "Ed25519" {
                     return Err("Invalid OKP Curve".to_owned());
@@ -150,27 +154,29 @@ impl OpenIdCrypto for JwsOnlyCrypto {
     }
 
     fn jws_deserialize(&self, jws: String, jwk: &Jwk) -> Result<(Header, Payload), String> {
-        let decoding_key = match jwk.key_type() {
-            JwkType::Oct => {
+        let key_type = jwk.key_type().ok_or("Unknown key type")?;
+
+        let decoding_key = match key_type {
+            JwkType::OCT => {
                 let secret_b64_url = get_jwk_param(jwk, "k")?;
 
                 DecodingKey::from_secret(&base64_url_to_buf(secret_b64_url)?)
             }
-            JwkType::Rsa => {
+            JwkType::RSA => {
                 let n = get_jwk_param(jwk, "n")?;
 
                 let e = get_jwk_param(jwk, "e")?;
 
                 DecodingKey::from_rsa_components(n, e).map_err(|e| e.to_string())?
             }
-            JwkType::Ec => {
+            JwkType::EC => {
                 let x = get_jwk_param(jwk, "x")?;
 
                 let y = get_jwk_param(jwk, "y")?;
 
                 DecodingKey::from_ec_components(x, y).map_err(|e| e.to_string())?
             }
-            JwkType::Okp => {
+            JwkType::OKP => {
                 let crv = get_jwk_param(jwk, "crv")?;
                 if crv != "Ed25519" {
                     return Err("Invalid OKP Curve".to_owned());

@@ -3,14 +3,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::types::{
-    oidc_params::{
-        AuthMethods, BackChannelTokenDeliveryMode, BackchannelAuthenticationRequestSigningAlg,
-        DpopSigningAlg, IntrospectionEndpointAuthSigningAlg, RevocationEndpointAuthSigningAlg,
-        TokenEndpointAuthSigningAlg,
-    },
-    JwtSigningAlg,
-};
+use crate::types::oidc_params::{AuthMethods, BackChannelTokenDeliveryMode};
 
 /// # MtlsEndpoints
 /// [OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens](https://datatracker.ietf.org/doc/html/rfc8705)
@@ -52,7 +45,7 @@ pub struct IssuerMetadata {
     /// OpenID Connect [Userinfo Endpoint](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo).
     pub userinfo_endpoint: Option<String>,
     /// JWS algorithms supported by UserInfo Endpoint
-    pub userinfo_signing_alg_values_supported: Option<Vec<JwtSigningAlg>>,
+    pub userinfo_signing_alg_values_supported: Option<Vec<String>>,
     /// Endpoint for revoking refresh tokens and access tokens. [Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html#section-2).
     pub revocation_endpoint: Option<String>,
     /// Endpoint to initiate an end session request.
@@ -65,29 +58,27 @@ pub struct IssuerMetadata {
     pub token_endpoint_auth_methods_supported: Option<Vec<AuthMethods>>,
     /// List of JWS signing algorithms supported by the token endpoint for the signature of the JWT
     /// that the client uses to authenticate.
-    pub token_endpoint_auth_signing_alg_values_supported: Option<Vec<TokenEndpointAuthSigningAlg>>,
+    pub token_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
     /// List of client [authentication methods](https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#token-endpoint-auth-method) supported by the Authorization Server.
     pub introspection_endpoint_auth_methods_supported: Option<Vec<AuthMethods>>,
     /// List of JWS signing algorithms supported by the introspection endpoint for the signature of
     /// the JWT that the client uses to authenticate.
-    pub introspection_endpoint_auth_signing_alg_values_supported:
-        Option<Vec<IntrospectionEndpointAuthSigningAlg>>,
+    pub introspection_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
     /// List of client [authentication methods](https://www.iana.org/assignments/oauth-parameters/oauth-parameters.xhtml#token-endpoint-auth-method) supported by the Authorization Server.
     pub revocation_endpoint_auth_methods_supported: Option<Vec<AuthMethods>>,
     /// List of JWS signing algorithms supported by the revocation endpoint for the signature of the
     /// JWT that the client uses to authenticate.
-    pub revocation_endpoint_auth_signing_alg_values_supported:
-        Option<Vec<RevocationEndpointAuthSigningAlg>>,
+    pub revocation_endpoint_auth_signing_alg_values_supported: Option<Vec<String>>,
     /// Alternative endpoints that can be used by a client with mTLS to access. See [MtlsEndpoints]
     pub mtls_endpoint_aliases: Option<MtlsEndpoints>,
     /// OP support of returning the OP id in auth response. [RFC](https://www.ietf.org/archive/id/draft-meyerzuselhausen-oauth-iss-auth-resp-02.html#name-providing-the-issuer-identi)
     pub authorization_response_iss_parameter_supported: Option<bool>,
     /// Signing algs supported by the authorization endpoint to sign the response
-    pub authorization_signing_alg_values_supported: Option<Vec<JwtSigningAlg>>,
+    pub authorization_signing_alg_values_supported: Option<Vec<String>>,
     /// Signing algs supported by the auth server
-    pub id_token_signing_alg_values_supported: Option<Vec<JwtSigningAlg>>,
+    pub id_token_signing_alg_values_supported: Option<Vec<String>>,
     /// A JSON array containing a list of the JWS alg values supported by the authorization server for DPoP proof JWTs
-    pub dpop_signing_alg_values_supported: Option<Vec<DpopSigningAlg>>,
+    pub dpop_signing_alg_values_supported: Option<Vec<String>>,
     /// The URL of the pushed authorization request endpoint at which client can post an authorization request to exchange for a "request_uri" value usable at the authorization server.  
     pub pushed_authorization_request_endpoint: Option<String>,
     /// Boolean parameter indicating whether the authorization server accepts authorization request data only via PAR..
@@ -97,8 +88,7 @@ pub struct IssuerMetadata {
     /// CIBA authentication endpoint
     pub backchannel_authentication_endpoint: Option<String>,
     /// CIBA authentication request signing algorithms supported.
-    pub backchannel_authentication_request_signing_alg_values_supported:
-        Option<Vec<BackchannelAuthenticationRequestSigningAlg>>,
+    pub backchannel_authentication_request_signing_alg_values_supported: Option<Vec<String>>,
     /// Whether CIBA user_code is supported
     pub backchannel_user_code_parameter_supported: Option<bool>,
     /// Any extra data that was read from the discovery document

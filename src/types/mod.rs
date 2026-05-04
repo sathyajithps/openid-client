@@ -1,5 +1,6 @@
 mod authenticated_endpoints;
 mod authorization_code_grant_parameters;
+mod authorization_code_grant_validation_parameters;
 mod authorization_parameters;
 mod checks;
 mod ciba_auth_request;
@@ -26,6 +27,7 @@ mod webfinger;
 
 pub use authenticated_endpoints::AuthenticatedEndpoints;
 pub use authorization_code_grant_parameters::AuthorizationCodeGrantParameters;
+pub use authorization_code_grant_validation_parameters::AuthorizationCodeGrantValidationParameters;
 pub use authorization_parameters::AuthorizationParameters;
 pub use checks::{MaxAgeCheck, NonceCheck, StateCheck};
 pub use ciba_auth_request::CibaAuthRequest;
@@ -39,12 +41,8 @@ pub use header::Header;
 pub use implicit_grant_parameters::ImplicitGrantParameters;
 pub use issuer_metadata::{IssuerMetadata, MtlsEndpoints};
 pub use jwe_type::JweType;
-pub use oidc_params::{
-    AuthMethods, BackChannelTokenDeliveryMode, BackchannelAuthenticationRequestSigningAlg,
-    DpopSigningAlg, IntrospectionEndpointAuthSigningAlg, JweAlg, JweEncAlg, JwtSigningAlg,
-    RevocationEndpointAuthSigningAlg, TokenEndpointAuthSigningAlg,
-};
-pub(crate) use openid_crypto::OpenIdCrypto;
+pub use oidc_params::{AuthMethods, BackChannelTokenDeliveryMode};
+pub use openid_crypto::OpenIdCrypto;
 pub use openid_response_type::OpenIdResponseType;
 pub use payload::Payload;
 pub use pkce::Pkce;

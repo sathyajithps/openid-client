@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::types::{JweAlg, JweEncAlg, JwtSigningAlg};
-
 /// # Client Metadata
 /// Options of a configured client instance
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -19,16 +17,16 @@ pub struct ClientMetadata {
     pub tls_client_certificate_bound_access_tokens: Option<bool>,
 
     /// Jarm supported alg value
-    pub authorization_signed_response_alg: Option<JwtSigningAlg>,
+    pub authorization_signed_response_alg: Option<String>,
 
     /// Algorithm for signing the ID Token issued
-    pub id_token_signed_response_alg: Option<JwtSigningAlg>,
+    pub id_token_signed_response_alg: Option<String>,
 
     /// Algorithm for encrypting ID Token responses
-    pub id_token_encrypted_response_alg: Option<JweAlg>,
+    pub id_token_encrypted_response_alg: Option<String>,
 
     /// Content encryption algorithm for ID Token
-    pub id_token_encrypted_response_enc: Option<JweEncAlg>,
+    pub id_token_encrypted_response_enc: Option<String>,
 
     /// Default Maximum Authentication Age
     pub default_max_age: Option<u64>,
@@ -37,22 +35,22 @@ pub struct ClientMetadata {
     pub require_auth_time: Option<bool>,
 
     /// Algorithm for signing UserInfo JWT responses
-    pub userinfo_signed_response_alg: Option<JwtSigningAlg>,
+    pub userinfo_signed_response_alg: Option<String>,
 
     /// Algorithm for encrypting UserInfo responses
-    pub userinfo_encrypted_response_alg: Option<JweAlg>,
+    pub userinfo_encrypted_response_alg: Option<String>,
 
     /// Content encryption algorithm for UserInfo
-    pub userinfo_encrypted_response_enc: Option<JweEncAlg>,
+    pub userinfo_encrypted_response_enc: Option<String>,
 
     /// Algorithm for signing request objects
-    pub request_object_signing_alg: Option<JwtSigningAlg>,
+    pub request_object_signing_alg: Option<String>,
 
     /// Algorithm for encrypting request objects
-    pub request_object_encryption_alg: Option<JweAlg>,
+    pub request_object_encryption_alg: Option<String>,
 
     /// Content encryption algorithm for request objects
-    pub request_object_encryption_enc: Option<JweEncAlg>,
+    pub request_object_encryption_enc: Option<String>,
 
     /// Extra key values
     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]

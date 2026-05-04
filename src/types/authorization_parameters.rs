@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     helpers::{generate_pkce, generate_random},
-    types::Pkce,
+    types::{OpenIdResponseType, Pkce},
 };
 
 /// # AuthorizationParameters
@@ -120,6 +120,12 @@ impl AuthorizationParameters {
     /// Sets the `response_mode` parameter
     pub fn response_mode(mut self, mode: impl Into<String>) -> Self {
         self.response_mode = Some(mode.into());
+        self
+    }
+
+    /// Sets the `response_type` parameter
+    pub fn response_type(mut self, response_type: OpenIdResponseType) -> Self {
+        self.response_type = Some(response_type.to_string());
         self
     }
 

@@ -13,7 +13,6 @@ use crate::{
         jwt::{validate_jwt, JwtValidationParameters},
     },
     config::{ClientAuth, DPoPOptions, OpenIdClientConfiguration},
-    defaults::Crypto,
     errors::{OidcReturn, OpenIdError},
     helpers::{
         base64_url_encode, deserialize, generate_random, unix_timestamp, url_decode,
@@ -25,11 +24,11 @@ use crate::{
     types::{
         http_client::{HttpMethod, HttpRequest, HttpResponse, OidcHttpClient, RequestBody},
         AuthMethods, AuthenticatedEndpoints, AuthorizationCodeGrantParameters,
-        AuthorizationParameters, CibaAuthRequest, CibaAuthResponse, ClientRegistrationRequest,
-        ClientRegistrationResponse, DeviceAuthorizationRequest, DeviceAuthorizationResponse,
-        EndSessionParameters, Header, ImplicitGrantParameters, IssuerMetadata, JwtSigningAlg,
-        NonceCheck, OpenIdCrypto, OpenIdResponseType, Payload, PushedAuthorizationResponse,
-        UserinfoTokenLocation, WebFingerResponse,
+        AuthorizationCodeGrantValidationParameters, AuthorizationParameters, CibaAuthRequest,
+        CibaAuthResponse, ClientRegistrationRequest, ClientRegistrationResponse,
+        DeviceAuthorizationRequest, DeviceAuthorizationResponse, EndSessionParameters, Header,
+        ImplicitGrantParameters, IssuerMetadata, NonceCheck, OpenIdCrypto, OpenIdResponseType,
+        Payload, PushedAuthorizationResponse, UserinfoTokenLocation, WebFingerResponse,
     },
 };
 
@@ -60,7 +59,9 @@ impl Client {
         request.url = base_url;
         request.url.set_path(&well_known_path);
 
-        let res = Http::default().request_async(request, http_client).await?;
+        let res = Http::default()
+            .request_async(request, http_client, None)
+            .await?;
 
         if let Some(body) = res.body {
             return match deserialize::<IssuerMetadata>(&body) {
@@ -75,9 +76,10 @@ impl Client {
                     }
                     Ok(metadata)
                 }
-                Err(_) => Err(OpenIdError::new_error(
-                    "invalid_issuer_metadata".to_string(),
-                )),
+                Err(e) => Err(OpenIdError::new_error(format!(
+                    "Error while parsing issuer metadata: {:?}",
+                    e
+                ))),
             };
         }
 
@@ -106,7 +108,9 @@ impl Client {
         request.url = base_url;
         request.url.set_path(&well_known_path);
 
-        let res = Http::default().request_async(request, http_client).await?;
+        let res = Http::default()
+            .request_async(request, http_client, None)
+            .await?;
 
         if let Some(body) = res.body {
             return match deserialize::<IssuerMetadata>(&body) {
@@ -148,7 +152,9 @@ impl Client {
                     .method(HttpMethod::GET)
                     .expect_status_code(200);
 
-                let response = Http::default().request_async(request, http_client).await?;
+                let response = Http::default()
+                    .request_async(request, http_client, None)
+                    .await?;
 
                 match response.body {
                     Some(raw_body) => {
@@ -214,7 +220,9 @@ impl Client {
             .method(HttpMethod::GET)
             .headers(headers);
 
-        let response = Http::default().request_async(request, http_client).await?;
+        let response = Http::default()
+            .request_async(request, http_client, None)
+            .await?;
 
         let body = response
             .body
@@ -385,8 +393,9 @@ impl Client {
     /// - `body` - Grant request body.
     /// - `http_client` - The http client to make the request.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn grant_async<H: OidcHttpClient>(
+    pub async fn grant_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         body: RequestBody,
         http_client: &H,
         dpop_options: Option<&DPoPOptions>,
@@ -399,6 +408,7 @@ impl Client {
 
         let response = authenticated_post_async(
             config,
+            crypto,
             AuthenticatedEndpoints::Token,
             body,
             http_client,
@@ -419,13 +429,17 @@ impl Client {
     ///
     /// Performs authorization code grant on the token endpoint.
     ///
+    /// > This method does not validate the tokens returned. Call [Client::validate_authorization_code_grant]
+    /// > for validating the tokens.
+    ///
     /// - `config` - Openid client configuration.
     /// - `http_client` - The http client to make the request.
     /// - `callback_request` - The callback request received from the provider.
     /// - `parameters` - [AuthorizationCodeGrantParameters]: Parameters for the authorization code grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn authorization_code_grant<H: OidcHttpClient>(
+    pub async fn authorization_code_grant<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         callback_request: HttpRequest,
         parameters: AuthorizationCodeGrantParameters,
@@ -458,11 +472,15 @@ impl Client {
         };
 
         let callback_params = match config.response_type {
-            OpenIdResponseType::Jarm => {
-                authorization_code::validate_jarm(config, callback_params, parameters.state_check)?
-            }
+            OpenIdResponseType::Jarm => authorization_code::validate_jarm(
+                config,
+                crypto,
+                callback_params,
+                parameters.state_check,
+            )?,
             OpenIdResponseType::Hybrid => validate_hybrid_response(
                 config,
+                crypto,
                 callback_params,
                 parameters.state_check,
                 parameters.nonce_check.clone(),
@@ -501,14 +519,28 @@ impl Client {
             token_request_params.insert("code_verifier".to_owned(), code_verifier);
         }
 
-        let tokenset = Client::grant_async(
+        Client::grant_async(
             config,
+            crypto,
             RequestBody::Form(token_request_params),
             http_client,
             dpop_options,
         )
-        .await?;
+        .await
+    }
 
+    /// # Validate Authorization Code Grant
+    ///
+    /// Validates tokens obtained from authorization code grant.
+    ///
+    /// - `config` - Openid client configuration.
+    /// - `parameters` - [AuthorizationCodeGrantValidationParameters]: Parameters for validating the authorization code grant.
+    pub async fn validate_authorization_code_grant<C: OpenIdCrypto>(
+        config: &OpenIdClientConfiguration,
+        crypto: &C,
+        token_set: TokenSet,
+        parameters: AuthorizationCodeGrantValidationParameters,
+    ) -> OidcReturn<TokenSet> {
         match (
             &parameters.nonce_check,
             &parameters.max_age_check,
@@ -519,11 +551,12 @@ impl Client {
             | (None, Some(_), _)
             | (None, None, true) => validate_auth_code_openid_response(
                 config,
-                tokenset,
+                crypto,
+                token_set,
                 parameters.nonce_check.unwrap_or(NonceCheck::ExpectNoNonce),
                 parameters.max_age_check,
             ),
-            (None, None, false) => validate_auth_code_oauth_response(config, tokenset),
+            (None, None, false) => validate_auth_code_oauth_response(config, crypto, token_set),
         }
     }
 
@@ -534,8 +567,9 @@ impl Client {
     /// - `config` - Openid client configuration.
     /// - `callback_request` - The callback request received from the provider.
     /// - `parameters` - [ImplicitGrantParameters]: Parameters for the implicit grant.
-    pub async fn implicit_authentication<H: OidcHttpClient>(
+    pub async fn implicit_authentication<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         callback_request: HttpRequest,
         parameters: ImplicitGrantParameters,
     ) -> OidcReturn<TokenSet> {
@@ -601,6 +635,7 @@ impl Client {
 
         validate_implicit_response(
             config,
+            crypto,
             tokenset,
             has_id_token,
             parameters.nonce_check,
@@ -617,8 +652,9 @@ impl Client {
     /// - `refresh_token` - The refresh token.
     /// - `additional_parameters` - Optional additional parameters for the grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn refresh_grant<H: OidcHttpClient>(
+    pub async fn refresh_grant<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         refresh_token: &str,
         additional_parameters: Option<HashMap<String, String>>,
@@ -633,13 +669,14 @@ impl Client {
 
         let tokenset = Client::grant_async(
             config,
+            crypto,
             RequestBody::Form(refresh_grant_params),
             http_client,
             dpop_options,
         )
         .await?;
 
-        validate_access_token_response(config, tokenset, &[], true)
+        validate_access_token_response(config, crypto, tokenset, &[], true)
     }
 
     /// # Pushed Authorization Request
@@ -650,8 +687,9 @@ impl Client {
     /// - `http_client` - The http client to make the request.
     /// - `authorization_parameters` - [AuthorizationParameters]: Customize the authorization request.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn pushed_authorization_request<H: OidcHttpClient>(
+    pub async fn pushed_authorization_request<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         mut authorization_parameters: AuthorizationParameters,
         dpop_options: Option<&DPoPOptions>,
@@ -664,6 +702,7 @@ impl Client {
 
         let response = authenticated_post_async(
             config,
+            crypto,
             AuthenticatedEndpoints::PushedAuthorization,
             RequestBody::Form(authorization_parameters_map),
             http_client,
@@ -690,8 +729,9 @@ impl Client {
     /// - `request` - [DeviceAuthorizationRequest]: Device authorization request parameters.
     /// - `additional_parameters` - Optional additional parameters for the request.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn device_authorization_request<H: OidcHttpClient>(
+    pub async fn device_authorization_request<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         request: DeviceAuthorizationRequest,
         additional_parameters: Option<HashMap<String, String>>,
@@ -712,6 +752,7 @@ impl Client {
 
         let response = authenticated_post_async(
             config,
+            crypto,
             AuthenticatedEndpoints::DeviceAuthorization,
             RequestBody::Form(device_auth_parameters),
             http_client,
@@ -737,8 +778,9 @@ impl Client {
     /// - `device_code` - The device code.
     /// - `additional_parameters` - Optional additional parameters for the grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn device_code_grant<H: OidcHttpClient>(
+    pub async fn device_code_grant<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         device_code: &str,
         additional_parameters: Option<HashMap<String, String>>,
@@ -756,13 +798,14 @@ impl Client {
 
         let tokenset = Client::grant_async(
             config,
+            crypto,
             RequestBody::Form(device_code_grant_params),
             http_client,
             dpop_options,
         )
         .await?;
 
-        validate_access_token_response(config, tokenset, &[], true)
+        validate_access_token_response(config, crypto, tokenset, &[], true)
     }
 
     /// # Client Credentials Grant
@@ -773,8 +816,9 @@ impl Client {
     /// - `http_client` - The HTTP client to make the request.
     /// - `additional_parameters` - Optional additional parameters for the grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn client_credentials_grant<H: OidcHttpClient>(
+    pub async fn client_credentials_grant<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         additional_parameters: Option<HashMap<String, String>>,
         dpop_options: Option<&DPoPOptions>,
@@ -788,13 +832,14 @@ impl Client {
 
         let tokenset = Client::grant_async(
             config,
+            crypto,
             RequestBody::Form(client_credentials_parameters),
             http_client,
             dpop_options,
         )
         .await?;
 
-        validate_access_token_response(config, tokenset, &[], true)
+        validate_access_token_response(config, crypto, tokenset, &[], true)
     }
 
     /// # CIBA Authentication
@@ -807,8 +852,9 @@ impl Client {
     /// - `request` - [CibaAuthRequest]: CIBA authentication request parameters.
     /// - `additional_parameters` - Optional additional parameters for the request.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn ciba_authentication<H: OidcHttpClient>(
+    pub async fn ciba_authentication<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         request: CibaAuthRequest,
         additional_parameters: Option<HashMap<String, String>>,
@@ -849,6 +895,7 @@ impl Client {
 
         let response = authenticated_post_async(
             config,
+            crypto,
             AuthenticatedEndpoints::BackChannelAuthentication,
             RequestBody::Form(ciba_parameters),
             http_client,
@@ -882,8 +929,9 @@ impl Client {
     /// - `auth_req_id` - The authentication request ID from CIBA authentication response.
     /// - `additional_parameters` - Optional additional parameters for the grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn ciba_grant<H: OidcHttpClient>(
+    pub async fn ciba_grant<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         auth_req_id: &str,
         additional_parameters: Option<HashMap<String, String>>,
@@ -904,13 +952,14 @@ impl Client {
 
         let tokenset = Client::grant_async(
             config,
+            crypto,
             RequestBody::Form(ciba_grant_params),
             http_client,
             dpop_options,
         )
         .await?;
 
-        validate_access_token_response(config, tokenset, &[], true)
+        validate_access_token_response(config, crypto, tokenset, &[], true)
     }
 
     /// # Introspection
@@ -923,8 +972,9 @@ impl Client {
     /// - `token_type_hint` - Hint to which type of token is being introspected.
     /// - `additional_parameters` - Optional additional parameters for the introspection request.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn introspect_async<H: OidcHttpClient>(
+    pub async fn introspect_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         token: &str,
         token_type_hint: Option<&str>,
@@ -945,6 +995,7 @@ impl Client {
 
         authenticated_post_async(
             config,
+            crypto,
             AuthenticatedEndpoints::Introspection,
             RequestBody::Form(introspect_params),
             http_client,
@@ -963,8 +1014,9 @@ impl Client {
     /// - `token_type_hint` - Optional hint about the token type ("access_token" or "refresh_token").
     /// - `additional_parameters` - Optional additional parameters for the revocation request.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn revoke_async<H: OidcHttpClient>(
+    pub async fn revoke_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         token: &str,
         token_type_hint: Option<&str>,
@@ -985,6 +1037,7 @@ impl Client {
 
         let _response = authenticated_post_async(
             config,
+            crypto,
             AuthenticatedEndpoints::Revocation,
             RequestBody::Form(revoke_params),
             http_client,
@@ -1009,8 +1062,9 @@ impl Client {
     /// - `body` - Optional request body.
     /// - `dpop_options` - Optional DPoP options for the request.
     #[allow(clippy::too_many_arguments)]
-    pub async fn request_resource_async<H: OidcHttpClient>(
+    pub async fn request_resource_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         resource_url: Url,
         access_token: &str,
@@ -1074,7 +1128,9 @@ impl Client {
             );
         }
 
-        http_builder.request_async(request, http_client).await
+        http_builder
+            .request_async(request, http_client, Some(crypto))
+            .await
     }
 
     /// # Userinfo
@@ -1088,8 +1144,10 @@ impl Client {
     /// - `method` - HTTP method (GET or POST, default: GET)
     /// - `additional_params` - Optional additional parameters
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn userinfo_async<H: OidcHttpClient>(
+    #[allow(clippy::too_many_arguments)]
+    pub async fn userinfo_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         token_set: &TokenSet,
         at_location: UserinfoTokenLocation,
@@ -1218,7 +1276,9 @@ impl Client {
             );
         }
 
-        let response = http_builder.request_async(request, http_client).await?;
+        let response = http_builder
+            .request_async(request, http_client, Some(crypto))
+            .await?;
 
         // Parse response
         let body = response
@@ -1235,12 +1295,12 @@ impl Client {
                     .userinfo_signed_response_alg
                     .clone()
                     .map(|alg| vec![alg]),
-                fallback_algs: Some(vec![JwtSigningAlg::RS256]),
+                fallback_algs: Some(vec!["RS256".to_owned()]),
                 skew: config.options.clock_skew,
                 tolerance: config.options.clock_tolerance,
             };
 
-            let validated_jwt = validate_jwt(body, jwt_params, &config.jwe_keys)?;
+            let validated_jwt = validate_jwt(body, jwt_params, &config.jwe_keys, crypto)?;
             Value::Object(validated_jwt.payload.params)
         } else {
             deserialize::<Value>(&body)
@@ -1280,8 +1340,9 @@ impl Client {
     /// - `request_object` - The request object claims as a JSON Value (must be an object)
     ///
     /// Note: Encryption is not yet supported. Only signing is implemented.
-    pub fn request_object(
+    pub fn request_object<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         mut request_object: Value,
     ) -> OidcReturn<String> {
         if !request_object.is_object() {
@@ -1291,12 +1352,11 @@ impl Client {
         }
 
         // Get signing algorithm
-        let alg = config
+        let alg = &config
             .client
             .request_object_signing_alg
-            .as_ref()
-            .map(jwt_signing_alg_to_string)
-            .unwrap_or_else(|| "none".to_string());
+            .clone()
+            .unwrap_or("none".to_string());
 
         let typ = "oauth-authz-req+jwt";
 
@@ -1363,7 +1423,7 @@ impl Client {
         };
 
         // Sign the JWT
-        let signed = Crypto
+        let signed = crypto
             .jws_serialize(payload, header, &jwk)
             .map_err(|e| OpenIdError::new_error(format!("failed to sign request object: {}", e)))?;
 
@@ -1407,7 +1467,9 @@ impl Client {
             .expect_json(true)
             .expect_status_code(200);
 
-        let response = Http::default().request_async(request, http_client).await?;
+        let response = Http::default()
+            .request_async(request, http_client, None)
+            .await?;
 
         let body = response
             .body
@@ -1463,7 +1525,9 @@ impl Client {
         let mut request = request;
         request.body = Some(RequestBody::Json(body));
 
-        let response = Http::default().request_async(request, http_client).await?;
+        let response = Http::default()
+            .request_async(request, http_client, None)
+            .await?;
 
         let body = response
             .body
@@ -1478,8 +1542,9 @@ impl Client {
     ///
     /// Performs a Token Exchange Grant (RFC 8693).
     /// *This method is currently a stub outlining how to extend this client.*
-    pub async fn token_exchange_async<H: OidcHttpClient>(
+    pub async fn token_exchange_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         http_client: &H,
         subject_token: &str,
         subject_token_type: &str,
@@ -1500,9 +1565,14 @@ impl Client {
             subject_token_type.to_owned(),
         );
 
-        let tokenset =
-            Client::grant_async(config, RequestBody::Form(params), http_client, dpop_options)
-                .await?;
+        let tokenset = Client::grant_async(
+            config,
+            crypto,
+            RequestBody::Form(params),
+            http_client,
+            dpop_options,
+        )
+        .await?;
 
         // RFC 8693 Section 2.2.1 specifies `issued_token_type` is REQUIRED in the response
         if tokenset
@@ -1548,28 +1618,9 @@ fn html_escape(input: &str) -> String {
         .replace('\'', "&#x27;")
 }
 
-fn jwt_signing_alg_to_string(alg: &JwtSigningAlg) -> String {
-    match alg {
-        JwtSigningAlg::HS256 => "HS256",
-        JwtSigningAlg::HS384 => "HS384",
-        JwtSigningAlg::HS512 => "HS512",
-        JwtSigningAlg::RS256 => "RS256",
-        JwtSigningAlg::RS384 => "RS384",
-        JwtSigningAlg::RS512 => "RS512",
-        JwtSigningAlg::ES256 => "ES256",
-        JwtSigningAlg::ES384 => "ES384",
-        JwtSigningAlg::ES512 => "ES512",
-        JwtSigningAlg::PS256 => "PS256",
-        JwtSigningAlg::PS384 => "PS384",
-        JwtSigningAlg::PS512 => "PS512",
-        JwtSigningAlg::EdDSA => "EdDSA",
-        JwtSigningAlg::ES256K => "ES256K",
-    }
-    .to_string()
-}
-
-async fn authenticated_post_async<H: OidcHttpClient>(
+async fn authenticated_post_async<H: OidcHttpClient, C: OpenIdCrypto>(
     config: &OpenIdClientConfiguration,
+    crypto: &C,
     endpoint: AuthenticatedEndpoints,
     body: RequestBody,
     http_client: &H,
@@ -1586,6 +1637,7 @@ async fn authenticated_post_async<H: OidcHttpClient>(
         &config.options,
         &config.issuer,
         &mut request,
+        crypto,
     )?;
 
     request = request.header("content-type", "application/x-www-form-urlencoded");
@@ -1645,5 +1697,7 @@ async fn authenticated_post_async<H: OidcHttpClient>(
         );
     }
 
-    binding.request_async(request, http_client).await
+    binding
+        .request_async(request, http_client, Some(crypto))
+        .await
 }

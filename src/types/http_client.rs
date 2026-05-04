@@ -96,10 +96,16 @@ pub struct HttpRequest {
     pub(crate) expectations: HttpResponseExpectations,
 }
 
+impl Default for HttpRequest {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[allow(unused)]
 impl HttpRequest {
     /// Initializes a new request with default settings and a placeholder URL.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             url: url::Url::parse("about:blank").unwrap(),
             headers: HashMap::new(),

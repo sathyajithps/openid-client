@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// # OpenIdResponseType
 ///
 /// Specifies what kind of response type is used in the authorization callback.
@@ -13,4 +15,15 @@ pub enum OpenIdResponseType {
     Implicit,
     /// Used for `code` response type.
     Code,
+}
+
+impl fmt::Display for OpenIdResponseType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OpenIdResponseType::Jarm => write!(f, "jarm"),
+            OpenIdResponseType::Hybrid => write!(f, "hybrid"),
+            OpenIdResponseType::Implicit => write!(f, "implicit"),
+            OpenIdResponseType::Code => write!(f, "code"),
+        }
+    }
 }

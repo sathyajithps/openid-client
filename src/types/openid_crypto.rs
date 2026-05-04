@@ -12,7 +12,6 @@ use crate::{
 /// By implementing this trait, you can customize how payloads are encrypted, decrypted,
 /// signed, and verified using your preferred cryptographic libraries or hardware.
 pub trait OpenIdCrypto {
-    #[allow(unused)]
     fn jwe_serialize(&self, payload: String, header: Header, jwk: &Jwk) -> Result<String, String>;
 
     fn jwe_deserialize(&self, jwe: String, jwk: &Jwk) -> Result<String, String>;

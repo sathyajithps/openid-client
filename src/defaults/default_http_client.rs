@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! Default Http Client
 
 use std::collections::HashMap;
@@ -65,7 +64,7 @@ impl OidcHttpClient for DefaultHttpClient {
             let identity = Identity::from_pkcs8_pem(cert.as_bytes(), key.as_bytes())
                 .map_err(|e| e.to_string())?;
 
-            client = client.use_native_tls().identity(identity);
+            client = client.tls_backend_native().identity(identity);
         }
 
         let client = client.build().map_err(|e| format!("{e}"))?;

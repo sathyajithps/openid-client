@@ -6,7 +6,7 @@ use crate::{
     helpers::deserialize,
     types::{
         http_client::{HttpRequest, HttpResponse, HttpResponseExpectations, OidcHttpClient},
-        DpopSigningAlg,
+        OpenIdCrypto,
     },
 };
 
@@ -17,7 +17,7 @@ use www_authenticate_parser::{CowStr, UniCase};
 /// Represents the DPoP
 struct DPoP<'a> {
     options: &'a DPoPOptions,
-    supported_alg_values: Option<&'a Vec<DpopSigningAlg>>,
+    supported_alg_values: Option<&'a Vec<String>>,
     clock_skew: i32,
 }
 
@@ -58,7 +58,7 @@ impl<'a> Http<'a> {
     pub fn set_dpop(
         mut self,
         options: &'a DPoPOptions,
-        supported_alg_values: Option<&'a Vec<DpopSigningAlg>>,
+        supported_alg_values: Option<&'a Vec<String>>,
         clock_skew: i32,
     ) -> Self {
         self.dpop = Some(DPoP {
@@ -73,6 +73,7 @@ impl<'a> Http<'a> {
         &self,
         mut request: HttpRequest,
         http_client: &T,
+        crypto: Option<&dyn OpenIdCrypto>,
     ) -> OidcReturn<HttpResponse>
     where
         T: OidcHttpClient,
@@ -90,11 +91,16 @@ impl<'a> Http<'a> {
         let expectations = request.expectations;
 
         if let Some(dpop) = &self.dpop {
+            let crypto = crypto.ok_or_else(|| {
+                OpenIdError::new_error("DPoP is configured but no crypto backend was provided")
+            })?;
+
             dpop.options.generate_dpop_header(
                 &mut request,
                 self.access_token,
                 dpop.supported_alg_values,
                 dpop.clock_skew,
+                crypto,
             )?;
         }
 

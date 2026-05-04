@@ -1,13 +1,10 @@
 /// JWT Validation
 pub mod jwt {
     use crate::{
-        defaults::Crypto,
         errors::{OidcReturn, OpenIdError},
         helpers::{base64_url_decode, base64_url_encode, deserialize, unix_timestamp},
         jwk::{Jwk, JwkType},
-        types::{
-            Header, IssuerMetadata, JweAlg, JwtSigningAlg, OpenIdCrypto, Payload, ValidatedJwt,
-        },
+        types::{Header, IssuerMetadata, OpenIdCrypto, Payload, ValidatedJwt},
     };
 
     use serde_json::Value;
@@ -20,11 +17,11 @@ pub mod jwt {
         /// Whether to strictly validate the "alg" header against supported algorithms.
         pub check_header_alg: bool,
         /// Supported signing algorithms defined by the OIDC issuer.
-        pub issuer_algs: &'a Option<Vec<JwtSigningAlg>>,
+        pub issuer_algs: &'a Option<Vec<String>>,
         /// Preferred signing algorithms configured for the client.
-        pub client_algs: Option<Vec<JwtSigningAlg>>,
+        pub client_algs: Option<Vec<String>>,
         /// Default signing algorithms to use if no other configuration is found.
-        pub fallback_algs: Option<Vec<JwtSigningAlg>>,
+        pub fallback_algs: Option<Vec<String>>,
         /// The allowed clock skew in seconds applied to the current time.
         pub skew: i32,
         /// The allowed tolerance in seconds for expiration and "not before" checks.
@@ -82,15 +79,21 @@ pub mod jwt {
     /// Retrieves a single suitable JWK for signature verification based on algorithm and key ID.
     pub fn get_signing_key<'a>(
         issuer_jwks: &'a [Jwk],
-        alg: JwtSigningAlg,
+        alg: String,
         kid: Option<&'a str>,
     ) -> OidcReturn<&'a Jwk> {
-        let kty = JwkType::from(alg.clone());
+        let kty = JwkType::from_alg_str(&alg).ok_or(OpenIdError::new_error("Invalid alg type"))?;
 
         let candidates: Vec<&Jwk> = issuer_jwks
             .iter()
             .filter(|jwk| {
-                if jwk.key_type() != kty {
+                let key_type = jwk.key_type();
+
+                if key_type.is_none() {
+                    return false;
+                }
+
+                if jwk.key_type() != Some(kty) {
                     return false;
                 }
 
@@ -108,7 +111,7 @@ pub mod jwt {
                 }
 
                 if let Some(jwk_alg) = jwk.get_param("alg") {
-                    if let Ok(jwk_alg) = serde_json::from_value::<JwtSigningAlg>(jwk_alg.clone()) {
+                    if let Ok(jwk_alg) = serde_json::from_value::<String>(jwk_alg.clone()) {
                         if alg != jwk_alg {
                             return false;
                         }
@@ -136,19 +139,19 @@ pub mod jwt {
 
                 let crv = jwk.get_param("crv").and_then(|crv| crv.as_str());
 
-                if alg == JwtSigningAlg::ES256 && crv != Some("P-256") {
+                if alg == "ES256" && crv != Some("P-256") {
                     return false;
                 }
 
-                if alg == JwtSigningAlg::ES384 && crv != Some("P-384") {
+                if alg == "ES384" && crv != Some("P-384") {
                     return false;
                 }
 
-                if alg == JwtSigningAlg::ES512 && crv != Some("P-521") {
+                if alg == "ES512" && crv != Some("P-521") {
                     return false;
                 }
 
-                if alg == JwtSigningAlg::EdDSA && crv != Some("Ed25519") {
+                if alg == "EdDSA" && crv != Some("Ed25519") {
                     return false;
                 }
 
@@ -170,7 +173,7 @@ pub mod jwt {
     /// Retrieves a suitable JWK for JWE decryption based on algorithm, key ID, and curve parameters.
     pub fn get_jwe_key<'a>(
         jwe_keys: &'a [Jwk],
-        alg: JweAlg,
+        alg: String,
         kid: Option<&'a str>,
         epk_crv: Option<&'a str>,
     ) -> OidcReturn<&'a Jwk> {
@@ -188,34 +191,26 @@ pub mod jwt {
                     }
                 }
 
-                if let Some(jwk_alg) = jwk
-                    .params
-                    .get("alg")
-                    .and_then(|a| a.as_str())
-                    .and_then(JweAlg::from_alg_str)
-                {
+                if let Some(jwk_alg) = jwk.params.get("alg").and_then(|a| a.as_str()) {
                     if jwk_alg != alg {
                         return false;
                     }
 
-                    if alg == JweAlg::RsaOaep || alg == JweAlg::RsaOaep256 {
+                    if alg == "RSA-OAEP" || alg == "RSA-OAEP-256" {
                         return true;
                     }
 
                     if matches!(
-                        alg,
-                        JweAlg::EcdhEs
-                            | JweAlg::EcdhEsA128Kw
-                            | JweAlg::EcdhEsA192Kw
-                            | JweAlg::EcdhEsA256Kw
+                        alg.as_str(),
+                        "ECDH-ES" | "ECDH-ES+A128KW" | "ECDH-ES+A192KW" | "ECDH-ES+A256KW"
                     ) {
                         match (
                             jwk.key_type(),
                             epk_crv,
                             jwk.params.get("crv").and_then(|c| c.as_str()),
                         ) {
-                            (JwkType::Ec, Some(epk_crv), Some(crv)) => return epk_crv == crv,
-                            (JwkType::Okp, Some(epk_crv), Some("X25519")) => {
+                            (Some(JwkType::EC), Some(epk_crv), Some(crv)) => return epk_crv == crv,
+                            (Some(JwkType::OKP), Some(epk_crv), Some("X25519")) => {
                                 return epk_crv == "X25519";
                             }
                             _ => return false,
@@ -245,16 +240,17 @@ pub mod jwt {
     }
 
     /// Performs complete validation of a JWT, including optional decryption, algorithm checks, and signature verification.
-    pub fn validate_jwt(
+    pub fn validate_jwt<C: OpenIdCrypto>(
         mut jwt: String,
         jwt_params: JwtValidationParameters,
         jwe_keys: &[Jwk],
+        crypto: &C,
     ) -> OidcReturn<ValidatedJwt> {
         if is_encrypted_jwt(&jwt) {
             let jwe_header = jwe_header(&jwt)?;
 
             let alg = jwe_header
-                .jwe_alg()
+                .alg()
                 .ok_or(OpenIdError::new_error("JWE does not have alg parameter"))?;
             let kid = jwe_header.params.get("kid").and_then(|kid| kid.as_str());
             let epk_crv = jwe_header
@@ -266,7 +262,7 @@ pub mod jwt {
 
             let decrypting_jwk = get_jwe_key(jwe_keys, alg, kid, epk_crv)?;
 
-            jwt = decrypt_jwe(jwt, decrypting_jwk)?;
+            jwt = decrypt_jwe(jwt, decrypting_jwk, crypto)?;
         }
 
         if !is_jwt(&jwt) {
@@ -367,7 +363,7 @@ pub mod jwt {
 
         let signing_key = get_signing_key(jwt_params.signing_keys, alg, kid)?;
 
-        (header, payload) = Crypto
+        (header, payload) = crypto
             .jws_deserialize(jwt, signing_key)
             .map_err(OpenIdError::new_error)?;
 
@@ -375,8 +371,8 @@ pub mod jwt {
     }
 
     /// Decrypts a JWE string using the provided JSON Web Key.
-    pub fn decrypt_jwe(jwe: String, jwk: &Jwk) -> OidcReturn<String> {
-        Crypto
+    pub fn decrypt_jwe<C: OpenIdCrypto>(jwe: String, jwk: &Jwk, crypto: &C) -> OidcReturn<String> {
+        crypto
             .jwe_deserialize(jwe, jwk)
             .map_err(OpenIdError::new_error)
     }
@@ -431,22 +427,14 @@ pub mod jwt {
     }
 
     /// Compares a data string against a hash value using the specified signing algorithm's hash function.
-    pub fn hash_match(alg: &JwtSigningAlg, data: &str, expected: &str) -> bool {
+    pub fn hash_match(alg: &str, data: &str, expected: &str) -> bool {
         let hash = match alg {
-            JwtSigningAlg::HS256
-            | JwtSigningAlg::RS256
-            | JwtSigningAlg::ES256
-            | JwtSigningAlg::ES256K
-            | JwtSigningAlg::PS256 => Sha256::digest(data)[..].to_vec(),
-            JwtSigningAlg::HS384
-            | JwtSigningAlg::RS384
-            | JwtSigningAlg::ES384
-            | JwtSigningAlg::PS384 => Sha384::digest(data)[..].to_vec(),
-            JwtSigningAlg::HS512
-            | JwtSigningAlg::RS512
-            | JwtSigningAlg::ES512
-            | JwtSigningAlg::PS512
-            | JwtSigningAlg::EdDSA => Sha512::digest(data)[..].to_vec(),
+            "HS256" | "RS256" | "ES256" | "ES256K" | "PS256" => Sha256::digest(data)[..].to_vec(),
+            "HS384" | "RS384" | "ES384" | "PS384" => Sha384::digest(data)[..].to_vec(),
+            "HS512" | "RS512" | "ES512" | "PS512" | "EdDSA" => Sha512::digest(data)[..].to_vec(),
+            _ => {
+                return false;
+            }
         };
 
         let encoded = base64_url_encode(&hash[0..hash.len() / 2]);
@@ -468,12 +456,13 @@ pub mod authorization_code {
         errors::{OidcReturn, OpenIdError},
         helpers::unix_timestamp,
         token_set::TokenSet,
-        types::{JwtSigningAlg, MaxAgeCheck, NonceCheck, StateCheck},
+        types::{MaxAgeCheck, NonceCheck, OpenIdCrypto, StateCheck},
     };
 
     /// Validates a JWT-based Authorization Response (JARM) and returns the extracted parameters.
-    pub fn validate_jarm(
+    pub fn validate_jarm<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         callback_params: HashMap<String, String>,
         state_check: StateCheck,
     ) -> OidcReturn<HashMap<String, String>> {
@@ -493,12 +482,17 @@ pub mod authorization_code {
                 .authorization_signed_response_alg
                 .clone()
                 .map(|alg| vec![alg]),
-            fallback_algs: Some(vec![JwtSigningAlg::RS256]),
+            fallback_algs: Some(vec!["RS256".to_owned()]),
             skew: config.options.clock_skew,
             tolerance: config.options.clock_tolerance,
         };
 
-        let validated_jwt = validate_jwt(response_jwt, jwt_validation_params, &config.jwe_keys)?;
+        let validated_jwt = validate_jwt(
+            response_jwt,
+            jwt_validation_params,
+            &config.jwe_keys,
+            crypto,
+        )?;
         validate_presence(&validated_jwt, &["aud", "exp", "iss"])?;
         validate_issuer(&validated_jwt, &config.issuer)?;
         validate_audience(&validated_jwt, &config.client.client_id)?;
@@ -525,8 +519,9 @@ pub mod authorization_code {
     }
 
     /// Validates an OIDC hybrid flow response, ensuring the ID Token, code, and hashes are correct.
-    pub fn validate_hybrid_response(
+    pub fn validate_hybrid_response<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         mut callback_params: HashMap<String, String>,
         state_check: StateCheck,
         nonce_check: Option<NonceCheck>,
@@ -580,12 +575,13 @@ pub mod authorization_code {
                 .id_token_signed_response_alg
                 .clone()
                 .map(|alg| vec![alg]),
-            fallback_algs: Some(vec![JwtSigningAlg::RS256]),
+            fallback_algs: Some(vec!["RS256".to_owned()]),
             skew: config.options.clock_skew,
             tolerance: config.options.clock_tolerance,
         };
 
-        let validated_jwt = validate_jwt(id_token, jwt_validation_params, &config.jwe_keys)?;
+        let validated_jwt =
+            validate_jwt(id_token, jwt_validation_params, &config.jwe_keys, crypto)?;
         validate_presence(&validated_jwt, &required_claims)?;
         validate_issuer(&validated_jwt, &config.issuer)?;
         validate_audience(&validated_jwt, &config.client.client_id)?;
@@ -831,8 +827,9 @@ pub mod authorization_code {
     }
 
     /// Validates an OIDC authorization code flow response, verifying the TokenSet and its ID Token claims.
-    pub fn validate_auth_code_openid_response(
+    pub fn validate_auth_code_openid_response<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         tokenset: TokenSet,
         nonce_check: NonceCheck,
         max_age_check: Option<MaxAgeCheck>,
@@ -845,7 +842,8 @@ pub mod authorization_code {
 
         let max_age_check = internal_max_age_extract(config, max_age_check, &mut required_claims);
 
-        let token_set = validate_access_token_response(config, tokenset, &required_claims, true)?;
+        let token_set =
+            validate_access_token_response(config, crypto, tokenset, &required_claims, true)?;
 
         internal_max_age_check(config, max_age_check, &token_set)?;
 
@@ -876,11 +874,12 @@ pub mod authorization_code {
     }
 
     /// Validates an OAuth 2.0 authorization code flow response that lacks standard OIDC ID Token features.
-    pub fn validate_auth_code_oauth_response(
+    pub fn validate_auth_code_oauth_response<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         tokenset: TokenSet,
     ) -> OidcReturn<TokenSet> {
-        let tokenset = validate_access_token_response(config, tokenset, &[], true)?;
+        let tokenset = validate_access_token_response(config, crypto, tokenset, &[], true)?;
 
         if let Some(claims) = tokenset.claims() {
             if let Some(default_max_age) = config.client.default_max_age {
@@ -911,8 +910,9 @@ pub mod authorization_code {
     }
 
     /// Validates an implicit flow response, ensuring the returned tokens and nonce are valid.
-    pub fn validate_implicit_response(
+    pub fn validate_implicit_response<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         tokenset: TokenSet,
         expect_id_token: bool,
         nonce_check: Option<NonceCheck>,
@@ -932,7 +932,8 @@ pub mod authorization_code {
 
         let max_age_check = internal_max_age_extract(config, max_age_check, &mut required_claims);
 
-        let token_set = validate_access_token_response(config, tokenset, &required_claims, false)?;
+        let token_set =
+            validate_access_token_response(config, crypto, tokenset, &required_claims, false)?;
 
         internal_max_age_check(config, max_age_check, &token_set)?;
 
@@ -960,8 +961,9 @@ pub mod authorization_code {
     }
 
     /// Internal helper to validate a TokenSet's structure and the cryptographic integrity of its ID Token.
-    pub fn validate_access_token_response(
+    pub fn validate_access_token_response<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
+        crypto: &C,
         mut tokenset: TokenSet,
         additional_required_claims: &[&str],
         check_access_token_presence: bool,
@@ -1004,13 +1006,17 @@ pub mod authorization_code {
                     .id_token_signed_response_alg
                     .clone()
                     .map(|alg| vec![alg]),
-                fallback_algs: Some(vec![JwtSigningAlg::RS256]),
+                fallback_algs: Some(vec!["RS256".to_owned()]),
                 skew: config.options.clock_skew,
                 tolerance: config.options.clock_tolerance,
             };
 
-            let validated_jwt =
-                validate_jwt(id_token.clone(), jwt_validation_params, &config.jwe_keys)?;
+            let validated_jwt = validate_jwt(
+                id_token.clone(),
+                jwt_validation_params,
+                &config.jwe_keys,
+                crypto,
+            )?;
             validate_presence(&validated_jwt, &required_claims)?;
             validate_issuer(&validated_jwt, &config.issuer)?;
             validate_audience(&validated_jwt, &config.client.client_id)?;
