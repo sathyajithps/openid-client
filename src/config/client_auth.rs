@@ -1,5 +1,5 @@
 use serde_json::{Map, Number, Value};
-use std::{borrow::Cow, collections::HashMap, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use crate::{
     config::configuration_options::ConfigurationOptions,
@@ -24,15 +24,15 @@ pub const DEFAULT_JWT_ASSERTION_TYPE: &str =
 #[derive(Default, Debug, Clone)]
 pub struct JwtAssertionOptions {
     /// Optional duration (in seconds) for which the assertion is valid. (exp) claim is derived from this value.
-    assertion_duration: Option<Duration>,
+    pub assertion_duration: Option<Duration>,
     /// Optional additional claims to include in the JWT payload.
-    custom_claims: Option<HashMap<String, Value>>,
+    pub custom_claims: Option<HashMap<String, Value>>,
     /// Optional additional claims to include in the JWT header.
-    custom_header_claims: Option<HashMap<String, Value>>,
+    pub custom_header_claims: Option<HashMap<String, Value>>,
     /// Optional signing algorithm to use for the JWT. Default is HS256 for client_secret_jwt and RS256 for private_key_jwt.
-    signing_algorithm: Option<Cow<'static, str>>,
+    pub signing_algorithm: Option<String>,
     /// Optional assertion type. The default is urn:ietf:params:oauth:client-assertion-type:jwt-bearer.
-    assertion_type: Option<Cow<'static, str>>,
+    pub assertion_type: Option<String>,
 }
 
 /// Represents the different client authentication methods in OpenID Connect.
@@ -284,7 +284,7 @@ impl ClientAuth {
     /// Sets assertion type for JWT-based client authentication.
     ///
     /// Has effect only on `ClientSecretJwt` and `PrivateKeyJwt` variants.
-    pub fn set_assertion_type(&mut self, assertion_type: impl Into<Cow<'static, str>>) {
+    pub fn set_assertion_type(&mut self, assertion_type: impl Into<String>) {
         if let Some(options) = self.get_jwt_options_mut() {
             options.assertion_type = Some(assertion_type.into());
         }

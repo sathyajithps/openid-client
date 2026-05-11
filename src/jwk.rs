@@ -454,3 +454,10 @@ impl Jwk {
         }
     }
 }
+
+/// JWK Set
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Jwks {
+    /// List of Jwk
+    pub keys: Vec<Jwk>,
+}

@@ -38,6 +38,31 @@ impl OpenIdCrypto for JwsOnlyCrypto {
     fn jws_serialize(&self, payload: Payload, header: Header, jwk: &Jwk) -> Result<String, String> {
         let key_type = jwk.key_type().ok_or("Unknown key type")?;
 
+        // Prefer JWK's alg to determine the signing algorithm. Validate
+        // consistency with the header alg to prevent signing with a mismatched algorithm.
+        let alg_str = match get_jwk_param(jwk, "alg") {
+            Ok(alg) => alg.to_owned(),
+            Err(_) => header
+                .params
+                .get("alg")
+                .and_then(|v| v.as_str())
+                .ok_or("neither JWK nor JWT header contain an 'alg' parameter")?
+                .to_owned(),
+        };
+
+        if let Some(header_alg) = header.params.get("alg").and_then(|v| v.as_str()) {
+            if header_alg != alg_str {
+                return Err(format!(
+                    "header alg '{}' does not match JWK alg '{}'",
+                    header_alg, alg_str
+                ));
+            }
+        }
+
+        validate_jws_alg_for_jwk(&alg_str, jwk, key_type)?;
+
+        let jsonwebtoken_alg = Algorithm::from_str(&alg_str).map_err(|e| e.to_string())?;
+
         let encoding_key = match key_type {
             JwkType::OCT => {
                 let secret_b64_url = get_jwk_param(jwk, "k")?;
@@ -126,21 +151,6 @@ impl OpenIdCrypto for JwsOnlyCrypto {
             }
         };
 
-        // Prefer JWK's alg to determine the signing algorithm. Validate
-        // consistency with the header alg to prevent signing with a mismatched algorithm.
-        let alg_str = get_jwk_param(jwk, "alg")?;
-
-        if let Some(header_alg) = header.params.get("alg").and_then(|v| v.as_str()) {
-            if header_alg != alg_str {
-                return Err(format!(
-                    "header alg '{}' does not match JWK alg '{}'",
-                    header_alg, alg_str
-                ));
-            }
-        }
-
-        let jsonwebtoken_alg = Algorithm::from_str(alg_str).map_err(|e| e.to_string())?;
-
         let message = format!(
             "{}.{}",
             base64_url_encode(serde_json::to_string(&header.params).map_err(|e| e.to_string())?),
@@ -216,6 +226,18 @@ impl OpenIdCrypto for JwsOnlyCrypto {
                 .to_owned(),
         };
 
+        if let (Some(header_alg), Some(jwk_alg)) = (
+            parsed_header.get("alg").and_then(|v| v.as_str()),
+            jwk.get_param("alg").and_then(|v| v.as_str()),
+        ) {
+            if header_alg != jwk_alg {
+                return Err(format!(
+                    "header alg '{}' does not match JWK alg '{}'",
+                    header_alg, jwk_alg
+                ));
+            }
+        }
+
         let jsonwebtoken_alg = Algorithm::from_str(&alg_str).map_err(|e| e.to_string())?;
 
         if let Ok(result) = crypto::verify(
@@ -228,16 +250,6 @@ impl OpenIdCrypto for JwsOnlyCrypto {
                 let header = Header {
                     params: parsed_header,
                 };
-
-                if header.params.contains_key("kid") && jwk.params.contains_key("kid") {
-                    if let (Some(kid), Some(key_kid)) =
-                        (header.params.get("kid"), jwk.params.get("kid"))
-                    {
-                        if kid != key_kid {
-                            return Err("JWS verification failed kid mismatch".to_owned());
-                        }
-                    }
-                }
 
                 let payload = Payload {
                     params: serde_json::from_str(&String::from_utf8_lossy(&base64_url_to_buf(
@@ -266,6 +278,47 @@ fn get_jwk_param<'a>(jwk: &'a Jwk, key: &str) -> Result<&'a str, String> {
         .ok_or_else(|| format!("Jwk does not contain parameter: {}", key))
 }
 
+fn validate_jws_alg_for_jwk(alg: &str, jwk: &Jwk, key_type: JwkType) -> Result<(), String> {
+    let alg_key_type =
+        JwkType::from_alg_str(alg).ok_or_else(|| format!("Unsupported JWS algorithm: {}", alg))?;
+
+    if alg_key_type != key_type {
+        return Err(format!(
+            "JWS algorithm '{}' is incompatible with JWK kty '{}'",
+            alg,
+            key_type.get_kty()
+        ));
+    }
+
+    match key_type {
+        JwkType::EC => {
+            let crv = get_jwk_param(jwk, "crv")?;
+            match (crv, alg) {
+                ("P-256", "ES256") | ("P-384", "ES384") => Ok(()),
+                ("P-256", _) | ("P-384", _) => Err(format!(
+                    "JWS algorithm '{}' is incompatible with EC curve '{}'",
+                    alg, crv
+                )),
+                _ => Err("Unsupported EC Curve".to_owned()),
+            }
+        }
+        JwkType::OKP => {
+            let crv = get_jwk_param(jwk, "crv")?;
+            if crv == "Ed25519" && alg == "EdDSA" {
+                Ok(())
+            } else if crv == "Ed25519" {
+                Err(format!(
+                    "JWS algorithm '{}' is incompatible with OKP curve '{}'",
+                    alg, crv
+                ))
+            } else {
+                Err("Invalid OKP Curve".to_owned())
+            }
+        }
+        JwkType::OCT | JwkType::RSA => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod jws_only_crypto_tests {
     use super::*;
@@ -274,6 +327,11 @@ mod jws_only_crypto_tests {
     "kty": "oct",
     "k": "n3r3cKt0c0FaRcKGb8oREXm8StLeewv5tk88gxAYnsqLEfJja4rO27loi8W3UNnXlE4tdeOXS6QNhkUU7Qk4y-iizKdyx5XsAOkOfFvIZ673EfbeT1y5oCvl8itwvy9YaxbxSoefDoSZB5fLvPFJjRySE4QNtJbSzx_z5ojpAWAxSBbHDrlHcexGbby6zsZLrQinvwDA0l5CoezDYHHc401KPD1JzXKFZ-VslF6tIbpKH_K9WpozFZwX3vF1LrHItzwVf65hvMK8prSN31eoL8opLZIeZTJy_xcoBGD3wVD8PeyustH2Mw2k6TKNEPYFx22wjXI_IDMOSMMbj57l0Q",
     "alg": "HS256"
+}"#;
+
+    const JWK_HS256_NO_ALG: &str = r#"{
+    "kty": "oct",
+    "k": "n3r3cKt0c0FaRcKGb8oREXm8StLeewv5tk88gxAYnsqLEfJja4rO27loi8W3UNnXlE4tdeOXS6QNhkUU7Qk4y-iizKdyx5XsAOkOfFvIZ673EfbeT1y5oCvl8itwvy9YaxbxSoefDoSZB5fLvPFJjRySE4QNtJbSzx_z5ojpAWAxSBbHDrlHcexGbby6zsZLrQinvwDA0l5CoezDYHHc401KPD1JzXKFZ-VslF6tIbpKH_K9WpozFZwX3vF1LrHItzwVf65hvMK8prSN31eoL8opLZIeZTJy_xcoBGD3wVD8PeyustH2Mw2k6TKNEPYFx22wjXI_IDMOSMMbj57l0Q"
 }"#;
 
     const JWK_HS384: &str = r#"{
@@ -420,6 +478,14 @@ mod jws_only_crypto_tests {
         }
 
         #[test]
+        fn should_serialize_with_oct_key_hs256_no_alg() {
+            let result = serialize(JWK_HS256_NO_ALG, "HS256");
+
+            assert!(result.is_ok());
+            assert_eq!("eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJjbGllbnRfaWQifQ.bmi-11GfR1I1WnSL8qK-zCh30FWcwZ6kJkEvLW72_ts", result.unwrap());
+        }
+
+        #[test]
         fn should_serialize_with_oct_key_hs384() {
             let result = serialize(JWK_HS384, "HS384");
 
@@ -558,6 +624,42 @@ mod jws_only_crypto_tests {
         }
 
         #[test]
+        fn should_return_descriptive_error_when_header_alg_does_not_match_key_type() {
+            let jwk_str = r#"{
+    "kty": "EC",
+    "d": "mZKvlwPYqPwYOPNDTC5eYrskeTeZKsiwi-01kE-HvGY",
+    "crv": "P-256",
+    "x": "x_YLaRgdiqG2xvIJCPaSxiy49j1MHsMBwpDBSIquceU",
+    "y": "w-Ldf_OXRyjwr9Uc-WiqvzAfY-MEmVlJtRM5UhdkOQw"
+}"#;
+
+            let result = serialize(jwk_str, "RS256");
+
+            assert_eq!(
+                result.unwrap_err(),
+                "JWS algorithm 'RS256' is incompatible with JWK kty 'EC'"
+            );
+        }
+
+        #[test]
+        fn should_return_descriptive_error_when_header_alg_does_not_match_ec_curve() {
+            let jwk_str = r#"{
+    "kty": "EC",
+    "d": "mZKvlwPYqPwYOPNDTC5eYrskeTeZKsiwi-01kE-HvGY",
+    "crv": "P-256",
+    "x": "x_YLaRgdiqG2xvIJCPaSxiy49j1MHsMBwpDBSIquceU",
+    "y": "w-Ldf_OXRyjwr9Uc-WiqvzAfY-MEmVlJtRM5UhdkOQw"
+}"#;
+
+            let result = serialize(jwk_str, "ES384");
+
+            assert_eq!(
+                result.unwrap_err(),
+                "JWS algorithm 'ES384' is incompatible with EC curve 'P-256'"
+            );
+        }
+
+        #[test]
         fn should_serialize_with_okp_key_eddsa() {
             let result = serialize(JWK_EDDSA_ED25519, "EdDSA");
 
@@ -604,6 +706,31 @@ mod jws_only_crypto_tests {
             let token = "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJjbGllbnRfaWQifQ.bmi-11GfR1I1WnSL8qK-zCh30FWcwZ6kJkEvLW72_ts".to_owned();
 
             let jwk = Jwk::try_from(JWK_HS256).unwrap();
+
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+
+            assert!(result.is_ok());
+
+            let (header, payload) = result.unwrap();
+
+            assert_eq!(
+                header.params.get("alg"),
+                Some(&Value::String("HS256".to_owned()))
+            );
+            assert_eq!(header.params.len(), 1);
+
+            assert_eq!(
+                payload.params.get("iss"),
+                Some(&Value::String("client_id".to_owned()))
+            );
+            assert_eq!(payload.params.len(), 1);
+        }
+
+        #[test]
+        fn should_deserialize_with_oct_key_hs256_no_alg() {
+            let token = "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJjbGllbnRfaWQifQ.bmi-11GfR1I1WnSL8qK-zCh30FWcwZ6kJkEvLW72_ts".to_owned();
+
+            let jwk = Jwk::try_from(JWK_HS256_NO_ALG).unwrap();
 
             let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
 

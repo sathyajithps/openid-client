@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_with::skip_serializing_none;
 
 use crate::{
     helpers::{generate_pkce, generate_random},
@@ -9,7 +11,8 @@ use crate::{
 
 /// # AuthorizationParameters
 /// Represents the parameters used to construct an OIDC or OAuth 2.0 authorization request.
-#[derive(Default)]
+#[skip_serializing_none]
+#[derive(Default, Serialize, Deserialize)]
 pub struct AuthorizationParameters {
     /// The unique identifier for the client application issued by the authorization server.
     pub client_id: Option<String>,
@@ -42,7 +45,7 @@ pub struct AuthorizationParameters {
     /// A signed or encrypted JWT that bundles the authorization request parameters.
     pub request: Option<String>,
     /// A list of requested permissions or access levels for the tokens.
-    pub scope: Option<Vec<String>>,
+    pub scope: Option<String>,
     /// Specifies whether the authorization server should prompt the user for re-authentication or consent.
     pub prompt: Option<Vec<String>>,
     /// The intended recipients for the issued tokens.
@@ -178,12 +181,8 @@ impl AuthorizationParameters {
     }
 
     /// Add a scope to the `scope` parameter.
-    pub fn add_scope(mut self, scope: impl Into<String>) -> Self {
-        match &mut self.scope {
-            Some(scopes) => scopes.push(scope.into()),
-            None => self.scope = Some(vec![scope.into()]),
-        }
-
+    pub fn scope(mut self, scope: impl Into<String>) -> Self {
+        self.scope = Some(scope.into());
         self
     }
 
@@ -337,7 +336,7 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         insert_query(&mut query, "request", val.request);
         insert_query(&mut query, "response_mode", val.response_mode);
         insert_query(&mut query, "response_type", val.response_type);
-        insert_query(&mut query, "scope", stringify_vec(val.scope));
+        insert_query(&mut query, "scope", val.scope);
         insert_query(&mut query, "state", val.state);
         insert_query(&mut query, "resource", stringify_vec(val.resource));
         insert_query(&mut query, "ui_locales", stringify_vec(val.ui_locales));
@@ -349,6 +348,12 @@ impl From<AuthorizationParameters> for HashMap<String, String> {
         }
 
         query
+    }
+}
+
+impl From<AuthorizationParameters> for Value {
+    fn from(val: AuthorizationParameters) -> Self {
+        serde_json::to_value(val).unwrap()
     }
 }
 

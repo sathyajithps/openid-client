@@ -41,6 +41,8 @@ pub struct HttpResponseExpectations {
     pub body: bool,
     /// Specifies if the response should be of type json and validates it.
     pub json: bool,
+    /// Expect a raw string in the body
+    pub raw: bool,
     /// Expected status code from the server.
     pub status_code: u16,
     /// Check for bearer token related errors.
@@ -117,6 +119,7 @@ impl HttpRequest {
                 body: true,
                 status_code: 200,
                 json: true,
+                raw: false,
                 bearer: false,
             },
         }
@@ -201,12 +204,6 @@ impl HttpRequest {
         self
     }
 
-    /// Sets the expectation for whether a response body should be returned.
-    pub(crate) fn expect_body(mut self, expect: bool) -> Self {
-        self.expectations.body = expect;
-        self
-    }
-
     /// Sets the HTTP status code that the library expects for a successful operation.
     pub(crate) fn expect_status_code(mut self, code: u16) -> Self {
         self.expectations.status_code = code;
@@ -214,9 +211,18 @@ impl HttpRequest {
     }
 
     /// Sets the expectation that the response body should be present and valid JSON.
-    pub(crate) fn expect_json(mut self, expect: bool) -> Self {
-        self.expectations.body = expect;
-        self.expectations.json = expect;
+    pub(crate) fn expect_json(mut self) -> Self {
+        self.expectations.json = true;
+        self.expectations.body = true;
+        self.expectations.raw = false;
+        self
+    }
+
+    /// Sets the expection that the response body should be a raw string.
+    pub(crate) fn expect_raw_body(mut self) -> Self {
+        self.expectations.body = true;
+        self.expectations.raw = true;
+        self.expectations.json = false;
         self
     }
 }

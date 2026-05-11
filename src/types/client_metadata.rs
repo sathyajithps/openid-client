@@ -3,6 +3,11 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::{
+    jwk::{Jwk, Jwks},
+    types::ClientRegistrationResponse,
+};
+
 /// # Client Metadata
 /// Options of a configured client instance
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -52,139 +57,180 @@ pub struct ClientMetadata {
     /// Content encryption algorithm for request objects
     pub request_object_encryption_enc: Option<String>,
 
+    /// Client's Jwks
+    pub jwks: Option<Jwks>,
+
+    /// Client Jwks uri
+    pub jwks_uri: Option<String>,
+
     /// Extra key values
     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
     pub additional_data: HashMap<String, Value>,
 }
 
-// use serde::{Deserialize, Serialize};
-// use std::collections::HashMap;
+impl From<ClientRegistrationResponse> for ClientMetadata {
+    fn from(value: ClientRegistrationResponse) -> Self {
+        let mut metadata = value.metadata;
 
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct ClientRegistration {
-//     pub redirect_uris: Vec<String>,
+        Self {
+            client_id: value.client_id,
+            post_logout_redirect_uri: take_string(&mut metadata, "post_logout_redirect_uri")
+                .or_else(|| take_first_string(&mut metadata, "post_logout_redirect_uris")),
+            tls_client_certificate_bound_access_tokens: take_bool(
+                &mut metadata,
+                "tls_client_certificate_bound_access_tokens",
+            ),
+            authorization_signed_response_alg: take_string(
+                &mut metadata,
+                "authorization_signed_response_alg",
+            ),
+            id_token_signed_response_alg: take_string(
+                &mut metadata,
+                "id_token_signed_response_alg",
+            ),
+            id_token_encrypted_response_alg: take_string(
+                &mut metadata,
+                "id_token_encrypted_response_alg",
+            ),
+            id_token_encrypted_response_enc: take_string(
+                &mut metadata,
+                "id_token_encrypted_response_enc",
+            ),
+            default_max_age: take_u64(&mut metadata, "default_max_age"),
+            require_auth_time: take_bool(&mut metadata, "require_auth_time"),
+            userinfo_signed_response_alg: take_string(
+                &mut metadata,
+                "userinfo_signed_response_alg",
+            ),
+            userinfo_encrypted_response_alg: take_string(
+                &mut metadata,
+                "userinfo_encrypted_response_alg",
+            ),
+            userinfo_encrypted_response_enc: take_string(
+                &mut metadata,
+                "userinfo_encrypted_response_enc",
+            ),
+            request_object_signing_alg: take_string(&mut metadata, "request_object_signing_alg"),
+            request_object_encryption_alg: take_string(
+                &mut metadata,
+                "request_object_encryption_alg",
+            ),
+            request_object_encryption_enc: take_string(
+                &mut metadata,
+                "request_object_encryption_enc",
+            ),
+            jwks: take_jwks(&mut metadata, "jwks"),
+            jwks_uri: take_string(&mut metadata, "jwks_uri"),
+            additional_data: metadata,
+        }
+    }
+}
 
-//     /// OPTIONAL. List of OAuth 2.0 response_type values
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub response_types: Option<Vec<String>>,
+#[inline]
+fn take_string(metadata: &mut HashMap<String, Value>, key: &str) -> Option<String> {
+    match metadata.remove(key) {
+        Some(Value::String(value)) => Some(value),
+        Some(value) => {
+            metadata.insert(key.to_owned(), value);
+            None
+        }
+        None => None,
+    }
+}
 
-//     /// OPTIONAL. List of OAuth 2.0 Grant Types
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub grant_types: Option<Vec<String>>,
+#[inline]
+fn take_first_string(metadata: &mut HashMap<String, Value>, key: &str) -> Option<String> {
+    match metadata.remove(key) {
+        Some(Value::String(value)) => Some(value),
+        Some(Value::Array(values)) => {
+            let mut values = values.into_iter();
 
-//     /// OPTIONAL. Application type (web | native)
-//     #[serde(default = "default_application_type")]
-//     pub application_type: String,
+            match values.next() {
+                Some(Value::String(value)) => Some(value),
+                Some(value) => {
+                    let mut original = Vec::with_capacity(values.size_hint().0 + 1);
+                    original.push(value);
+                    original.extend(values);
+                    metadata.insert(key.to_owned(), Value::Array(original));
+                    None
+                }
+                None => {
+                    metadata.insert(key.to_owned(), Value::Array(Vec::new()));
+                    None
+                }
+            }
+        }
+        Some(value) => {
+            metadata.insert(key.to_owned(), value);
+            None
+        }
+        None => None,
+    }
+}
 
-//     /// OPTIONAL. Contact emails
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub contacts: Option<Vec<String>>,
+#[inline]
+fn take_bool(metadata: &mut HashMap<String, Value>, key: &str) -> Option<bool> {
+    match metadata.remove(key) {
+        Some(Value::Bool(value)) => Some(value),
+        Some(value) => {
+            metadata.insert(key.to_owned(), value);
+            None
+        }
+        None => None,
+    }
+}
 
-//     /// OPTIONAL. Client name (can support multilingual versions via map)
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub client_name: Option<String>,
+#[inline]
+fn take_u64(metadata: &mut HashMap<String, Value>, key: &str) -> Option<u64> {
+    match metadata.remove(key) {
+        Some(Value::Number(value)) => match value.as_u64() {
+            Some(value) => Some(value),
+            None => {
+                metadata.insert(key.to_owned(), Value::Number(value));
+                None
+            }
+        },
+        Some(value) => {
+            metadata.insert(key.to_owned(), value);
+            None
+        }
+        None => None,
+    }
+}
 
-//     /// OPTIONAL. Logo URI
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub logo_uri: Option<String>,
+#[inline]
+fn take_jwks(metadata: &mut HashMap<String, Value>, key: &str) -> Option<Jwks> {
+    match metadata.remove(key) {
+        Some(Value::Object(mut object)) => match object.remove("keys") {
+            Some(Value::Array(values)) => values_to_jwks(values),
+            Some(value) => {
+                object.insert("keys".to_owned(), value);
+                metadata.insert(key.to_owned(), Value::Object(object));
+                None
+            }
+            None => {
+                metadata.insert(key.to_owned(), Value::Object(object));
+                None
+            }
+        },
+        Some(value) => {
+            metadata.insert(key.to_owned(), value);
+            None
+        }
+        None => None,
+    }
+}
 
-//     /// OPTIONAL. Client home page
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub client_uri: Option<String>,
+#[inline]
+fn values_to_jwks(values: Vec<Value>) -> Option<Jwks> {
+    let mut jwks = Vec::with_capacity(values.len());
 
-//     /// OPTIONAL. Policy page URI
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub policy_uri: Option<String>,
+    for value in values {
+        match value {
+            Value::Object(params) => jwks.push(Jwk { params }),
+            _ => return None,
+        }
+    }
 
-//     /// OPTIONAL. Terms of Service URI
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub tos_uri: Option<String>,
-
-//     /// OPTIONAL. JWKS URI
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub jwks_uri: Option<String>,
-
-//     /// OPTIONAL. JWK Set (inline)
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub jwks: Option<serde_json::Value>,
-
-//     /// OPTIONAL. Sector Identifier URI
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub sector_identifier_uri: Option<String>,
-
-//     /// OPTIONAL. subject_type (pairwise | public)
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub subject_type: Option<String>,
-
-//     /// OPTIONAL. ID Token signing algorithm
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub id_token_signed_response_alg: Option<String>,
-
-//     /// OPTIONAL. ID Token encryption alg
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub id_token_encrypted_response_alg: Option<String>,
-
-//     /// OPTIONAL. ID Token encryption enc
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub id_token_encrypted_response_enc: Option<String>,
-
-//     /// OPTIONAL. UserInfo signing algorithm
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub userinfo_signed_response_alg: Option<String>,
-
-//     /// OPTIONAL. UserInfo encryption alg
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub userinfo_encrypted_response_alg: Option<String>,
-
-//     /// OPTIONAL. UserInfo encryption enc
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub userinfo_encrypted_response_enc: Option<String>,
-
-//     /// OPTIONAL. Request Object signing alg
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub request_object_signing_alg: Option<String>,
-
-//     /// OPTIONAL. Request Object encryption alg
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub request_object_encryption_alg: Option<String>,
-
-//     /// OPTIONAL. Request Object encryption enc
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub request_object_encryption_enc: Option<String>,
-
-//     /// OPTIONAL. Token endpoint authentication method
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub token_endpoint_auth_method: Option<String>,
-
-//     /// OPTIONAL. Token endpoint signing algorithm
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub token_endpoint_auth_signing_alg: Option<String>,
-
-//     /// OPTIONAL. Default max authentication age (in seconds)
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub default_max_age: Option<u64>,
-
-//     /// OPTIONAL. Require auth_time claim in ID Token
-//     #[serde(default)]
-//     pub require_auth_time: bool,
-
-//     /// OPTIONAL. Default ACR values
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub default_acr_values: Option<Vec<String>>,
-
-//     /// OPTIONAL. Initiate login URI
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub initiate_login_uri: Option<String>,
-
-//     /// OPTIONAL. Request URIs
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub request_uris: Option<Vec<String>>,
-
-//     #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
-//     pub other_fields: HashMap<String, Value>,
-// }
-
-// /// Default for application_type
-// fn default_application_type() -> String {
-//     "web".to_string()
-// }
+    Some(Jwks { keys: jwks })
+}

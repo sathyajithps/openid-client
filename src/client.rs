@@ -83,7 +83,7 @@ impl Client {
             };
         }
 
-        Err(OpenIdError::new_error("Response does not have a body."))
+        Err(OpenIdError::new_error("Response does not have a body"))
     }
 
     /// # Discover OAuth Issuer
@@ -131,7 +131,7 @@ impl Client {
             };
         }
 
-        Err(OpenIdError::new_error("Response does not have a body."))
+        Err(OpenIdError::new_error("Response does not have a body"))
     }
 
     /// # Fetch Issuer Jwks
@@ -140,7 +140,7 @@ impl Client {
     ///
     /// - `issuer` - The issuer metadata.
     /// - `http_client` - The http client to make the request.
-    pub async fn fetch_issuer_jwks<H: OidcHttpClient>(
+    pub async fn fetch_issuer_jwks_async<H: OidcHttpClient>(
         issuer: &IssuerMetadata,
         http_client: &H,
     ) -> OidcReturn<Vec<Jwk>> {
@@ -148,7 +148,7 @@ impl Client {
             Some(jwks_uri) => {
                 let request = HttpRequest::new()
                     .url(Url::parse(jwks_uri).map_err(|e| OpenIdError::new_error(e.to_string()))?)
-                    .expect_json(true)
+                    .expect_json()
                     .method(HttpMethod::GET)
                     .expect_status_code(200);
 
@@ -390,6 +390,7 @@ impl Client {
     /// Performs a grant at the token endpoint.
     ///
     /// - `config` - Openid client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `body` - Grant request body.
     /// - `http_client` - The http client to make the request.
     /// - `dpop_options` - Optional DPoP options for the request.
@@ -402,7 +403,7 @@ impl Client {
     ) -> OidcReturn<TokenSet> {
         if !matches!(body, RequestBody::Form(_)) {
             return Err(OpenIdError::new_error(
-                "grant_async() only supports form url encoded body.",
+                "grant_async() only supports form url encoded body",
             ));
         }
 
@@ -429,15 +430,16 @@ impl Client {
     ///
     /// Performs authorization code grant on the token endpoint.
     ///
-    /// > This method does not validate the tokens returned. Call [Client::validate_authorization_code_grant]
+    /// > This method does not validate the tokens returned. Call [Client::validate_authorization_code_grant_async]
     /// > for validating the tokens.
     ///
     /// - `config` - Openid client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The http client to make the request.
     /// - `callback_request` - The callback request received from the provider.
     /// - `parameters` - [AuthorizationCodeGrantParameters]: Parameters for the authorization code grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn authorization_code_grant<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn authorization_code_grant_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         http_client: &H,
@@ -534,8 +536,10 @@ impl Client {
     /// Validates tokens obtained from authorization code grant.
     ///
     /// - `config` - Openid client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
+    /// - `token_set` - The token set returned by the authorization code grant.
     /// - `parameters` - [AuthorizationCodeGrantValidationParameters]: Parameters for validating the authorization code grant.
-    pub async fn validate_authorization_code_grant<C: OpenIdCrypto>(
+    pub async fn validate_authorization_code_grant_async<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         token_set: TokenSet,
@@ -565,9 +569,10 @@ impl Client {
     /// Validates the returned access token and/or id token.
     ///
     /// - `config` - Openid client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `callback_request` - The callback request received from the provider.
     /// - `parameters` - [ImplicitGrantParameters]: Parameters for the implicit grant.
-    pub async fn implicit_authentication<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn implicit_authentication_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         callback_request: HttpRequest,
@@ -648,11 +653,12 @@ impl Client {
     /// Performs a refresh token grant.
     ///
     /// - `config` - Openid client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The http client to make the request.
     /// - `refresh_token` - The refresh token.
     /// - `additional_parameters` - Optional additional parameters for the grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn refresh_grant<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn refresh_grant_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         http_client: &H,
@@ -684,10 +690,11 @@ impl Client {
     /// Performs a pushed authorization request.
     ///
     /// - `config` - Openid client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The http client to make the request.
     /// - `authorization_parameters` - [AuthorizationParameters]: Customize the authorization request.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn pushed_authorization_request<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn pushed_authorization_request_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         http_client: &H,
@@ -725,11 +732,12 @@ impl Client {
     /// Returns the device authorization response containing the `device_code` and `user_code`.
     ///
     /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The HTTP client to make the request.
     /// - `request` - [DeviceAuthorizationRequest]: Device authorization request parameters.
     /// - `additional_parameters` - Optional additional parameters for the request.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn device_authorization_request<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn device_authorization_request_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         http_client: &H,
@@ -774,11 +782,12 @@ impl Client {
     /// Performs a device code grant.
     ///
     /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The HTTP client to make the request.
     /// - `device_code` - The device code.
     /// - `additional_parameters` - Optional additional parameters for the grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn device_code_grant<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn device_code_grant_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         http_client: &H,
@@ -813,10 +822,11 @@ impl Client {
     /// Performs client credentials grant.
     ///
     /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The HTTP client to make the request.
     /// - `additional_parameters` - Optional additional parameters for the grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn client_credentials_grant<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn client_credentials_grant_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         http_client: &H,
@@ -848,11 +858,12 @@ impl Client {
     /// Returns the CIBA authentication response containing the `auth_req_id`.
     ///
     /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The HTTP client to make the request.
     /// - `request` - [CibaAuthRequest]: CIBA authentication request parameters.
     /// - `additional_parameters` - Optional additional parameters for the request.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn ciba_authentication<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn ciba_authentication_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         http_client: &H,
@@ -925,11 +936,12 @@ impl Client {
     /// This method is used to poll for the token after the user has authenticated.
     ///
     /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The HTTP client to make the request.
     /// - `auth_req_id` - The authentication request ID from CIBA authentication response.
     /// - `additional_parameters` - Optional additional parameters for the grant.
     /// - `dpop_options` - Optional DPoP options for the request.
-    pub async fn ciba_grant<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn ciba_grant_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         http_client: &H,
@@ -967,6 +979,7 @@ impl Client {
     /// Performs an introspection request at Issuer's `introspection_endpoint`.
     ///
     /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The HTTP client to make the request.
     /// - `token` - The token to introspect.
     /// - `token_type_hint` - Hint to which type of token is being introspected.
@@ -1009,6 +1022,7 @@ impl Client {
     /// Performs token revocation at the revocation endpoint (RFC 7009).
     ///
     /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The HTTP client to make the request.
     /// - `token` - The token to be revoked (access_token or refresh_token).
     /// - `token_type_hint` - Optional hint about the token type ("access_token" or "refresh_token").
@@ -1053,6 +1067,7 @@ impl Client {
     /// Makes a resource request using an access token.
     ///
     /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The HTTP client to make the request.
     /// - `resource_url` - The URL of the resource to request.
     /// - `access_token` - The access token to use for authorization.
@@ -1138,6 +1153,7 @@ impl Client {
     /// Fetches user information from the userinfo endpoint.
     ///
     /// - `config` - OpenID client configuration
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `http_client` - The HTTP client to make the request
     /// - `token_set` - TokenSet containing the access_token
     /// - `at_location` - Access token location
@@ -1254,7 +1270,7 @@ impl Client {
             .url(url)
             .method(method)
             .headers(headers)
-            .expect_json(!expect_jwt);
+            .expect_raw_body();
 
         // Enable bearer token error handling
         request.expectations.bearer = true;
@@ -1337,12 +1353,15 @@ impl Client {
     /// The returned JWT can be used as the `request` parameter in authorization requests.
     ///
     /// - `config` - OpenID client configuration
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
+    /// - `key` - The specific key used to sign the request object. If not provided, a default will be selected from client secret or jwks.
     /// - `request_object` - The request object claims as a JSON Value (must be an object)
     ///
     /// Note: Encryption is not yet supported. Only signing is implemented.
     pub fn request_object<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
+        key: Option<Jwk>,
         mut request_object: Value,
     ) -> OidcReturn<String> {
         if !request_object.is_object() {
@@ -1385,23 +1404,33 @@ impl Client {
             return Ok(format!("{}.{}.", encoded_header, encoded_payload));
         }
 
-        // Get signing key based on algorithm
-        let (jwk, include_kid) = if alg.starts_with("HS") {
-            // Symmetric algorithm - need client secret
-            let secret = get_client_secret(config)?;
-            (Jwk::from_symmetric_key(secret.as_bytes()), false)
+        let jwk: Jwk;
+        let include_kid = !alg.starts_with("HS");
+
+        if let Some(key) = key {
+            jwk = key;
         } else {
-            // Asymmetric algorithm - need private key from config.auth
-            match &config.auth {
-                ClientAuth::PrivateKeyJwt { jwk, .. } => (jwk.clone(), true),
-                _ => {
-                    return Err(OpenIdError::new_error(format!(
-                        "no private key available for signing with algorithm {}",
-                        alg
-                    )));
+            if alg.starts_with("HS") {
+                let secret = get_client_secret(config)?;
+                jwk = Jwk::from_symmetric_key(secret.as_bytes());
+            } else {
+                let jwks_key: Option<Jwk> = config
+                    .client_jwks
+                    .iter()
+                    .find(|key| key.get_param("alg").and_then(|a| a.as_str()) == Some(alg))
+                    .cloned();
+
+                match jwks_key {
+                    Some(key) => jwk = key,
+                    None => {
+                        return Err(OpenIdError::new_error(format!(
+                            "no private key available for signing with algorithm {}",
+                            alg
+                        )));
+                    }
                 }
             }
-        };
+        }
 
         // Build header
         let mut header_params = serde_json::Map::new();
@@ -1445,7 +1474,7 @@ impl Client {
     /// - `http_client` - The HTTP client to make the request.
     /// - `registration_client_uri` - The URL to fetch client metadata from.
     /// - `registration_access_token` - Optional access token for authentication.
-    pub async fn from_uri<H: OidcHttpClient>(
+    pub async fn from_uri_async<H: OidcHttpClient>(
         http_client: &H,
         registration_client_uri: &str,
         registration_access_token: Option<&str>,
@@ -1464,7 +1493,7 @@ impl Client {
             .url(url)
             .method(HttpMethod::GET)
             .headers(headers)
-            .expect_json(true)
+            .expect_json()
             .expect_status_code(200);
 
         let response = Http::default()
@@ -1487,7 +1516,7 @@ impl Client {
     /// - `issuer` - The issuer metadata (must have registration_endpoint).
     /// - `registration_request` - The client registration request parameters.
     /// - `initial_access_token` - Optional initial access token for protected registration.
-    pub async fn register<H: OidcHttpClient>(
+    pub async fn register_async<H: OidcHttpClient>(
         http_client: &H,
         issuer: &IssuerMetadata,
         registration_request: ClientRegistrationRequest,
@@ -1519,7 +1548,7 @@ impl Client {
             .url(url)
             .method(HttpMethod::POST)
             .headers(headers)
-            .expect_json(true)
+            .expect_json()
             .expect_status_code(201);
 
         let mut request = request;
@@ -1542,6 +1571,14 @@ impl Client {
     ///
     /// Performs a Token Exchange Grant (RFC 8693).
     /// *This method is currently a stub outlining how to extend this client.*
+    ///
+    /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
+    /// - `http_client` - The HTTP client to make the request.
+    /// - `subject_token` - The security token to exchange.
+    /// - `subject_token_type` - The type identifier of the subject token.
+    /// - `additional_parameters` - Optional additional parameters for the token exchange grant.
+    /// - `dpop_options` - Optional DPoP options for the request.
     pub async fn token_exchange_async<H: OidcHttpClient, C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,

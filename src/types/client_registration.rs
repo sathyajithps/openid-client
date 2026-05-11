@@ -3,11 +3,13 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::jwk::{Jwk, Jwks};
+
 /// # Client Registration Request
 ///
 /// Request body for dynamic client registration (RFC 7591).
 /// This struct contains the client metadata to be submitted during registration.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct ClientRegistrationRequest {
     /// Array of redirection URI strings for use in redirect-based flows.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,7 +57,7 @@ pub struct ClientRegistrationRequest {
 
     /// Client's JSON Web Key Set document value.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub jwks: Option<Value>,
+    pub jwks: Option<Jwks>,
 
     /// URL using the https scheme to be used in calculating Pseudonymous Identifiers.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -174,43 +176,6 @@ pub struct ClientRegistrationRequest {
     pub additional_fields: HashMap<String, Value>,
 }
 
-/// # Client Registration Response
-///
-/// Response from dynamic client registration containing the issued credentials.
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct ClientRegistrationResponse {
-    /// Unique Client Identifier (REQUIRED).
-    pub client_id: String,
-
-    /// Client Secret (OPTIONAL - not issued for public clients).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_secret: Option<String>,
-
-    /// Registration Access Token for subsequent operations.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registration_access_token: Option<String>,
-
-    /// Location of the Client Configuration Endpoint.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registration_client_uri: Option<String>,
-
-    /// Time at which the Client Identifier was issued (Unix timestamp).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_id_issued_at: Option<u64>,
-
-    /// Time at which the client_secret will expire (Unix timestamp), or 0 if never.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_secret_expires_at: Option<u64>,
-
-    /// Token endpoint authentication method.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_endpoint_auth_method: Option<String>,
-
-    /// All other fields from the registration response.
-    #[serde(flatten)]
-    pub metadata: HashMap<String, Value>,
-}
-
 impl ClientRegistrationRequest {
     /// Create a new empty registration request.
     pub fn new() -> Self {
@@ -273,9 +238,15 @@ impl ClientRegistrationRequest {
         self
     }
 
-    /// Set JWKS directly.
-    pub fn jwks(mut self, jwks: Value) -> Self {
-        self.jwks = Some(jwks);
+    /// Set JWKS by value.
+    pub fn jwks(mut self, keys: &[Jwk]) -> Self {
+        self.jwks = Some(Jwks { keys: keys.into() });
+        self
+    }
+
+    /// Set ID token signed response algorithm
+    pub fn id_token_signed_response_alg(mut self, alg: impl Into<String>) -> Self {
+        self.id_token_signed_response_alg = Some(alg.into());
         self
     }
 
@@ -302,4 +273,41 @@ impl ClientRegistrationRequest {
         self.additional_fields.insert(key.into(), value);
         self
     }
+}
+
+/// # Client Registration Response
+///
+/// Response from dynamic client registration containing the issued credentials.
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct ClientRegistrationResponse {
+    /// Unique Client Identifier (REQUIRED).
+    pub client_id: String,
+
+    /// Client Secret (OPTIONAL - not issued for public clients).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_secret: Option<String>,
+
+    /// Registration Access Token for subsequent operations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registration_access_token: Option<String>,
+
+    /// Location of the Client Configuration Endpoint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registration_client_uri: Option<String>,
+
+    /// Time at which the Client Identifier was issued (Unix timestamp).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id_issued_at: Option<u64>,
+
+    /// Time at which the client_secret will expire (Unix timestamp), or 0 if never.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_secret_expires_at: Option<u64>,
+
+    /// Token endpoint authentication method.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_endpoint_auth_method: Option<String>,
+
+    /// All other fields from the registration response.
+    #[serde(flatten)]
+    pub metadata: HashMap<String, Value>,
 }

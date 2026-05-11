@@ -139,6 +139,8 @@ fn process_response(
                 return Err(OpenIdError::new_error("unexpected body type"));
             }
         }
+    } else if expectations.raw {
+        // Keep the body
     } else {
         response.body = None;
     }

@@ -15,20 +15,20 @@
 //! [`client::Client`] currently provides helpers for:
 //! - discovery: [`client::Client::discover_oidc_async`],
 //!   [`client::Client::discover_oauth_async`], [`client::Client::webfinger_async`],
-//!   [`client::Client::fetch_issuer_jwks`]
+//!   [`client::Client::fetch_issuer_jwks_async`]
 //! - authorization request construction: [`client::Client::authorization_url`],
 //!   [`client::Client::authorization_post`], [`client::Client::endsession_url`],
-//!   [`client::Client::pushed_authorization_request`], [`client::Client::request_object`]
-//! - authorization response handling: [`client::Client::authorization_code_grant`],
-//!   [`client::Client::implicit_authentication`], hybrid response validation, and JARM validation
+//!   [`client::Client::pushed_authorization_request_async`], [`client::Client::request_object`]
+//! - authorization response handling: [`client::Client::authorization_code_grant_async`],
+//!   [`client::Client::implicit_authentication_async`], hybrid response validation, and JARM validation
 //!   through [`config::OpenIdClientConfiguration`]
-//! - token operations: [`client::Client::grant_async`], [`client::Client::refresh_grant`],
-//!   [`client::Client::client_credentials_grant`], [`client::Client::device_code_grant`],
-//!   [`client::Client::ciba_grant`], [`client::Client::token_exchange_async`]
+//! - token operations: [`client::Client::grant_async`], [`client::Client::refresh_grant_async`],
+//!   [`client::Client::client_credentials_grant_async`], [`client::Client::device_code_grant_async`],
+//!   [`client::Client::ciba_grant_async`], [`client::Client::token_exchange_async`]
 //! - resource and account endpoints: [`client::Client::userinfo_async`],
 //!   [`client::Client::request_resource_async`], [`client::Client::introspect_async`],
 //!   [`client::Client::revoke_async`]
-//! - dynamic client registration: [`client::Client::register`] and [`client::Client::from_uri`]
+//! - dynamic client registration: [`client::Client::register_async`] and [`client::Client::from_uri_async`]
 //!
 //! Supporting modules include:
 //! - [`config`] for client auth, DPoP, clock skew/tolerance, and assembled client configuration
@@ -52,7 +52,7 @@
 //!   - JWKS fetch from `jwks_uri`
 //! - [OpenID Connect Dynamic Client Registration 1.0][feature-registration]
 //!   - dynamic registration requests and responses
-//!   - `registration_client_uri` fetch via [`client::Client::from_uri`]
+//!   - `registration_client_uri` fetch via [`client::Client::from_uri_async`]
 //! - [RFC 7009][feature-revocation] token revocation
 //! - [RFC 7662][feature-introspection] token introspection
 //! - [RFC 8628][feature-device-flow] device authorization and device code grant

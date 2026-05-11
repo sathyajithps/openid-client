@@ -17,7 +17,7 @@ use crate::{
 pub struct OpenIdClientConfiguration {
     /// Metadata describing the OpenID Connect issuer.
     pub issuer: IssuerMetadata,
-    /// Issuer Jwks fetched from the `jwks_uri`
+    /// Issuer Jwks
     pub issuer_jwks: Vec<Jwk>,
     /// Metadata describing the client application.
     pub client: ClientMetadata,
@@ -25,6 +25,8 @@ pub struct OpenIdClientConfiguration {
     pub auth: ClientAuth,
     /// Extra options to customize client behavior and configuration.
     pub options: ConfigurationOptions,
+    /// Client's private keys used for request signing etc.
+    pub client_jwks: Vec<Jwk>,
     /// Jwks used for json web encryption
     pub jwe_keys: Vec<Jwk>,
     /// Specifies the response type that is used for the authorization callback.
@@ -48,6 +50,7 @@ impl OpenIdClientConfiguration {
             client,
             auth,
             options: ConfigurationOptions::default(),
+            client_jwks: vec![],
             jwe_keys: vec![],
             response_type: OpenIdResponseType::Code,
             fapi: false,
@@ -62,6 +65,7 @@ impl OpenIdClientConfiguration {
         client: ClientMetadata,
         auth: ClientAuth,
         options: ConfigurationOptions,
+        client_jwks: Vec<Jwk>,
         jwe_keys: Vec<Jwk>,
         response_type: OpenIdResponseType,
         fapi: bool,
@@ -72,6 +76,7 @@ impl OpenIdClientConfiguration {
             client,
             auth,
             options,
+            client_jwks,
             jwe_keys,
             response_type,
             fapi,
