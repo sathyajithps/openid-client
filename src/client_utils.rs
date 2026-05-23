@@ -79,7 +79,7 @@ pub mod jwt {
     /// Retrieves a single suitable JWK for signature verification based on algorithm and key ID.
     pub fn get_signing_key<'a>(
         issuer_jwks: &'a [Jwk],
-        alg: String,
+        alg: &str,
         kid: Option<&'a str>,
     ) -> OidcReturn<&'a Jwk> {
         let kty = JwkType::from_alg_str(&alg).ok_or(OpenIdError::new_error("Invalid alg type"))?;
@@ -173,7 +173,7 @@ pub mod jwt {
     /// Retrieves a suitable JWK for JWE decryption based on algorithm, key ID, and curve parameters.
     pub fn get_jwe_key<'a>(
         jwe_keys: &'a [Jwk],
-        alg: String,
+        alg: &str,
         kid: Option<&'a str>,
         epk_crv: Option<&'a str>,
     ) -> OidcReturn<&'a Jwk> {
@@ -201,7 +201,7 @@ pub mod jwt {
                     }
 
                     if matches!(
-                        alg.as_str(),
+                        alg,
                         "ECDH-ES" | "ECDH-ES+A128KW" | "ECDH-ES+A192KW" | "ECDH-ES+A256KW"
                     ) {
                         match (
@@ -260,9 +260,9 @@ pub mod jwt {
                 .and_then(|epk| epk.get("crv"))
                 .and_then(|crv| crv.as_str());
 
-            let decrypting_jwk = get_jwe_key(jwe_keys, alg, kid, epk_crv)?;
+            let decrypting_jwk = get_jwe_key(jwe_keys, &alg, kid, epk_crv)?;
 
-            jwt = decrypt_jwe(jwt, decrypting_jwk, crypto)?;
+            jwt = decrypt_jwe(jwt, decrypting_jwk, &alg, crypto)?;
         }
 
         if !is_jwt(&jwt) {
@@ -361,19 +361,24 @@ pub mod jwt {
             .ok_or(OpenIdError::new_error("JWT does not have alg parameter"))?;
         let kid = header.params.get("kid").and_then(|kid| kid.as_str());
 
-        let signing_key = get_signing_key(jwt_params.signing_keys, alg, kid)?;
+        let signing_key = get_signing_key(jwt_params.signing_keys, &alg, kid)?;
 
         (header, payload) = crypto
-            .jws_deserialize(jwt, signing_key)
+            .jws_deserialize(jwt, signing_key, &alg)
             .map_err(OpenIdError::new_error)?;
 
         Ok(ValidatedJwt { header, payload })
     }
 
     /// Decrypts a JWE string using the provided JSON Web Key.
-    pub fn decrypt_jwe<C: OpenIdCrypto>(jwe: String, jwk: &Jwk, crypto: &C) -> OidcReturn<String> {
+    pub fn decrypt_jwe<C: OpenIdCrypto>(
+        jwe: String,
+        jwk: &Jwk,
+        expected_alg: &str,
+        crypto: &C,
+    ) -> OidcReturn<String> {
         crypto
-            .jwe_deserialize(jwe, jwk)
+            .jwe_deserialize(jwe, jwk, expected_alg)
             .map_err(OpenIdError::new_error)
     }
 
@@ -449,7 +454,7 @@ pub mod authorization_code {
 
     use crate::{
         client_utils::jwt::{
-            hash_match, validate_audience, validate_issuer, validate_jwt, validate_presence,
+            self, hash_match, validate_audience, validate_issuer, validate_jwt, validate_presence,
             JwtValidationParameters,
         },
         config::OpenIdClientConfiguration,
@@ -535,67 +540,76 @@ pub mod authorization_code {
         let callback_params =
             validate_auth_response(&config.issuer.issuer, false, callback_params, state_check)?;
 
+        let code = callback_params
+            .get("code")
+            .ok_or(OpenIdError::new_error(
+                "\"parameters\" does not contain Authorization Code",
+            ))?
+            .clone();
+
         let id_token = match id_token {
             Some(it) => it,
             None => {
-                return Err(OpenIdError::new_error(
-                    "\"parameters\" does not contain an ID Token",
-                ));
+                return Ok(callback_params);
             }
         };
 
-        let code = callback_params.get("code").ok_or(OpenIdError::new_error(
-            "\"parameters\" does not contain Authorization Code",
-        ))?;
-
-        let mut required_claims = vec!["aud", "exp", "iat", "iss", "sub", "nonce", "c_hash"];
+        let mut additional_required_claims = vec!["nonce", "c_hash"];
 
         let state = callback_params.get("state");
 
         if config.fapi && (expect_state || state.is_some()) {
-            required_claims.push("s_hash");
+            additional_required_claims.push("s_hash");
         }
 
         let max_age_check = max_age_check
             .or(config.client.default_max_age.map(MaxAgeCheck::MaxAge))
             .unwrap_or(MaxAgeCheck::Skip);
 
-        if config.client.require_auth_time.is_some_and(|rat| rat)
-            || !matches!(max_age_check, MaxAgeCheck::Skip)
-        {
-            required_claims.push("auth_time");
+        if !matches!(max_age_check, MaxAgeCheck::Skip) {
+            additional_required_claims.push("auth_time");
         }
 
-        let jwt_validation_params = JwtValidationParameters {
-            signing_keys: &config.issuer_jwks,
-            check_header_alg: true,
-            issuer_algs: &config.issuer.id_token_signing_alg_values_supported,
-            client_algs: config
-                .client
-                .id_token_signed_response_alg
-                .clone()
-                .map(|alg| vec![alg]),
-            fallback_algs: Some(vec!["RS256".to_owned()]),
-            skew: config.options.clock_skew,
-            tolerance: config.options.clock_tolerance,
+        let access_token = callback_params.get("access_token").cloned();
+        let check_at_presence = access_token.is_some();
+
+        if access_token.is_some() {
+            additional_required_claims.push("at_hash");
+        }
+        let tokenset = TokenSet {
+            id_token: Some(id_token),
+            access_token,
+            token_type: callback_params.get("token_type").cloned(),
+            ..Default::default()
         };
 
-        let validated_jwt =
-            validate_jwt(id_token, jwt_validation_params, &config.jwe_keys, crypto)?;
-        validate_presence(&validated_jwt, &required_claims)?;
-        validate_issuer(&validated_jwt, &config.issuer)?;
-        validate_audience(&validated_jwt, &config.client.client_id)?;
+        let token_set = validate_access_token_response(
+            config,
+            crypto,
+            tokenset,
+            &additional_required_claims,
+            check_at_presence,
+        )?;
+
+        let claims = token_set.claims().ok_or(OpenIdError::new_error(
+            "ID Token claims not available after validation",
+        ))?;
+
+        let id_token_str = token_set.id_token.as_ref().ok_or(OpenIdError::new_error(
+            "id_token not found after validation",
+        ))?;
+
+        let (header, _, _) = jwt::decode_jwt(id_token_str)?;
+
+        let alg = header
+            .alg()
+            .ok_or(OpenIdError::new_error("did not find \"alg\" in header"))?;
 
         let now = unix_timestamp()
             .checked_add_signed(config.options.clock_skew as i64)
             .ok_or(OpenIdError::new_error("Could not get skewed timestamp"))?;
 
-        match validated_jwt
-            .payload
-            .params
-            .get("iat")
-            .and_then(|iat| iat.as_u64())
-        {
+        match claims.get("iat").and_then(|iat| iat.as_u64()) {
             Some(iat) => {
                 if iat < now - 3600 {
                     return Err(OpenIdError::new_error(
@@ -610,39 +624,30 @@ pub mod authorization_code {
             }
         };
 
-        if validated_jwt
-            .payload
-            .params
-            .get("c_hash")
-            .is_some_and(|ch| !ch.is_string())
-        {
+        if claims.get("c_hash").is_some_and(|ch| !ch.is_string()) {
             return Err(OpenIdError::new_error(
                 "ID Token \"c_hash\" (code hash) claim value must be a string",
             ));
         }
 
-        if validated_jwt.payload.params.contains_key("auth_time")
-            && validated_jwt
-                .payload
-                .params
-                .get("auth_time")
-                .is_some_and(|auth_time| !auth_time.is_u64())
-        {
+        let c_hash =
+            claims
+                .get("c_hash")
+                .and_then(|n| n.as_str())
+                .ok_or(OpenIdError::new_error(
+                    "unexpected ID Token \"c_hash\" claim value",
+                ))?;
+
+        if !hash_match(&alg, &code, c_hash) {
             return Err(OpenIdError::new_error(
-                "ID Token \"auth_time\" (authentication time) must be a number",
+                "invalid ID Token \"c_hash\" (code hash) claim value",
             ));
         }
 
         match max_age_check {
             MaxAgeCheck::Skip => {}
             MaxAgeCheck::MaxAge(max_age) => {
-                let now = unix_timestamp()
-                    .checked_add_signed(config.options.clock_skew as i64)
-                    .ok_or(OpenIdError::new_error("Could not get skewed timestamp"))?;
-
-                let auth_time = validated_jwt
-                    .payload
-                    .params
+                let auth_time = claims
                     .get("auth_time")
                     .and_then(|at| at.as_u64())
                     .ok_or(OpenIdError::new_error("auth_time not found"))?;
@@ -655,9 +660,7 @@ pub mod authorization_code {
             }
         }
 
-        let nonce = validated_jwt
-            .payload
-            .params
+        let nonce = claims
             .get("nonce")
             .and_then(|n| n.as_str())
             .ok_or(OpenIdError::new_error(
@@ -676,61 +679,9 @@ pub mod authorization_code {
             ));
         }
 
-        if let Some(aud_length) = validated_jwt
-            .payload
-            .params
-            .get("aud")
-            .and_then(|aud| aud.as_array())
-            .map(|aud| aud.len())
+        if (config.fapi && state.is_some()) || claims.get("s_hash").is_some_and(|sh| sh.is_string())
         {
-            if aud_length != 1 {
-                let azp = validated_jwt
-                    .payload
-                    .params
-                    .get("azp")
-                    .and_then(|azp| azp.as_str())
-                    .ok_or(OpenIdError::new_error(
-                        "ID Token \"aud\" (audience) claim includes additional untrusted audiences",
-                    ))?;
-
-                if azp != config.client.client_id {
-                    return Err(OpenIdError::new_error(
-                        "unexpected ID Token \"azp\" (authorized party) claim value",
-                    ));
-                }
-            }
-        }
-
-        let c_hash = validated_jwt
-            .payload
-            .params
-            .get("c_hash")
-            .and_then(|n| n.as_str())
-            .ok_or(OpenIdError::new_error(
-                "unexpected ID Token \"c_hash\" claim value",
-            ))?;
-
-        let alg = validated_jwt
-            .header
-            .alg()
-            .ok_or(OpenIdError::new_error("did not find \"alg\" in header"))?;
-
-        if !hash_match(&alg, code, c_hash) {
-            return Err(OpenIdError::new_error(
-                "invalid ID Token \"c_hash\" (code hash) claim value",
-            ));
-        }
-
-        if (config.fapi && state.is_some())
-            || validated_jwt
-                .payload
-                .params
-                .get("s_hash")
-                .is_some_and(|sh| sh.is_string())
-        {
-            let s_hash = validated_jwt
-                .payload
-                .params
+            let s_hash = claims
                 .get("s_hash")
                 .and_then(|sh| sh.as_str())
                 .ok_or(OpenIdError::new_error("invalid \"s_hash\" value"))?;
@@ -932,6 +883,10 @@ pub mod authorization_code {
 
         let max_age_check = internal_max_age_extract(config, max_age_check, &mut required_claims);
 
+        if tokenset.access_token.is_some() {
+            required_claims.push("at_hash");
+        }
+
         let token_set =
             validate_access_token_response(config, crypto, tokenset, &required_claims, false)?;
 
@@ -974,7 +929,7 @@ pub mod authorization_code {
             ));
         }
 
-        if tokenset.token_type.is_none() {
+        if check_access_token_presence && tokenset.token_type.is_none() {
             return Err(OpenIdError::new_error(
                 "token_type not found in token response",
             ));

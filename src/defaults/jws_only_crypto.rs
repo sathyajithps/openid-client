@@ -31,7 +31,7 @@ impl OpenIdCrypto for JwsOnlyCrypto {
         Err("JWE not implemented. Use OpenSSL Crypto feature (openssl_crypto) for JWE".to_owned())
     }
 
-    fn jwe_deserialize(&self, _jwe: String, _jwk: &Jwk) -> Result<String, String> {
+    fn jwe_deserialize(&self, _jwe: String, _jwk: &Jwk, _expected_alg: &str) -> Result<String, String> {
         Err("JWE not implemented. Use OpenSSL Crypto feature (openssl_crypto) for JWE".to_owned())
     }
 
@@ -163,7 +163,7 @@ impl OpenIdCrypto for JwsOnlyCrypto {
         Ok(format!("{message}.{signature}"))
     }
 
-    fn jws_deserialize(&self, jws: String, jwk: &Jwk) -> Result<(Header, Payload), String> {
+    fn jws_deserialize(&self, jws: String, jwk: &Jwk, expected_alg: &str) -> Result<(Header, Payload), String> {
         let key_type = jwk.key_type().ok_or("Unknown key type")?;
 
         let decoding_key = match key_type {
@@ -210,35 +210,29 @@ impl OpenIdCrypto for JwsOnlyCrypto {
         let signature = parts.get(2).ok_or("Signature not found")?;
         let message = format!("{header}.{payload}");
 
-        // Prefer JWK's alg (prevents algorithm substitution attacks).
-        // Fall back to the JWT header's alg when JWK doesn't specify one
-        // (alg is OPTIONAL per RFC 7517 §4.4).
         let parsed_header: Map<String, Value> =
             serde_json::from_str(&String::from_utf8_lossy(&base64_url_to_buf(header)?))
                 .map_err(|e| e.to_string())?;
 
-        let alg_str = match jwk.get_param("alg").and_then(|v| v.as_str()) {
-            Some(alg) => alg.to_owned(),
-            None => parsed_header
-                .get("alg")
-                .and_then(|v| v.as_str())
-                .ok_or("neither JWK nor JWT header contain an 'alg' parameter")?
-                .to_owned(),
-        };
-
-        if let (Some(header_alg), Some(jwk_alg)) = (
-            parsed_header.get("alg").and_then(|v| v.as_str()),
-            jwk.get_param("alg").and_then(|v| v.as_str()),
-        ) {
-            if header_alg != jwk_alg {
+        if let Some(jwk_alg) = jwk.get_param("alg").and_then(|v| v.as_str()) {
+            if jwk_alg != expected_alg {
                 return Err(format!(
-                    "header alg '{}' does not match JWK alg '{}'",
-                    header_alg, jwk_alg
+                    "expected alg '{}' does not match JWK alg '{}'",
+                    expected_alg, jwk_alg
                 ));
             }
         }
 
-        let jsonwebtoken_alg = Algorithm::from_str(&alg_str).map_err(|e| e.to_string())?;
+        if let Some(header_alg) = parsed_header.get("alg").and_then(|v| v.as_str()) {
+            if header_alg != expected_alg {
+                return Err(format!(
+                    "JWS header alg '{}' does not match expected alg '{}'",
+                    header_alg, expected_alg
+                ));
+            }
+        }
+
+        let jsonwebtoken_alg = Algorithm::from_str(expected_alg).map_err(|e| e.to_string())?;
 
         if let Ok(result) = crypto::verify(
             signature,
@@ -707,7 +701,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_HS256).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "HS256");
 
             assert!(result.is_ok());
 
@@ -732,7 +726,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_HS256_NO_ALG).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "HS256");
 
             assert!(result.is_ok());
 
@@ -757,7 +751,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_HS384).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "HS384");
 
             assert!(result.is_ok());
 
@@ -782,7 +776,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_HS512).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "HS512");
 
             assert!(result.is_ok());
 
@@ -807,7 +801,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_RS256).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "RS256");
 
             assert!(result.is_ok());
 
@@ -832,7 +826,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_RS384).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "RS384");
 
             assert!(result.is_ok());
 
@@ -857,7 +851,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_RS512).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "RS512");
 
             assert!(result.is_ok());
 
@@ -882,7 +876,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_PS256).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "PS256");
 
             assert!(result.is_ok());
 
@@ -907,7 +901,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_PS384).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "PS384");
 
             assert!(result.is_ok());
 
@@ -932,7 +926,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_PS512).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "PS512");
 
             assert!(result.is_ok());
 
@@ -957,7 +951,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_ES256).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "ES256");
 
             assert!(result.is_ok());
 
@@ -982,7 +976,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_ES384).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "ES384");
 
             assert!(result.is_ok());
 
@@ -1007,7 +1001,7 @@ mod jws_only_crypto_tests {
 
             let jwk = Jwk::try_from(JWK_EDDSA_ED25519).unwrap();
 
-            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk);
+            let result = JwsOnlyCrypto.jws_deserialize(token, &jwk, "EdDSA");
 
             assert!(result.is_ok());
 

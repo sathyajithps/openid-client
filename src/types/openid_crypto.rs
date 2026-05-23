@@ -14,9 +14,19 @@ use crate::{
 pub trait OpenIdCrypto {
     fn jwe_serialize(&self, payload: String, header: Header, jwk: &Jwk) -> Result<String, String>;
 
-    fn jwe_deserialize(&self, jwe: String, jwk: &Jwk) -> Result<String, String>;
+    fn jwe_deserialize(
+        &self,
+        jwe: String,
+        jwk: &Jwk,
+        expected_alg: &str,
+    ) -> Result<String, String>;
 
     fn jws_serialize(&self, payload: Payload, header: Header, jwk: &Jwk) -> Result<String, String>;
 
-    fn jws_deserialize(&self, jws: String, jwk: &Jwk) -> Result<(Header, Payload), String>;
+    fn jws_deserialize(
+        &self,
+        jws: String,
+        jwk: &Jwk,
+        expected_alg: &str,
+    ) -> Result<(Header, Payload), String>;
 }

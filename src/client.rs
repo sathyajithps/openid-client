@@ -572,7 +572,7 @@ impl Client {
     /// - `crypto` - The crypto backend to use for OpenID crypto operations.
     /// - `callback_request` - The callback request received from the provider.
     /// - `parameters` - [ImplicitGrantParameters]: Parameters for the implicit grant.
-    pub async fn implicit_authentication_async<H: OidcHttpClient, C: OpenIdCrypto>(
+    pub async fn implicit_authentication_async<C: OpenIdCrypto>(
         config: &OpenIdClientConfiguration,
         crypto: &C,
         callback_request: HttpRequest,

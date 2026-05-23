@@ -42,7 +42,7 @@ impl OpenIdCrypto for OpenSSLCrypto {
         .map_err(|e| e.to_string())
     }
 
-    fn jwe_deserialize(&self, jwe: String, jwk: &Jwk) -> Result<String, String> {
+    fn jwe_deserialize(&self, jwe: String, jwk: &Jwk, expected_alg: &str) -> Result<String, String> {
         let parts: Vec<&str> = jwe.split('.').collect();
         if parts.len() != 5 {
             return Err("Invalid JWE".to_owned());
@@ -53,23 +53,20 @@ impl OpenIdCrypto for OpenSSLCrypto {
         let parsed_header: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&header_decoded).map_err(|e| e.to_string())?;
 
-        let alg_str = match jwk.get_param("alg").and_then(|v| v.as_str()) {
-            Some(alg) => alg.to_owned(),
-            None => parsed_header
-                .get("alg")
-                .and_then(|v| v.as_str())
-                .ok_or("neither JWK nor JWE header contain an 'alg' parameter")?
-                .to_owned(),
-        };
-
-        if let (Some(header_alg), Some(jwk_alg)) = (
-            parsed_header.get("alg").and_then(|v| v.as_str()),
-            jwk.get_param("alg").and_then(|v| v.as_str()),
-        ) {
-            if header_alg != jwk_alg {
+        if let Some(jwk_alg) = jwk.get_param("alg").and_then(|v| v.as_str()) {
+            if jwk_alg != expected_alg {
                 return Err(format!(
-                    "header alg '{}' does not match JWK alg '{}'",
-                    header_alg, jwk_alg
+                    "expected alg '{}' does not match JWK alg '{}'",
+                    expected_alg, jwk_alg
+                ));
+            }
+        }
+
+        if let Some(header_alg) = parsed_header.get("alg").and_then(|v| v.as_str()) {
+            if header_alg != expected_alg {
+                return Err(format!(
+                    "JWE header alg '{}' does not match expected alg '{}'",
+                    header_alg, expected_alg
                 ));
             }
         }
@@ -77,7 +74,7 @@ impl OpenIdCrypto for OpenSSLCrypto {
         let jwk_jose = josekit::jwk::Jwk::from_map(jwk.as_map()).map_err(|e| e.to_string())?;
 
         let result =
-            josekit::jwe::deserialize_compact(&jwe, &*jwk_jose.to_jwe_decrypter(Some(&alg_str))?)
+            josekit::jwe::deserialize_compact(&jwe, &*jwk_jose.to_jwe_decrypter(Some(expected_alg))?)
                 .map_err(|e| e.to_string())?;
 
         String::from_utf8(result.0).map_err(|e| e.to_string())
@@ -121,7 +118,7 @@ impl OpenIdCrypto for OpenSSLCrypto {
         .map_err(|e| e.to_string())
     }
 
-    fn jws_deserialize(&self, jws: String, jwk: &Jwk) -> Result<(Header, Payload), String> {
+    fn jws_deserialize(&self, jws: String, jwk: &Jwk, expected_alg: &str) -> Result<(Header, Payload), String> {
         let parts: Vec<&str> = jws.split('.').collect();
         if parts.len() != 3 {
             return Err("Invalid JWS".to_owned());
@@ -132,23 +129,20 @@ impl OpenIdCrypto for OpenSSLCrypto {
         let parsed_header: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&header_decoded).map_err(|e| e.to_string())?;
 
-        let alg_str = match jwk.get_param("alg").and_then(|v| v.as_str()) {
-            Some(alg) => alg.to_owned(),
-            None => parsed_header
-                .get("alg")
-                .and_then(|v| v.as_str())
-                .ok_or("neither JWK nor JWT header contain an 'alg' parameter")?
-                .to_owned(),
-        };
-
-        if let (Some(header_alg), Some(jwk_alg)) = (
-            parsed_header.get("alg").and_then(|v| v.as_str()),
-            jwk.get_param("alg").and_then(|v| v.as_str()),
-        ) {
-            if header_alg != jwk_alg {
+        if let Some(jwk_alg) = jwk.get_param("alg").and_then(|v| v.as_str()) {
+            if jwk_alg != expected_alg {
                 return Err(format!(
-                    "header alg '{}' does not match JWK alg '{}'",
-                    header_alg, jwk_alg
+                    "expected alg '{}' does not match JWK alg '{}'",
+                    expected_alg, jwk_alg
+                ));
+            }
+        }
+
+        if let Some(header_alg) = parsed_header.get("alg").and_then(|v| v.as_str()) {
+            if header_alg != expected_alg {
+                return Err(format!(
+                    "JWS header alg '{}' does not match expected alg '{}'",
+                    header_alg, expected_alg
                 ));
             }
         }
@@ -156,7 +150,7 @@ impl OpenIdCrypto for OpenSSLCrypto {
         let jwk_jose = josekit::jwk::Jwk::from_map(jwk.as_map()).map_err(|e| e.to_string())?;
 
         let (payload, header) =
-            josekit::jws::deserialize_compact(&jws, &*jwk_jose.to_verifier(Some(&alg_str))?)
+            josekit::jws::deserialize_compact(&jws, &*jwk_jose.to_verifier(Some(expected_alg))?)
                 .map_err(|e| e.to_string())?;
 
         let header = Header {
@@ -653,7 +647,7 @@ mod openssl_crypto_tests {
         let token = crypto.jws_serialize(payload, header, &jwk).unwrap();
 
         let (deserialized_header, deserialized_payload) =
-            crypto.jws_deserialize(token, &jwk).unwrap();
+            crypto.jws_deserialize(token, &jwk, "HS256").unwrap();
 
         assert_eq!(
             deserialized_header.params.get("alg"),
@@ -693,7 +687,7 @@ mod openssl_crypto_tests {
         let crypto = OpenSSLCrypto;
         let token = crypto.jwe_serialize(payload.clone(), header, &jwk).unwrap();
 
-        let deserialized_payload = crypto.jwe_deserialize(token, &jwk).unwrap();
+        let deserialized_payload = crypto.jwe_deserialize(token, &jwk, "RSA-OAEP").unwrap();
 
         assert_eq!(deserialized_payload, payload);
     }

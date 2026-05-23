@@ -203,6 +203,16 @@ impl ClientAuth {
                     ));
                 }
 
+                let kid = jwk.get_param("kid");
+
+                if kid.is_none()
+                    || kid
+                        .and_then(|kid_value| kid_value.as_str())
+                        .is_some_and(|kid| kid.is_empty())
+                {
+                    return Err(OpenIdError::new_error("JWK does not have 'kid'. private_key_jwt requires key id to be present in the JWK"));
+                }
+
                 self.create_assertion(
                     issuer,
                     client_id.as_ref(),

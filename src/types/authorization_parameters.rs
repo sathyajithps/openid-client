@@ -6,13 +6,13 @@ use serde_with::skip_serializing_none;
 
 use crate::{
     helpers::{generate_pkce, generate_random},
-    types::{OpenIdResponseType, Pkce},
+    types::Pkce,
 };
 
 /// # AuthorizationParameters
 /// Represents the parameters used to construct an OIDC or OAuth 2.0 authorization request.
 #[skip_serializing_none]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub struct AuthorizationParameters {
     /// The unique identifier for the client application issued by the authorization server.
     pub client_id: Option<String>,
@@ -127,8 +127,8 @@ impl AuthorizationParameters {
     }
 
     /// Sets the `response_type` parameter
-    pub fn response_type(mut self, response_type: OpenIdResponseType) -> Self {
-        self.response_type = Some(response_type.to_string());
+    pub fn response_type(mut self, response_type: impl Into<String>) -> Self {
+        self.response_type = Some(response_type.into());
         self
     }
 
@@ -378,7 +378,7 @@ fn stringify_vec(val: Option<Vec<String>>) -> Option<String> {
 
 /// # ClaimParamValue
 /// Value for each [ClaimParam]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum ClaimParamValue {
     /// Null (null) value
@@ -389,7 +389,7 @@ pub enum ClaimParamValue {
 
 /// # ClaimParam
 /// The value of `claims` of [AuthorizationParameters]
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ClaimParam {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Claims structure of `id_token`
@@ -401,7 +401,7 @@ pub struct ClaimParam {
 
 /// # ClaimsParameterMember
 /// Customizing the claims from `claims` of [AuthorizationParameters]
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct ClaimsParameterMember {
     /// Marks as essential or not
     #[serde(skip_serializing_if = "Option::is_none")]
