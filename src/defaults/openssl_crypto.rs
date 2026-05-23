@@ -42,7 +42,12 @@ impl OpenIdCrypto for OpenSSLCrypto {
         .map_err(|e| e.to_string())
     }
 
-    fn jwe_deserialize(&self, jwe: String, jwk: &Jwk, expected_alg: &str) -> Result<String, String> {
+    fn jwe_deserialize(
+        &self,
+        jwe: String,
+        jwk: &Jwk,
+        expected_alg: &str,
+    ) -> Result<String, String> {
         let parts: Vec<&str> = jwe.split('.').collect();
         if parts.len() != 5 {
             return Err("Invalid JWE".to_owned());
@@ -73,9 +78,11 @@ impl OpenIdCrypto for OpenSSLCrypto {
 
         let jwk_jose = josekit::jwk::Jwk::from_map(jwk.as_map()).map_err(|e| e.to_string())?;
 
-        let result =
-            josekit::jwe::deserialize_compact(&jwe, &*jwk_jose.to_jwe_decrypter(Some(expected_alg))?)
-                .map_err(|e| e.to_string())?;
+        let result = josekit::jwe::deserialize_compact(
+            &jwe,
+            &*jwk_jose.to_jwe_decrypter(Some(expected_alg))?,
+        )
+        .map_err(|e| e.to_string())?;
 
         String::from_utf8(result.0).map_err(|e| e.to_string())
     }
@@ -118,7 +125,12 @@ impl OpenIdCrypto for OpenSSLCrypto {
         .map_err(|e| e.to_string())
     }
 
-    fn jws_deserialize(&self, jws: String, jwk: &Jwk, expected_alg: &str) -> Result<(Header, Payload), String> {
+    fn jws_deserialize(
+        &self,
+        jws: String,
+        jwk: &Jwk,
+        expected_alg: &str,
+    ) -> Result<(Header, Payload), String> {
         let parts: Vec<&str> = jws.split('.').collect();
         if parts.len() != 3 {
             return Err("Invalid JWS".to_owned());

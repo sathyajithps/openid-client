@@ -82,7 +82,7 @@ pub mod jwt {
         alg: &str,
         kid: Option<&'a str>,
     ) -> OidcReturn<&'a Jwk> {
-        let kty = JwkType::from_alg_str(&alg).ok_or(OpenIdError::new_error("Invalid alg type"))?;
+        let kty = JwkType::from_alg_str(alg).ok_or(OpenIdError::new_error("Invalid alg type"))?;
 
         let candidates: Vec<&Jwk> = issuer_jwks
             .iter()

@@ -31,7 +31,12 @@ impl OpenIdCrypto for JwsOnlyCrypto {
         Err("JWE not implemented. Use OpenSSL Crypto feature (openssl_crypto) for JWE".to_owned())
     }
 
-    fn jwe_deserialize(&self, _jwe: String, _jwk: &Jwk, _expected_alg: &str) -> Result<String, String> {
+    fn jwe_deserialize(
+        &self,
+        _jwe: String,
+        _jwk: &Jwk,
+        _expected_alg: &str,
+    ) -> Result<String, String> {
         Err("JWE not implemented. Use OpenSSL Crypto feature (openssl_crypto) for JWE".to_owned())
     }
 
@@ -163,7 +168,12 @@ impl OpenIdCrypto for JwsOnlyCrypto {
         Ok(format!("{message}.{signature}"))
     }
 
-    fn jws_deserialize(&self, jws: String, jwk: &Jwk, expected_alg: &str) -> Result<(Header, Payload), String> {
+    fn jws_deserialize(
+        &self,
+        jws: String,
+        jwk: &Jwk,
+        expected_alg: &str,
+    ) -> Result<(Header, Payload), String> {
         let key_type = jwk.key_type().ok_or("Unknown key type")?;
 
         let decoding_key = match key_type {
