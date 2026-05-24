@@ -10,7 +10,10 @@ use crate::{
             validate_auth_code_openid_response, validate_auth_response, validate_hybrid_response,
             validate_implicit_response,
         },
-        jwt::{validate_jwt, JwtValidationParameters},
+        jwt::{
+            validate_audience, validate_issuer, validate_jwt, validate_presence,
+            JwtValidationParameters,
+        },
     },
     config::{ClientAuth, DPoPOptions, OpenIdClientConfiguration},
     errors::{OidcReturn, OpenIdError},
@@ -24,11 +27,12 @@ use crate::{
     types::{
         http_client::{HttpMethod, HttpRequest, HttpResponse, OidcHttpClient, RequestBody},
         AuthMethods, AuthenticatedEndpoints, AuthorizationCodeGrantParameters,
-        AuthorizationCodeGrantValidationParameters, AuthorizationParameters, CibaAuthRequest,
-        CibaAuthResponse, ClientRegistrationRequest, ClientRegistrationResponse,
-        DeviceAuthorizationRequest, DeviceAuthorizationResponse, EndSessionParameters, Header,
-        ImplicitGrantParameters, IssuerMetadata, NonceCheck, OpenIdCrypto, OpenIdResponseType,
-        Payload, PushedAuthorizationResponse, UserinfoTokenLocation, WebFingerResponse,
+        AuthorizationCodeGrantValidationParameters, AuthorizationParameters,
+        BackchannelLogoutValidationParameters, CibaAuthRequest, CibaAuthResponse,
+        ClientRegistrationRequest, ClientRegistrationResponse, DeviceAuthorizationRequest,
+        DeviceAuthorizationResponse, EndSessionParameters, Header, ImplicitGrantParameters,
+        IssuerMetadata, NonceCheck, OpenIdCrypto, OpenIdResponseType, Payload,
+        PushedAuthorizationResponse, UserinfoTokenLocation, ValidatedJwt, WebFingerResponse,
     },
 };
 
@@ -1632,6 +1636,209 @@ impl Client {
         }
 
         Ok(tokenset)
+    }
+
+    /// # Verify Backchannel Logout Token
+    ///
+    /// Verifies a backchannel logout token according to the OpenID Connect Back-Channel Logout 1.0 specification.
+    ///
+    /// - `config` - OpenID client configuration.
+    /// - `crypto` - The crypto backend to use for OpenID crypto operations.
+    /// - `logout_token` - The logout token JWT string.
+    /// - `parameters` - Optional validation parameters to check expected subject, session ID, or event types.
+    pub fn verify_backchannel_logout_token<C: OpenIdCrypto>(
+        config: &OpenIdClientConfiguration,
+        crypto: &C,
+        logout_token: &str,
+        parameters: Option<BackchannelLogoutValidationParameters>,
+    ) -> OidcReturn<ValidatedJwt> {
+        let jwt_validation_params = JwtValidationParameters {
+            signing_keys: &config.issuer_jwks,
+            check_header_alg: true,
+            issuer_algs: &config.issuer.id_token_signing_alg_values_supported,
+            client_algs: config
+                .client
+                .id_token_signed_response_alg
+                .clone()
+                .map(|alg| vec![alg]),
+            fallback_algs: Some(vec!["RS256".to_owned()]),
+            skew: config.options.clock_skew,
+            tolerance: config.options.clock_tolerance,
+        };
+
+        let validated_jwt = validate_jwt(
+            logout_token.to_string(),
+            jwt_validation_params,
+            &config.jwe_keys,
+            crypto,
+        )?;
+
+        validate_presence(
+            &validated_jwt,
+            &["iss", "aud", "iat", "exp", "jti", "events"],
+        )?;
+
+        validate_issuer(&validated_jwt, &config.issuer)?;
+
+        validate_audience(&validated_jwt, &config.client.client_id)?;
+
+        if let Some(aud_length) = validated_jwt
+            .payload
+            .params
+            .get("aud")
+            .and_then(|aud| aud.as_array())
+            .map(|aud| aud.len())
+        {
+            if aud_length != 1 {
+                let azp = validated_jwt
+                    .payload
+                    .params
+                    .get("azp")
+                    .and_then(|azp| azp.as_str())
+                    .ok_or(OpenIdError::new_error(
+                        "Logout Token \"aud\" (audience) claim includes additional untrusted audiences",
+                    ))?;
+
+                if azp != config.client.client_id {
+                    return Err(OpenIdError::new_error(
+                        "unexpected Logout Token \"azp\" (authorized party) claim value",
+                    ));
+                }
+            }
+        }
+
+        if validated_jwt.payload.params.contains_key("nonce") {
+            return Err(OpenIdError::new_error(
+                "Logout Token must not contain a \"nonce\" claim",
+            ));
+        }
+
+        let events = validated_jwt
+            .payload
+            .params
+            .get("events")
+            .and_then(|e| e.as_object())
+            .ok_or_else(|| {
+                OpenIdError::new_error("Logout Token \"events\" claim must be a JSON object")
+            })?;
+
+        let events_to_check = parameters
+            .as_ref()
+            .and_then(|p| p.expected_events.clone())
+            .unwrap_or_else(|| {
+                vec!["http://schemas.openid.net/event/backchannel-logout".to_owned()]
+            });
+
+        for event_name in events_to_check {
+            let event_payload = events.get(&event_name).ok_or_else(|| {
+                OpenIdError::new_error(format!(
+                    "Logout Token \"events\" claim is missing \"{}\" event",
+                    event_name
+                ))
+            })?;
+
+            if !event_payload.is_object() {
+                return Err(OpenIdError::new_error(format!(
+                    "The \"{}\" event value must be a JSON object",
+                    event_name
+                )));
+            }
+        }
+
+        let sub_present = validated_jwt.payload.params.contains_key("sub");
+        let sid_present = validated_jwt.payload.params.contains_key("sid");
+
+        if !sub_present && !sid_present {
+            return Err(OpenIdError::new_error(
+                "Logout Token must contain either a \"sub\" claim, a \"sid\" claim, or both",
+            ));
+        }
+
+        if let Some(sub) = validated_jwt.payload.params.get("sub") {
+            if !sub.is_string() {
+                return Err(OpenIdError::new_error(
+                    "Logout Token \"sub\" claim must be a string",
+                ));
+            }
+        }
+
+        if let Some(sid) = validated_jwt.payload.params.get("sid") {
+            if !sid.is_string() {
+                return Err(OpenIdError::new_error(
+                    "Logout Token \"sid\" claim must be a string",
+                ));
+            }
+        }
+
+        let session_required = config
+            .client
+            .backchannel_logout_session_required
+            .unwrap_or(false);
+
+        if session_required && !sid_present {
+            return Err(OpenIdError::new_error(
+                "Logout Token must contain a \"sid\" claim because backchannel_logout_session_required is configured",
+            ));
+        }
+
+        if let Some(ref params) = parameters {
+            if let Some(ref expected_sub) = params.expected_sub {
+                let sub_claim = validated_jwt
+                    .payload
+                    .params
+                    .get("sub")
+                    .and_then(|s| s.as_str())
+                    .ok_or_else(|| {
+                        OpenIdError::new_error(
+                            "Logout Token is missing \"sub\" claim required for expected subject check",
+                        )
+                    })?;
+
+                if sub_claim != expected_sub {
+                    return Err(OpenIdError::new_error(
+                        "unexpected Logout Token \"sub\" (subject) claim value",
+                    ));
+                }
+            }
+
+            if let Some(ref expected_sid) = params.expected_sid {
+                let sid_claim = validated_jwt
+                    .payload
+                    .params
+                    .get("sid")
+                    .and_then(|s| s.as_str())
+                    .ok_or_else(|| {
+                        OpenIdError::new_error(
+                            "Logout Token is missing \"sid\" claim required for expected session ID check",
+                        )
+                    })?;
+
+                if sid_claim != expected_sid {
+                    return Err(OpenIdError::new_error(
+                        "unexpected Logout Token \"sid\" (session ID) claim value",
+                    ));
+                }
+            }
+        }
+
+        if !validated_jwt.payload.params.contains_key("jti") {
+            return Err(OpenIdError::new_error(
+                "Logout Token must contain a \"jti\" claim",
+            ));
+        }
+
+        if let Some(typ) = validated_jwt.header.params.get("typ") {
+            let typ_str = typ.as_str().ok_or_else(|| {
+                OpenIdError::new_error("Logout Token \"typ\" header parameter must be a string")
+            })?;
+            if typ_str != "logout+jwt" {
+                return Err(OpenIdError::new_error(
+                    "Logout Token \"typ\" header parameter must be \"logout+jwt\"",
+                ));
+            }
+        }
+
+        Ok(validated_jwt)
     }
 }
 

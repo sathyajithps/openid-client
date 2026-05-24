@@ -18,6 +18,12 @@ pub struct ClientMetadata {
     /// Post logout redirect uri
     pub post_logout_redirect_uri: Option<String>,
 
+    /// Backchannel logout URI
+    pub backchannel_logout_uri: Option<String>,
+
+    /// Specifying whether the RP requires a sid claim in the Logout Token
+    pub backchannel_logout_session_required: Option<bool>,
+
     /// Client requires tls bound access tokens
     pub tls_client_certificate_bound_access_tokens: Option<bool>,
 
@@ -76,6 +82,11 @@ impl From<ClientRegistrationResponse> for ClientMetadata {
             client_id: value.client_id,
             post_logout_redirect_uri: take_string(&mut metadata, "post_logout_redirect_uri")
                 .or_else(|| take_first_string(&mut metadata, "post_logout_redirect_uris")),
+            backchannel_logout_uri: take_string(&mut metadata, "backchannel_logout_uri"),
+            backchannel_logout_session_required: take_bool(
+                &mut metadata,
+                "backchannel_logout_session_required",
+            ),
             tls_client_certificate_bound_access_tokens: take_bool(
                 &mut metadata,
                 "tls_client_certificate_bound_access_tokens",

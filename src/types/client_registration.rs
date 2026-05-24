@@ -155,6 +155,14 @@ pub struct ClientRegistrationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_logout_redirect_uris: Option<Vec<String>>,
 
+    /// Backchannel logout URI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backchannel_logout_uri: Option<String>,
+
+    /// Specifying whether the RP requires a sid claim in the Logout Token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backchannel_logout_session_required: Option<bool>,
+
     /// CIBA token delivery mode (poll, ping, push).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub backchannel_token_delivery_mode: Option<String>,
@@ -253,6 +261,18 @@ impl ClientRegistrationRequest {
     /// Set post-logout redirect URIs.
     pub fn post_logout_redirect_uris(mut self, uris: Vec<String>) -> Self {
         self.post_logout_redirect_uris = Some(uris);
+        self
+    }
+
+    /// Set backchannel logout URI.
+    pub fn backchannel_logout_uri(mut self, uri: impl Into<String>) -> Self {
+        self.backchannel_logout_uri = Some(uri.into());
+        self
+    }
+
+    /// Set backchannel logout session required.
+    pub fn backchannel_logout_session_required(mut self, required: bool) -> Self {
+        self.backchannel_logout_session_required = Some(required);
         self
     }
 

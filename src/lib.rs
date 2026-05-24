@@ -16,18 +16,21 @@
 //! - discovery: [`client::Client::discover_oidc_async`],
 //!   [`client::Client::discover_oauth_async`], [`client::Client::webfinger_async`],
 //!   [`client::Client::fetch_issuer_jwks_async`]
-//! - authorization request construction: [`client::Client::authorization_url`],
+//! - authorization and logout request construction: [`client::Client::authorization_url`],
 //!   [`client::Client::authorization_post`], [`client::Client::endsession_url`],
 //!   [`client::Client::pushed_authorization_request_async`], [`client::Client::request_object`]
 //! - authorization response handling: [`client::Client::authorization_code_grant_async`],
-//!   [`client::Client::implicit_authentication_async`], hybrid response validation, and JARM validation
-//!   through [`config::OpenIdClientConfiguration`]
+//!   [`client::Client::validate_authorization_code_grant_async`],
+//!   [`client::Client::implicit_authentication_async`]
 //! - token operations: [`client::Client::grant_async`], [`client::Client::refresh_grant_async`],
-//!   [`client::Client::client_credentials_grant_async`], [`client::Client::device_code_grant_async`],
-//!   [`client::Client::ciba_grant_async`], [`client::Client::token_exchange_async`]
+//!   [`client::Client::client_credentials_grant_async`], [`client::Client::token_exchange_async`]
+//! - device and CIBA operations: [`client::Client::device_authorization_request_async`],
+//!   [`client::Client::device_code_grant_async`], [`client::Client::ciba_authentication_async`],
+//!   [`client::Client::ciba_grant_async`]
 //! - resource and account endpoints: [`client::Client::userinfo_async`],
 //!   [`client::Client::request_resource_async`], [`client::Client::introspect_async`],
 //!   [`client::Client::revoke_async`]
+//! - logout handling: [`client::Client::verify_backchannel_logout_token`]
 //! - dynamic client registration: [`client::Client::register_async`] and [`client::Client::from_uri_async`]
 //!
 //! Supporting modules include:
@@ -74,6 +77,7 @@
 //!   - nonce extraction and caching
 //!   - DPoP-bound token and resource requests
 //! - [OpenID Connect RP-Initiated Logout 1.0][feature-rp-logout]
+//! - [OpenID Connect Back-Channel Logout 1.0][feature-backchannel-logout]
 //! - FAPI-oriented helpers such as `fapi` request object shaping and hybrid `s_hash` checks
 //!
 //! ## Crypto And HTTP Backends
@@ -131,6 +135,7 @@
 //! [feature-token-exchange]: https://tools.ietf.org/html/rfc8693
 //! [feature-ciba]: https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html
 //! [feature-rp-logout]: https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+//! [feature-backchannel-logout]: https://openid.net/specs/openid-connect-backchannel-1_0.html
 //! [feature-jarm]: https://openid.net/specs/oauth-v2-jarm.html
 //! [feature-dpop]: https://www.rfc-editor.org/rfc/rfc9449.html
 //! [feature-par]: https://www.rfc-editor.org/rfc/rfc9126.html
